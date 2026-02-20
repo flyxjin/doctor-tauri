@@ -1,0 +1,32 @@
+{
+  "name": "traditional-chinese-medicine-system",
+  "version": "1.0.0",
+  "description": "中药材销售管理系统",
+  "main": "server.js",
+  "bin": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": ["traditional chinese medicine", "inventory management", "prescription"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mysql2": "^3.17.1",
+    "sql.js": "^1.10.3"
+  },
+  "pkg": {
+    "targets": ["node18-win-x64"],
+    "output": "../dist/中药材销售管理系统",
+    "assets": [
+      "../dist/**/*",
+      "routes/**/*",
+      "config/**/*",
+      "node_modules/sql.js/dist/**/*"
+    ]
+  }
+}
