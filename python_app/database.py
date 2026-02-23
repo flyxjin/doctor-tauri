@@ -90,6 +90,18 @@ class Database:
             )
         ''')
         
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_type TEXT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id INTEGER NOT NULL,
+                operator TEXT,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines (name)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_medicines_category ON medicines (category)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_inventory_medicine_id ON inventory (medicine_id)')

@@ -41,7 +41,9 @@ class UpdateInfo:
     
     def get_file_size_display(self) -> str:
         size = self.get_file_size()
-        if size < 1024:
+        if size <= 0:
+            return "未知"
+        elif size < 1024:
             return f"{size} B"
         elif size < 1024 * 1024:
             return f"{size / 1024:.1f} KB"

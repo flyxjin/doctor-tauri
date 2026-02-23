@@ -8,7 +8,7 @@ VERSION_DATE = "2026-02-23"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
-GITEE_REPO = "your-username/medicine-system"
+GITEE_REPO = "flyxjin/doctor"
 GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
