@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QDialog, QFormLayout,
                              QDoubleSpinBox, QMessageBox, QGroupBox, QLabel, QLineEdit,
-                             QComboBox, QFileDialog)
+                             QComboBox, QFileDialog, QHeaderView)
 from PyQt5.QtGui import QColor, QBrush, QFont
 from PyQt5.QtCore import Qt
+from utils.responsive_font import ResponsiveWidget, get_font_manager
 import csv
 
 
@@ -66,10 +67,13 @@ class StockDialog(QDialog):
         return self.quantity_spin.value(), self.price_spin.value(), self.unit_combo.currentText(), self.notes_edit.text()
 
 
-class InventoryView(QWidget):
+class InventoryView(QWidget, ResponsiveWidget):
     def __init__(self, db):
-        super().__init__()
+        QWidget.__init__(self)
+        ResponsiveWidget.__init__(self)
         self.db = db
+        self._font_manager = get_font_manager()
+        self._base_column_widths = [0, 150, 80, 100, 60, 90, 110, 80, 120]
         self.init_ui()
         self.refresh_data()
 
@@ -136,6 +140,7 @@ class InventoryView(QWidget):
         self.stock_in_btn.setStyleSheet('background-color: #67c23a; color: white;')
         self.stock_out_btn.setStyleSheet('background-color: #e6a23c; color: white;')
         self.adjust_btn.setStyleSheet('background-color: #409eff; color: white;')
+        self.export_btn.setStyleSheet('background-color: #909399; color: white;')
         
         self.stock_in_btn.clicked.connect(self.stock_in)
         self.stock_out_btn.clicked.connect(self.stock_out)
@@ -158,14 +163,10 @@ class InventoryView(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setColumnHidden(0, True)
-        self.table.setColumnWidth(1, 150)
-        self.table.setColumnWidth(2, 80)
-        self.table.setColumnWidth(3, 100)
-        self.table.setColumnWidth(4, 60)
-        self.table.setColumnWidth(5, 90)
-        self.table.setColumnWidth(6, 110)
-        self.table.setColumnWidth(7, 80)
-        self.table.setColumnWidth(8, 120)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        
+        self._apply_responsive_table()
 
         layout.addWidget(stats_group)
         layout.addWidget(self.warning_group)
@@ -390,3 +391,60 @@ class InventoryView(QWidget):
                 QMessageBox.information(self, '成功', '库存数据导出成功！')
         except Exception as e:
             QMessageBox.warning(self, '错误', f'导出失败: {str(e)}')
+    
+    def _apply_responsive_table(self):
+        if not hasattr(self, 'table'):
+            return
+            
+        config = self._font_manager.get_table_config()
+        scale = config['scale']
+        
+        self.table.verticalHeader().setDefaultSectionSize(config['row_height'])
+        self.table.verticalHeader().setMinimumSectionSize(config['row_height'])
+        
+        header = self.table.horizontalHeader()
+        header.setMinimumSectionSize(config['cell_padding'] * 2)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        
+        for col in range(len(self._base_column_widths)):
+            if col == 0:
+                continue
+            base_width = self._base_column_widths[col]
+            scaled_width = int(base_width * scale)
+            self.table.setColumnWidth(col, scaled_width)
+        
+        font = self._font_manager.get_font('table_cell')
+        self.table.setFont(font)
+        
+        header_font = self._font_manager.get_font('table_header')
+        header.setFont(header_font)
+        
+        self.table.setStyleSheet(f'''
+            QTableWidget {{
+                gridline-color: #e0e0e0;
+                font-size: {config['font_size']}px;
+            }}
+            QTableWidget::item {{
+                padding: {config['cell_padding']}px;
+            }}
+            QHeaderView::section {{
+                font-size: {config['header_font_size']}px;
+                font-weight: bold;
+                padding: {config['cell_padding']}px;
+                background-color: #f5f7fa;
+                border: none;
+                border-bottom: 2px solid #e0e0e0;
+            }}
+        ''')
+        
+        font_size = self._font_manager.get_font_size('body')
+        if hasattr(self, 'total_meds_label'):
+            self.total_meds_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: #409eff;')
+        if hasattr(self, 'total_value_label'):
+            self.total_value_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: #67c23a;')
+        if hasattr(self, 'low_stock_label'):
+            self.low_stock_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: #f56c6c;')
+    
+    def update_fonts(self):
+        self._apply_responsive_table()
+        self.refresh_data()

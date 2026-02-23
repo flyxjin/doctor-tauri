@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QLineEdit,
                              QDialog, QFormLayout, QMessageBox, QComboBox,
-                             QTextEdit, QSplitter, QGroupBox, QLabel)
+                             QTextEdit, QSplitter, QGroupBox, QLabel, QHeaderView)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+from utils.responsive_font import ResponsiveWidget, get_font_manager
 
 
 class MedicineDialog(QDialog):
@@ -94,10 +95,13 @@ class MedicineDialog(QDialog):
         )
 
 
-class MedicineView(QWidget):
+class MedicineView(QWidget, ResponsiveWidget):
     def __init__(self, db):
-        super().__init__()
+        QWidget.__init__(self)
+        ResponsiveWidget.__init__(self)
         self.db = db
+        self._font_manager = get_font_manager()
+        self._base_column_widths = [0, 120, 100, 80, 60, 80, 120, 200, 200, 80, 100, 150, 100]
         self.init_ui()
         self.load_data()
 
@@ -140,9 +144,11 @@ class MedicineView(QWidget):
         self.view_detail_btn = QPushButton('查看详情')
         self.export_btn = QPushButton('导出数据')
         
-        self.add_btn.setStyleSheet('background-color: #67c23a;')
-        self.edit_btn.setStyleSheet('background-color: #e6a23c;')
-        self.del_btn.setStyleSheet('background-color: #f56c6c;')
+        self.add_btn.setStyleSheet('background-color: #67c23a; color: white;')
+        self.edit_btn.setStyleSheet('background-color: #e6a23c; color: white;')
+        self.del_btn.setStyleSheet('background-color: #f56c6c; color: white;')
+        self.view_detail_btn.setStyleSheet('background-color: #409eff; color: white;')
+        self.export_btn.setStyleSheet('background-color: #909399; color: white;')
         
         self.add_btn.clicked.connect(self.add_medicine)
         self.edit_btn.clicked.connect(self.edit_medicine)
@@ -157,29 +163,23 @@ class MedicineView(QWidget):
         btn_bar.addWidget(self.export_btn)
         btn_bar.addStretch()
 
-        # 数据表格
+        # 数据表格 - 只显示关键信息，详细内容在详情页查看
         self.table = QTableWidget()
-        self.table.setColumnCount(13)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
-            'ID', '名称', '别名', '分类', '药性', '药味', '归经', 
-            '功效', '主治', '用法', '用量', '禁忌', '备注'
+            'ID', '名称', '别名', '分类', '药性', '药味', '归经'
         ])
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setColumnHidden(0, True)
-        self.table.setColumnWidth(1, 120)
-        self.table.setColumnWidth(2, 100)
-        self.table.setColumnWidth(3, 80)
-        self.table.setColumnWidth(4, 60)
-        self.table.setColumnWidth(5, 80)
-        self.table.setColumnWidth(6, 120)
-        self.table.setColumnWidth(7, 200)
-        self.table.setColumnWidth(8, 200)
-        self.table.setColumnWidth(9, 80)
-        self.table.setColumnWidth(10, 100)
-        self.table.setColumnWidth(11, 150)
-        self.table.setColumnWidth(12, 100)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setWordWrap(True)
+        self.table.verticalHeader().setDefaultSectionSize(40)
+        
+        self._base_column_widths = [0, 120, 100, 100, 80, 100, 150]
+        self._apply_responsive_table()
         
         # 统计信息
         self.stats_label = QLabel('共 0 味药材')
@@ -216,16 +216,18 @@ class MedicineView(QWidget):
             query += " AND nature = ?"
             params.append(nature)
         
-        rows = self.db.fetchall(query, params)
+        self._full_data = self.db.fetchall(query, params)
         
-        self.table.setRowCount(len(rows))
-        for row_idx, row_data in enumerate(rows):
-            for col_idx, col_data in enumerate(row_data):
+        self.table.setRowCount(len(self._full_data))
+        for row_idx, row_data in enumerate(self._full_data):
+            display_cols = [0, 1, 2, 3, 4, 5, 6]
+            for col_idx, data_idx in enumerate(display_cols):
+                col_data = row_data[data_idx] if data_idx < len(row_data) else ''
                 item = QTableWidgetItem(str(col_data) if col_data else '')
                 item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 self.table.setItem(row_idx, col_idx, item)
         
-        self.stats_label.setText(f'共 {len(rows)} 味药材')
+        self.stats_label.setText(f'共 {len(self._full_data)} 味药材')
 
     def add_medicine(self):
         dialog = MedicineDialog(self)
@@ -256,8 +258,11 @@ class MedicineView(QWidget):
             return
 
         row = selected[0].row()
-        medicine_data = [self.table.item(row, col).text() if self.table.item(row, col) else '' 
-                         for col in range(self.table.columnCount())]
+        if hasattr(self, '_full_data') and self._full_data:
+            medicine_data = list(self._full_data[row])
+        else:
+            medicine_data = [self.table.item(row, col).text() if self.table.item(row, col) else '' 
+                             for col in range(self.table.columnCount())]
 
         dialog = MedicineDialog(self, medicine_data)
         if dialog.exec_():
@@ -299,23 +304,32 @@ class MedicineView(QWidget):
             return
 
         row = selected[0].row()
-        medicine_data = [self.table.item(row, col).text() if self.table.item(row, col) else '' 
-                         for col in range(self.table.columnCount())]
+        if hasattr(self, '_full_data') and self._full_data:
+            medicine_data = self._full_data[row]
+        else:
+            medicine_data = [self.table.item(row, col).text() if self.table.item(row, col) else '' 
+                             for col in range(self.table.columnCount())]
         
         detail_text = f'''
         <h2 style="color: #409eff;">{medicine_data[1]}</h2>
-        <p><b>别名：</b>{medicine_data[2] or '无'}</p>
-        <p><b>分类：</b>{medicine_data[3] or '未分类'}</p>
-        <p><b>药性：</b>{medicine_data[4] or '未知'}</p>
-        <p><b>药味：</b>{medicine_data[5] or '未知'}</p>
-        <p><b>归经：</b>{medicine_data[6] or '未知'}</p>
-        <hr>
-        <p><b>功效：</b><br>{medicine_data[7] or '暂无'}</p>
-        <p><b>主治：</b><br>{medicine_data[8] or '暂无'}</p>
-        <p><b>用法：</b>{medicine_data[9] or '暂无'}</p>
-        <p><b>用量：</b>{medicine_data[10] or '暂无'}</p>
-        <p><b>禁忌：</b><br>{medicine_data[11] or '暂无'}</p>
-        <p><b>备注：</b>{medicine_data[12] or '无'}</p>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>别名</b></td><td style="padding: 8px;">{medicine_data[2] or '无'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>分类</b></td><td style="padding: 8px;">{medicine_data[3] or '未分类'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药性</b></td><td style="padding: 8px;">{medicine_data[4] or '未知'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药味</b></td><td style="padding: 8px;">{medicine_data[5] or '未知'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>归经</b></td><td style="padding: 8px;">{medicine_data[6] or '未知'}</td></tr>
+        </table>
+        <hr style="margin: 15px 0;">
+        <h3 style="color: #67c23a;">功效</h3>
+        <p style="padding: 10px; background: #f0f9eb; border-radius: 5px;">{medicine_data[7] or '暂无'}</p>
+        <h3 style="color: #409eff;">主治</h3>
+        <p style="padding: 10px; background: #ecf5ff; border-radius: 5px;">{medicine_data[8] or '暂无'}</p>
+        <h3 style="color: #e6a23c;">用法用量</h3>
+        <p style="padding: 10px; background: #fdf6ec; border-radius: 5px;">{medicine_data[9] or '暂无'} | {medicine_data[10] or '暂无'}</p>
+        <h3 style="color: #f56c6c;">禁忌</h3>
+        <p style="padding: 10px; background: #fef0f0; border-radius: 5px;">{medicine_data[11] or '暂无'}</p>
+        <h3 style="color: #909399;">备注</h3>
+        <p style="padding: 10px; background: #f4f4f5; border-radius: 5px;">{medicine_data[12] or '无'}</p>
         '''
         
         msg_box = QMessageBox(self)
@@ -323,6 +337,7 @@ class MedicineView(QWidget):
         msg_box.setTextFormat(Qt.RichText)
         msg_box.setText(detail_text)
         msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setMinimumWidth(500)
         msg_box.exec_()
 
     def export_data(self):
@@ -342,3 +357,55 @@ class MedicineView(QWidget):
                 QMessageBox.information(self, '成功', '数据导出成功！')
         except Exception as e:
             QMessageBox.warning(self, '错误', f'导出失败: {str(e)}')
+    
+    def _apply_responsive_table(self):
+        if not hasattr(self, 'table'):
+            return
+            
+        config = self._font_manager.get_table_config()
+        scale = config['scale']
+        
+        self.table.verticalHeader().setDefaultSectionSize(config['row_height'])
+        self.table.verticalHeader().setMinimumSectionSize(config['row_height'])
+        
+        header = self.table.horizontalHeader()
+        header.setMinimumSectionSize(config['cell_padding'] * 2)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        
+        for col in range(len(self._base_column_widths)):
+            if col == 0:
+                continue
+            base_width = self._base_column_widths[col]
+            scaled_width = int(base_width * scale)
+            self.table.setColumnWidth(col, scaled_width)
+        
+        font = self._font_manager.get_font('table_cell')
+        self.table.setFont(font)
+        
+        header_font = self._font_manager.get_font('table_header')
+        header.setFont(header_font)
+        
+        self.table.setStyleSheet(f'''
+            QTableWidget {{
+                gridline-color: #e0e0e0;
+                font-size: {config['font_size']}px;
+            }}
+            QTableWidget::item {{
+                padding: {config['cell_padding']}px;
+            }}
+            QHeaderView::section {{
+                font-size: {config['header_font_size']}px;
+                font-weight: bold;
+                padding: {config['cell_padding']}px;
+                background-color: #f5f7fa;
+                border: none;
+                border-bottom: 2px solid #e0e0e0;
+            }}
+        ''')
+        
+        if hasattr(self, 'stats_label'):
+            self.stats_label.setStyleSheet(f'color: #666; font-size: {self._font_manager.get_font_size("small")}px;')
+    
+    def update_fonts(self):
+        self._apply_responsive_table()
+        self.load_data()

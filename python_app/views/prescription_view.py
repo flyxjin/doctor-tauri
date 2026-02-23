@@ -61,11 +61,14 @@ class PrescriptionView(QWidget):
         self.total_label = QLabel('总计: ¥ 0.00')
         self.total_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #e74c3c;")
 
-        save_btn = QPushButton('保存处方并扣减库存')
+        save_btn = QPushButton('保存处方')
+        save_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 10px 20px;')
         save_btn.clicked.connect(self.save_prescription)
         print_btn = QPushButton('打印处方')
+        print_btn.setStyleSheet('background-color: #409eff; color: white; padding: 10px 20px;')
         print_btn.clicked.connect(self.print_prescription)
         clear_btn = QPushButton('清空')
+        clear_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 20px;')
         clear_btn.clicked.connect(self.clear_form)
 
         btn_row = QHBoxLayout()

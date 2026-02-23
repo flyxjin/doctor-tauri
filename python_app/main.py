@@ -8,6 +8,7 @@ from views.medicine_view import MedicineView
 from views.prescription_view import PrescriptionView
 from views.inventory_view import InventoryView
 from views.history_view import HistoryView
+from views.batch_import_view import BatchImportView
 from utils.responsive_font import get_font_manager
 
 
@@ -198,6 +199,7 @@ class MainWindow(QMainWindow):
         self.font_manager = get_font_manager()
         self.font_manager.font_changed.connect(self._on_font_changed)
         self._resize_timer = None
+        self._last_window_state = None
         self.init_ui()
     
     def init_ui(self):
@@ -245,7 +247,12 @@ class MainWindow(QMainWindow):
         
         sidebar_layout.addStretch()
         
-        self.import_btn = QPushButton('导入300味药材')
+        self.help_btn = QPushButton('使用帮助')
+        self.help_btn.setObjectName('help_btn')
+        self.help_btn.clicked.connect(self.show_help)
+        sidebar_layout.addWidget(self.help_btn)
+        
+        self.import_btn = QPushButton('批量导入药材')
         self.import_btn.setObjectName('import_btn')
         self.import_btn.clicked.connect(self.show_import_dialog)
         sidebar_layout.addWidget(self.import_btn)
@@ -354,6 +361,18 @@ class MainWindow(QMainWindow):
             }}
             QPushButton#nav_btn:checked {{
                 background-color: #3498db;
+            }}
+            QPushButton#help_btn {{
+                background-color: #909399;
+                color: white;
+                text-align: center;
+                padding: 12px 20px;
+                border-radius: 6px;
+                font-size: {button_size}px;
+                min-height: 40px;
+            }}
+            QPushButton#help_btn:hover {{
+                background-color: #a6a9ad;
             }}
             QPushButton#import_btn {{
                 background-color: #67c23a;
@@ -487,20 +506,120 @@ class MainWindow(QMainWindow):
         if self._resize_timer is not None:
             self.killTimer(self._resize_timer)
         
-        self._resize_timer = self.startTimer(100)
+        self._resize_timer = self.startTimer(150)
+    
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        
+        if event.type() == event.Type.WindowStateChange:
+            current_state = self.windowState()
+            if current_state != self._last_window_state:
+                self._last_window_state = current_state
+                
+                if current_state & Qt.WindowFullScreen or current_state & Qt.WindowMaximized:
+                    self.font_manager.update_for_window_size(9999)
+                    self._apply_responsive_styles()
+                    QApplication.processEvents()
     
     def timerEvent(self, event):
         self.killTimer(self._resize_timer)
         self._resize_timer = None
         
-        self.font_manager.update_for_window_size(self.width())
-        self._update_sidebar_width(self.width())
+        new_width = self.width()
+        old_base_size = self.font_manager.current_base_size
+        
+        self.font_manager.update_for_window_size(new_width)
+        
+        if self.font_manager.current_base_size != old_base_size:
+            self._apply_responsive_styles()
+            self._update_sidebar_width(new_width)
+            
+            QApplication.processEvents()
+            
+            for view in [self.medicine_view, self.inventory_view, 
+                        self.prescription_view, self.history_view]:
+                if hasattr(view, 'update'):
+                    view.update()
+                if hasattr(view, 'viewport'):
+                    view.viewport().update()
     
     def show_import_dialog(self):
-        dialog = ImportDialog(self, self.db)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('批量导入药材数据')
+        dialog.setMinimumSize(800, 600)
+        
+        layout = QVBoxLayout(dialog)
+        
+        import_widget = BatchImportView(self.db, dialog)
+        layout.addWidget(import_widget)
+        
+        close_btn = QPushButton('关闭')
+        close_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 30px;')
+        close_btn.clicked.connect(dialog.accept)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+        
         dialog.exec_()
         self.medicine_view.load_data()
         self.inventory_view.refresh_data()
+    
+    def show_help(self):
+        help_text = '''
+        <h2 style="color: #409eff;">中药材销售管理系统 - 使用帮助</h2>
+        <hr>
+        <h3>药材管理</h3>
+        <ul>
+            <li><b>添加药材</b>: 点击"添加药材"按钮，填写药材信息</li>
+            <li><b>修改药材</b>: 选中表格行后点击"修改信息"</li>
+            <li><b>删除药材</b>: 选中表格行后点击"删除药材"</li>
+            <li><b>搜索药材</b>: 在搜索框输入名称、别名或功效</li>
+            <li><b>筛选分类</b>: 使用下拉框按分类或药性筛选</li>
+            <li><b>导出数据</b>: 点击"导出数据"保存为CSV文件</li>
+        </ul>
+        <h3>开处方</h3>
+        <ul>
+            <li><b>填写患者信息</b>: 输入姓名、年龄、性别、诊断</li>
+            <li><b>添加药材</b>: 搜索药材后点击"添加到处方"</li>
+            <li><b>修改数量</b>: 双击表格中的数量列修改</li>
+            <li><b>保存处方</b>: 点击"保存处方并扣减库存"</li>
+            <li><b>打印处方</b>: 点击"打印处方"打印当前处方</li>
+        </ul>
+        <h3>库存管理</h3>
+        <ul>
+            <li><b>入库</b>: 选中药材后点击"药材入库"</li>
+            <li><b>出库</b>: 选中药材后点击"药材出库"</li>
+            <li><b>调整库存</b>: 点击"库存调整"修改库存数量</li>
+            <li><b>库存预警</b>: 库存低于最低值时显示红色警告</li>
+        </ul>
+        <h3>处方历史</h3>
+        <ul>
+            <li>查看所有历史处方记录</li>
+            <li>支持按日期范围筛选</li>
+            <li>可查看处方详情和重新打印</li>
+        </ul>
+        <hr>
+        <h3>快捷键</h3>
+        <ul>
+            <li><b>Ctrl+F</b>: 快速搜索</li>
+            <li><b>Ctrl+N</b>: 新增药材</li>
+            <li><b>Ctrl+S</b>: 保存</li>
+            <li><b>Ctrl+P</b>: 打印</li>
+            <li><b>ESC</b>: 关闭弹窗</li>
+        </ul>
+        <hr>
+        <p style="color: #909399;">版本: 2.0.0</p>
+        '''
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle('使用帮助')
+        msg_box.setTextFormat(Qt.RichText)
+        msg_box.setText(help_text)
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setMinimumWidth(600)
+        msg_box.exec_()
     
     def switch_view(self, view_name):
         view_map = {
