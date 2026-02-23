@@ -114,7 +114,7 @@ class PrescriptionView(QWidget):
         # 实际开发中此处需要更复杂的配伍逻辑（如十八反、十九畏）
         for item in self.cart:
             if contraindication and item['name'] in contraindication:
-                QMessageBox.warning(self, '⚠️ 配伍禁忌提醒',
+                QMessageBox.warning(self, '配伍禁忌提醒',
                                     f'警告："{name}" 与 "{item["name"]}" 可能存在配伍禁忌！\n禁忌说明：{contraindication}')
 
         # 输入数量

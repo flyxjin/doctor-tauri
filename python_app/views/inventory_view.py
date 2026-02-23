@@ -254,8 +254,8 @@ class InventoryView(QWidget, ResponsiveWidget):
         self.low_stock_label.setText(f'低库存: {len(low_stock_list)}')
         
         if low_stock_list:
-            self.warning_label.setText(f"⚠️ 库存预警：{', '.join(low_stock_list[:5])}{'...' if len(low_stock_list) > 5 else ''} 库存不足！")
-            self.warning_label.setStyleSheet("color: #f56c6c; font-weight: bold;")
+            self.warning_label.setText(f"库存预警：{', '.join(low_stock_list[:5])}{'...' if len(low_stock_list) > 5 else ''} 库存不足！")
+            self.warning_label.setStyleSheet("color: #ff4d4f; font-weight: bold;")
         else:
             self.warning_label.setText("库存状态正常")
             self.warning_label.setStyleSheet("color: #67c23a; font-weight: bold;")
