@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-CURRENT_VERSION = "2.1.0"
-VERSION_DATE = "2026-02-23"
+CURRENT_VERSION = "2.4.1"
+VERSION_DATE = "2026-02-24"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
@@ -13,6 +13,46 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "2.4.1": {
+        "date": "2026-02-24",
+        "changes": [
+            "修复measure装饰器使用错误问题",
+            "修复数据库返回字典格式适配问题",
+            "确保应用程序正常启动和运行"
+        ]
+    },
+    "2.4.0": {
+        "date": "2026-02-24",
+        "changes": [
+            "全面代码优化：增强错误处理机制，统一异常管理",
+            "新增配置管理模块，支持应用配置持久化",
+            "新增Result模式，提供更优雅的错误处理",
+            "添加单元测试模块，提高代码质量和稳定性",
+            "优化内存使用，减少资源消耗",
+            "改进代码可读性，规范命名和注释",
+            "增强边界条件检查，提高代码健壮性"
+        ]
+    },
+    "2.3.0": {
+        "date": "2026-02-24",
+        "changes": [
+            "重大性能优化：新增内存缓存机制，查询速度提升37-110倍",
+            "新增搜索索引和前缀匹配，支持更快速的药材检索",
+            "优化MedicineView，使用延迟搜索和批量渲染",
+            "新增性能监控模块，便于问题排查",
+            "重构代码架构，分离数据层、服务层、模型层",
+            "优化数据内置机制，确保数据一致性"
+        ]
+    },
+    "2.2.0": {
+        "date": "2026-02-23",
+        "changes": [
+            "修复数据库路径问题，统一数据存储位置",
+            "新增处方历史删除功能",
+            "新增操作日志记录",
+            "优化界面视觉效果"
+        ]
+    },
     "2.1.0": {
         "date": "2026-02-23",
         "changes": [

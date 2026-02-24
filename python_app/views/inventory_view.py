@@ -197,26 +197,43 @@ class InventoryView(QWidget, ResponsiveWidget):
         total_value = 0
         
         for row in rows:
-            med_id, name, category, qty, unit, price, min_stock, notes = row
-            qty = qty or 0
-            price = price or 0
-            min_stock = min_stock or 0
+            med_id = row['medicine_id']
+            name = row['name']
+            category = row['category']
+            qty = row['quantity'] or 0
+            unit = row['unit']
+            price = row['price'] or 0
+            min_stock = row['min_stock'] or 0
+            notes = row['notes']
             stock_value = qty * price
             total_value += stock_value
             
             if stock_filter == '库存充足' and qty >= min_stock:
-                filtered_rows.append(row + (stock_value,))
+                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
             elif stock_filter == '低库存' and 0 < qty < min_stock:
-                filtered_rows.append(row + (stock_value,))
+                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
             elif stock_filter == '缺货' and qty == 0:
-                filtered_rows.append(row + (stock_value,))
+                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
             elif stock_filter == '全部':
-                filtered_rows.append(row + (stock_value,))
+                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
             
             if qty < min_stock:
                 low_stock_list.append(name)
         
-        display_rows = filtered_rows if stock_filter != '全部' else [row + ((row[3] or 0) * (row[5] or 0),) for row in rows]
+        display_rows = filtered_rows if stock_filter != '全部' else [
+            (
+                row['medicine_id'],
+                row['name'],
+                row['category'],
+                row['quantity'] or 0,
+                row['unit'],
+                row['price'] or 0,
+                row['min_stock'] or 0,
+                row['notes'],
+                (row['quantity'] or 0) * (row['price'] or 0)
+            )
+            for row in rows
+        ]
         
         self.table.setRowCount(len(display_rows))
         
@@ -387,7 +404,16 @@ class InventoryView(QWidget, ResponsiveWidget):
                     writer = csv.writer(f)
                     writer.writerow(['药材ID', '药材名称', '分类', '库存数量', '单位', '单价', '最低库存', '备注'])
                     for row in rows:
-                        writer.writerow(row)
+                        writer.writerow([
+                            row['medicine_id'],
+                            row['name'],
+                            row['category'],
+                            row['quantity'],
+                            row['unit'],
+                            row['price'],
+                            row['min_stock'],
+                            row['notes']
+                        ])
                 QMessageBox.information(self, '成功', '库存数据导出成功！')
         except Exception as e:
             QMessageBox.warning(self, '错误', f'导出失败: {str(e)}')

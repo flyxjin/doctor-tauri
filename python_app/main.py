@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
 from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QIcon
 
-from database import Database
+from core import Database, BuiltinDataLoader, get_app_logger
 from views.medicine_view import MedicineView
 from views.prescription_view import PrescriptionView
 from views.inventory_view import InventoryView
@@ -204,7 +204,14 @@ class ImportDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.logger = get_app_logger()
+        self.logger.info("应用程序启动")
+        
         self.db = Database()
+        
+        data_loader = BuiltinDataLoader(self.db)
+        data_loader.ensure_data_loaded()
+        
         self.font_manager = get_font_manager()
         self.version_manager = VersionManager()
         self.update_manager = UpdateManager(self.version_manager)
@@ -831,16 +838,12 @@ class MainWindow(QMainWindow):
                 writer.writerow(m[1:])
     
     def _backup_data(self):
-        from utils.updater import BackupManager
         try:
-            backup_manager = BackupManager()
-            db_path = os.path.join(os.path.dirname(__file__), 'medicine_system.db')
-            if os.path.exists(db_path):
-                backup_path = backup_manager.create_backup(db_path)
-                QMessageBox.information(self, '备份完成', f'数据已备份到:\n{backup_path}')
-            else:
-                QMessageBox.warning(self, '提示', '数据库文件不存在')
+            backup_path = self.db.backup()
+            self.logger.info(f"数据备份完成: {backup_path}")
+            QMessageBox.information(self, '备份完成', f'数据已备份到:\n{backup_path}')
         except Exception as e:
+            self.logger.error(f"备份失败: {e}")
             QMessageBox.warning(self, '备份失败', str(e))
     
     def _show_about(self):
@@ -891,6 +894,7 @@ class MainWindow(QMainWindow):
         )
         
         if reply == QMessageBox.Yes:
+            self.logger.info("应用程序关闭")
             self.db.close()
             event.accept()
         else:

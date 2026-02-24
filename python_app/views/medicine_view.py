@@ -1,10 +1,12 @@
+# -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QLineEdit,
                              QDialog, QFormLayout, QMessageBox, QComboBox,
                              QTextEdit, QSplitter, QGroupBox, QLabel, QHeaderView)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 from utils.responsive_font import ResponsiveWidget, get_font_manager
+from core import get_medicine_cache, measure, Timer
 
 
 class MedicineDialog(QDialog):
@@ -61,22 +63,43 @@ class MedicineDialog(QDialog):
         layout.addRow(btn_box)
 
         if self.medicine_data:
-            self.name_edit.setText(self.medicine_data[1] or '')
-            self.alias_edit.setText(self.medicine_data[2] or '')
-            index = self.category_combo.findText(self.medicine_data[3] or '')
+            self._populate_fields(medicine_data)
+
+    def _populate_fields(self, data):
+        if isinstance(data, dict):
+            self.name_edit.setText(data.get('name', ''))
+            self.alias_edit.setText(data.get('alias', ''))
+            index = self.category_combo.findText(data.get('category', ''))
             if index >= 0:
                 self.category_combo.setCurrentIndex(index)
-            index = self.nature_combo.findText(self.medicine_data[4] or '')
+            index = self.nature_combo.findText(data.get('nature', ''))
             if index >= 0:
                 self.nature_combo.setCurrentIndex(index)
-            self.taste_edit.setText(self.medicine_data[5] or '')
-            self.meridian_edit.setText(self.medicine_data[6] or '')
-            self.efficacy_edit.setText(self.medicine_data[7] or '')
-            self.indications_edit.setText(self.medicine_data[8] or '')
-            self.usage_edit.setText(self.medicine_data[9] or '')
-            self.dosage_edit.setText(self.medicine_data[10] or '')
-            self.contraindication_edit.setText(self.medicine_data[11] or '')
-            self.notes_edit.setText(self.medicine_data[12] or '')
+            self.taste_edit.setText(data.get('taste', ''))
+            self.meridian_edit.setText(data.get('meridian', ''))
+            self.efficacy_edit.setText(data.get('efficacy', ''))
+            self.indications_edit.setText(data.get('indications', ''))
+            self.usage_edit.setText(data.get('usage', ''))
+            self.dosage_edit.setText(data.get('dosage', ''))
+            self.contraindication_edit.setText(data.get('contraindication', ''))
+            self.notes_edit.setText(data.get('notes', ''))
+        else:
+            self.name_edit.setText(data[1] or '')
+            self.alias_edit.setText(data[2] or '')
+            index = self.category_combo.findText(data[3] or '')
+            if index >= 0:
+                self.category_combo.setCurrentIndex(index)
+            index = self.nature_combo.findText(data[4] or '')
+            if index >= 0:
+                self.nature_combo.setCurrentIndex(index)
+            self.taste_edit.setText(data[5] or '')
+            self.meridian_edit.setText(data[6] or '')
+            self.efficacy_edit.setText(data[7] or '')
+            self.indications_edit.setText(data[8] or '')
+            self.usage_edit.setText(data[9] or '')
+            self.dosage_edit.setText(data[10] or '')
+            self.contraindication_edit.setText(data[11] or '')
+            self.notes_edit.setText(data[12] or '')
 
     def get_data(self):
         return (
@@ -101,8 +124,38 @@ class MedicineView(QWidget, ResponsiveWidget):
         ResponsiveWidget.__init__(self)
         self.db = db
         self._font_manager = get_font_manager()
-        self._base_column_widths = [0, 120, 100, 80, 60, 80, 120, 200, 200, 80, 100, 150, 100]
+        self._base_column_widths = [0, 120, 100, 100, 80, 100, 150]
+        self._cache = get_medicine_cache()
+        self._search_timer = QTimer()
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self._delayed_search)
+        self._full_data = []
         self.init_ui()
+        self._init_cache()
+
+    def _init_cache(self):
+        if not self._cache.is_initialized():
+            with Timer('cache_initialization'):
+                medicines = self.db.fetchall("SELECT * FROM medicines")
+                med_list = []
+                for row in medicines:
+                    med_dict = {
+                        'id': row['id'],
+                        'name': row['name'] or '',
+                        'alias': row['alias'] or '',
+                        'category': row['category'] or '',
+                        'nature': row['nature'] or '',
+                        'taste': row['taste'] or '',
+                        'meridian': row['meridian'] or '',
+                        'efficacy': row['efficacy'] or '',
+                        'indications': row['indications'] or '',
+                        'usage': row['usage'] or '',
+                        'dosage': row['dosage'] or '',
+                        'contraindication': row['contraindication'] or '',
+                        'notes': row['notes'] or ''
+                    }
+                    med_list.append(med_dict)
+                self._cache.initialize(med_list)
         self.load_data()
 
     def init_ui(self):
@@ -110,33 +163,31 @@ class MedicineView(QWidget, ResponsiveWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
 
-        # 顶部搜索和筛选栏
         search_group = QGroupBox('搜索与筛选')
         search_layout = QHBoxLayout(search_group)
         
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText('输入药材名称、别名或功效搜索...')
         self.search_input.setMinimumWidth(300)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
         
         self.category_filter = QComboBox()
-        self.category_filter.addItems(['全部分类', '补虚药', '解表药', '清热药', '泻下药', '祛风湿药', '化湿药', '利水渗湿药', '温里药', '理气药', '消食药', '驱虫药', '止血药', '活血化瘀药', '化痰止咳平喘药', '安神药', '平肝息风药', '开窍药', '收涩药', '攻毒杀虫止痒药', '拔毒化腐生肌药'])
+        self.category_filter.addItems(['全部分类'])
+        self.category_filter.currentIndexChanged.connect(self._on_filter_changed)
         
         self.nature_filter = QComboBox()
         self.nature_filter.addItems(['全部药性', '寒', '热', '温', '凉', '平'])
+        self.nature_filter.currentIndexChanged.connect(self._on_filter_changed)
         
-        self.search_btn = QPushButton('搜索')
         self.reset_btn = QPushButton('重置')
-        self.search_btn.clicked.connect(self.load_data)
         self.reset_btn.clicked.connect(self.reset_search)
         
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(self.category_filter)
         search_layout.addWidget(self.nature_filter)
-        search_layout.addWidget(self.search_btn)
         search_layout.addWidget(self.reset_btn)
         search_layout.addStretch()
 
-        # 操作按钮
         btn_bar = QHBoxLayout()
         self.add_btn = QPushButton('添加药材')
         self.edit_btn = QPushButton('修改信息')
@@ -163,7 +214,6 @@ class MedicineView(QWidget, ResponsiveWidget):
         btn_bar.addWidget(self.export_btn)
         btn_bar.addStretch()
 
-        # 数据表格 - 只显示关键信息，详细内容在详情页查看
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
@@ -178,10 +228,8 @@ class MedicineView(QWidget, ResponsiveWidget):
         self.table.setWordWrap(True)
         self.table.verticalHeader().setDefaultSectionSize(40)
         
-        self._base_column_widths = [0, 120, 100, 100, 80, 100, 150]
         self._apply_responsive_table()
-        
-        # 统计信息
+
         self.stats_label = QLabel('共 0 味药材')
         self.stats_label.setStyleSheet('color: #666; font-size: 12px;')
 
@@ -190,44 +238,55 @@ class MedicineView(QWidget, ResponsiveWidget):
         layout.addWidget(self.table)
         layout.addWidget(self.stats_label)
 
+    def _on_search_text_changed(self):
+        self._search_timer.start(200)
+
+    def _on_filter_changed(self):
+        self._search_timer.start(100)
+
+    def _delayed_search(self):
+        self.load_data()
+
     def reset_search(self):
         self.search_input.clear()
         self.category_filter.setCurrentIndex(0)
         self.nature_filter.setCurrentIndex(0)
         self.load_data()
 
+    @measure('MedicineView.load_data')
     def load_data(self):
         keyword = self.search_input.text()
         category = self.category_filter.currentText()
         nature = self.nature_filter.currentText()
         
-        query = "SELECT * FROM medicines WHERE 1=1"
-        params = []
+        if category == '全部分类':
+            category = None
+        if nature == '全部药性':
+            nature = None
         
-        if keyword:
-            query += " AND (name LIKE ? OR alias LIKE ? OR efficacy LIKE ?)"
-            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+        with Timer('cache_search'):
+            self._full_data = self._cache.search(keyword, category, nature)
         
-        if category != '全部分类':
-            query += " AND category = ?"
-            params.append(category)
-        
-        if nature != '全部药性':
-            query += " AND nature = ?"
-            params.append(nature)
-        
-        self._full_data = self.db.fetchall(query, params)
-        
-        self.table.setRowCount(len(self._full_data))
-        for row_idx, row_data in enumerate(self._full_data):
-            display_cols = [0, 1, 2, 3, 4, 5, 6]
-            for col_idx, data_idx in enumerate(display_cols):
-                col_data = row_data[data_idx] if data_idx < len(row_data) else ''
-                item = QTableWidgetItem(str(col_data) if col_data else '')
-                item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                self.table.setItem(row_idx, col_idx, item)
-        
+        self._populate_table()
         self.stats_label.setText(f'共 {len(self._full_data)} 味药材')
+
+    @measure('MedicineView.populate_table')
+    def _populate_table(self):
+        self.table.setUpdatesEnabled(False)
+        try:
+            self.table.setRowCount(len(self._full_data))
+            for row_idx, med in enumerate(self._full_data):
+                self._set_table_row(row_idx, med)
+        finally:
+            self.table.setUpdatesEnabled(True)
+
+    def _set_table_row(self, row_idx, med):
+        fields = ['id', 'name', 'alias', 'category', 'nature', 'taste', 'meridian']
+        for col_idx, field in enumerate(fields):
+            value = med.get(field, '')
+            item = QTableWidgetItem(str(value) if value else '')
+            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.table.setItem(row_idx, col_idx, item)
 
     def add_medicine(self):
         dialog = MedicineDialog(self)
@@ -246,6 +305,24 @@ class MedicineView(QWidget, ResponsiveWidget):
                 self.db.execute(
                     "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock, notes) VALUES (?, 0, 'g', 0, 10, '')",
                     (med_id,))
+                
+                new_med = {
+                    'id': med_id,
+                    'name': data[0],
+                    'alias': data[1],
+                    'category': data[2],
+                    'nature': data[3],
+                    'taste': data[4],
+                    'meridian': data[5],
+                    'efficacy': data[6],
+                    'indications': data[7],
+                    'usage': data[8],
+                    'dosage': data[9],
+                    'contraindication': data[10],
+                    'notes': data[11]
+                }
+                self._cache.add_medicine(new_med)
+                
                 QMessageBox.information(self, '成功', '药材添加成功！')
                 self.load_data()
             except Exception as e:
@@ -258,11 +335,7 @@ class MedicineView(QWidget, ResponsiveWidget):
             return
 
         row = selected[0].row()
-        if hasattr(self, '_full_data') and self._full_data:
-            medicine_data = list(self._full_data[row])
-        else:
-            medicine_data = [self.table.item(row, col).text() if self.table.item(row, col) else '' 
-                             for col in range(self.table.columnCount())]
+        medicine_data = self._full_data[row]
 
         dialog = MedicineDialog(self, medicine_data)
         if dialog.exec_():
@@ -270,12 +343,30 @@ class MedicineView(QWidget, ResponsiveWidget):
             if not data[0]:
                 QMessageBox.warning(self, '提示', '请输入药材名称！')
                 return
-            med_id = medicine_data[0]
+            med_id = medicine_data['id']
             self.db.execute('''
                 UPDATE medicines SET name=?, alias=?, category=?, nature=?, taste=?, meridian=?, 
                                    efficacy=?, indications=?, usage=?, dosage=?, contraindication=?, notes=? 
                 WHERE id=?
             ''', (*data, med_id))
+            
+            updated_med = {
+                'id': med_id,
+                'name': data[0],
+                'alias': data[1],
+                'category': data[2],
+                'nature': data[3],
+                'taste': data[4],
+                'meridian': data[5],
+                'efficacy': data[6],
+                'indications': data[7],
+                'usage': data[8],
+                'dosage': data[9],
+                'contraindication': data[10],
+                'notes': data[11]
+            }
+            self._cache.update_medicine(updated_med)
+            
             QMessageBox.information(self, '成功', '修改成功！')
             self.load_data()
 
@@ -286,14 +377,15 @@ class MedicineView(QWidget, ResponsiveWidget):
             return
 
         row = selected[0].row()
-        med_id = self.table.item(row, 0).text()
-        med_name = self.table.item(row, 1).text()
+        med_id = self._full_data[row]['id']
+        med_name = self._full_data[row]['name']
 
         reply = QMessageBox.question(self, '确认', f'确定要删除药材 "{med_name}" 吗？\n此操作将同时删除库存记录！', 
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.db.execute("DELETE FROM inventory WHERE medicine_id = ?", (med_id,))
             self.db.execute("DELETE FROM medicines WHERE id = ?", (med_id,))
+            self._cache.delete_medicine(med_id)
             QMessageBox.information(self, '成功', '删除成功！')
             self.load_data()
 
@@ -304,32 +396,28 @@ class MedicineView(QWidget, ResponsiveWidget):
             return
 
         row = selected[0].row()
-        if hasattr(self, '_full_data') and self._full_data:
-            medicine_data = self._full_data[row]
-        else:
-            medicine_data = [self.table.item(row, col).text() if self.table.item(row, col) else '' 
-                             for col in range(self.table.columnCount())]
+        medicine_data = self._full_data[row]
         
         detail_text = f'''
-        <h2 style="color: #409eff;">{medicine_data[1]}</h2>
+        <h2 style="color: #409eff;">{medicine_data['name']}</h2>
         <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>别名</b></td><td style="padding: 8px;">{medicine_data[2] or '无'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>分类</b></td><td style="padding: 8px;">{medicine_data[3] or '未分类'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药性</b></td><td style="padding: 8px;">{medicine_data[4] or '未知'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药味</b></td><td style="padding: 8px;">{medicine_data[5] or '未知'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>归经</b></td><td style="padding: 8px;">{medicine_data[6] or '未知'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>别名</b></td><td style="padding: 8px;">{medicine_data['alias'] or '无'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>分类</b></td><td style="padding: 8px;">{medicine_data['category'] or '未分类'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药性</b></td><td style="padding: 8px;">{medicine_data['nature'] or '未知'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药味</b></td><td style="padding: 8px;">{medicine_data['taste'] or '未知'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>归经</b></td><td style="padding: 8px;">{medicine_data['meridian'] or '未知'}</td></tr>
         </table>
         <hr style="margin: 15px 0;">
         <h3 style="color: #67c23a;">功效</h3>
-        <p style="padding: 10px; background: #f0f9eb; border-radius: 5px;">{medicine_data[7] or '暂无'}</p>
+        <p style="padding: 10px; background: #f0f9eb; border-radius: 5px;">{medicine_data['efficacy'] or '暂无'}</p>
         <h3 style="color: #409eff;">主治</h3>
-        <p style="padding: 10px; background: #ecf5ff; border-radius: 5px;">{medicine_data[8] or '暂无'}</p>
+        <p style="padding: 10px; background: #ecf5ff; border-radius: 5px;">{medicine_data['indications'] or '暂无'}</p>
         <h3 style="color: #e6a23c;">用法用量</h3>
-        <p style="padding: 10px; background: #fdf6ec; border-radius: 5px;">{medicine_data[9] or '暂无'} | {medicine_data[10] or '暂无'}</p>
+        <p style="padding: 10px; background: #fdf6ec; border-radius: 5px;">{medicine_data['usage'] or '暂无'} | {medicine_data['dosage'] or '暂无'}</p>
         <h3 style="color: #f56c6c;">禁忌</h3>
-        <p style="padding: 10px; background: #fef0f0; border-radius: 5px;">{medicine_data[11] or '暂无'}</p>
+        <p style="padding: 10px; background: #fef0f0; border-radius: 5px;">{medicine_data['contraindication'] or '暂无'}</p>
         <h3 style="color: #909399;">备注</h3>
-        <p style="padding: 10px; background: #f4f4f5; border-radius: 5px;">{medicine_data[12] or '无'}</p>
+        <p style="padding: 10px; background: #f4f4f5; border-radius: 5px;">{medicine_data['notes'] or '无'}</p>
         '''
         
         msg_box = QMessageBox(self)
@@ -347,13 +435,18 @@ class MedicineView(QWidget, ResponsiveWidget):
             
             filename, _ = QFileDialog.getSaveFileName(self, '导出药材数据', '', 'CSV文件 (*.csv)')
             if filename:
-                rows = self.db.fetchall("SELECT * FROM medicines")
+                rows = self._cache.get_all()
                 with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
                     writer = csv.writer(f)
                     writer.writerow(['ID', '名称', '别名', '分类', '药性', '药味', '归经', 
                                     '功效', '主治', '用法', '用量', '禁忌', '备注'])
                     for row in rows:
-                        writer.writerow(row)
+                        writer.writerow([
+                            row['id'], row['name'], row['alias'], row['category'],
+                            row['nature'], row['taste'], row['meridian'],
+                            row['efficacy'], row['indications'], row['usage'],
+                            row['dosage'], row['contraindication'], row['notes']
+                        ])
                 QMessageBox.information(self, '成功', '数据导出成功！')
         except Exception as e:
             QMessageBox.warning(self, '错误', f'导出失败: {str(e)}')
