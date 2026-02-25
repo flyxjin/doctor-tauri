@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-CURRENT_VERSION = "2.4.1"
-VERSION_DATE = "2026-02-24"
+CURRENT_VERSION = "2.4.2"
+VERSION_DATE = "2026-02-25"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
@@ -13,6 +13,17 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "2.4.2": {
+        "date": "2026-02-25",
+        "changes": [
+            "修复处方开具模块闪退问题",
+            "修复数据库字典格式适配问题（prescription_view, history_view, batch_import_view）",
+            "增强库存检查逻辑，防止超量添加",
+            "添加处方药材删除功能",
+            "完善异常处理和日志记录",
+            "优化用户交互体验"
+        ]
+    },
     "2.4.1": {
         "date": "2026-02-24",
         "changes": [

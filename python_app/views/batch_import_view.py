@@ -5,12 +5,33 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 import csv
 import os
+import logging
+
+logger = logging.getLogger('MedicineSystem')
 
 try:
     import openpyxl
     HAS_OPENPYXL = True
 except ImportError:
     HAS_OPENPYXL = False
+
+
+def _get_value(data, key, default=''):
+    if isinstance(data, dict):
+        return data.get(key, default)
+    elif hasattr(data, key):
+        return getattr(data, key, default)
+    return default
+
+
+def _get_id_from_result(result):
+    if result is None:
+        return None
+    if isinstance(result, dict):
+        return result.get('id')
+    elif len(result) > 0:
+        return result[0]
+    return None
 
 
 class ImportWorker(QThread):
@@ -31,7 +52,7 @@ class ImportWorker(QThread):
         
         for i, data in enumerate(self.data_list):
             try:
-                name = data.get('name', '').strip()
+                name = _get_value(data, 'name', '').strip()
                 if not name:
                     errors.append(f"第{i+1}行: 药材名称不能为空")
                     continue
@@ -41,6 +62,7 @@ class ImportWorker(QThread):
                 )
                 
                 if existing:
+                    existing_id = _get_id_from_result(existing)
                     self.db.execute('''
                         UPDATE medicines 
                         SET alias=?, category=?, nature=?, taste=?, meridian=?,
@@ -48,32 +70,32 @@ class ImportWorker(QThread):
                             contraindication=?, notes=?
                         WHERE id=?
                     ''', (
-                        data.get('alias', ''),
-                        data.get('category', ''),
-                        data.get('nature', ''),
-                        data.get('taste', ''),
-                        data.get('meridian', ''),
-                        data.get('efficacy', ''),
-                        data.get('indications', ''),
-                        data.get('usage', ''),
-                        data.get('dosage', ''),
-                        data.get('contraindication', ''),
-                        data.get('notes', ''),
-                        existing[0]
+                        _get_value(data, 'alias', ''),
+                        _get_value(data, 'category', ''),
+                        _get_value(data, 'nature', ''),
+                        _get_value(data, 'taste', ''),
+                        _get_value(data, 'meridian', ''),
+                        _get_value(data, 'efficacy', ''),
+                        _get_value(data, 'indications', ''),
+                        _get_value(data, 'usage', ''),
+                        _get_value(data, 'dosage', ''),
+                        _get_value(data, 'contraindication', ''),
+                        _get_value(data, 'notes', ''),
+                        existing_id
                     ))
                     
-                    if data.get('quantity') is not None:
+                    if _get_value(data, 'quantity') is not None:
                         self.db.execute('''
                             UPDATE inventory 
                             SET quantity=?, unit=?, price=?, min_stock=?, notes=?
                             WHERE medicine_id=?
                         ''', (
-                            data.get('quantity', 0),
-                            data.get('unit', 'g'),
-                            data.get('price', 0),
-                            data.get('min_stock', 10),
-                            data.get('notes', ''),
-                            existing[0]
+                            _get_value(data, 'quantity', 0),
+                            _get_value(data, 'unit', 'g'),
+                            _get_value(data, 'price', 0),
+                            _get_value(data, 'min_stock', 10),
+                            _get_value(data, 'notes', ''),
+                            existing_id
                         ))
                     updated += 1
                 else:
@@ -84,22 +106,23 @@ class ImportWorker(QThread):
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         name,
-                        data.get('alias', ''),
-                        data.get('category', ''),
-                        data.get('nature', ''),
-                        data.get('taste', ''),
-                        data.get('meridian', ''),
-                        data.get('efficacy', ''),
-                        data.get('indications', ''),
-                        data.get('usage', ''),
-                        data.get('dosage', ''),
-                        data.get('contraindication', ''),
-                        data.get('notes', '')
+                        _get_value(data, 'alias', ''),
+                        _get_value(data, 'category', ''),
+                        _get_value(data, 'nature', ''),
+                        _get_value(data, 'taste', ''),
+                        _get_value(data, 'meridian', ''),
+                        _get_value(data, 'efficacy', ''),
+                        _get_value(data, 'indications', ''),
+                        _get_value(data, 'usage', ''),
+                        _get_value(data, 'dosage', ''),
+                        _get_value(data, 'contraindication', ''),
+                        _get_value(data, 'notes', '')
                     ))
                     
-                    med_id = self.db.fetchone(
+                    new_record = self.db.fetchone(
                         "SELECT id FROM medicines WHERE name = ?", (name,)
-                    )[0]
+                    )
+                    med_id = _get_id_from_result(new_record)
                     
                     self.db.execute('''
                         INSERT INTO inventory 
@@ -107,16 +130,17 @@ class ImportWorker(QThread):
                         VALUES (?, ?, ?, ?, ?, ?)
                     ''', (
                         med_id,
-                        data.get('quantity', 0),
-                        data.get('unit', 'g'),
-                        data.get('price', 0),
-                        data.get('min_stock', 10),
-                        data.get('notes', '')
+                        _get_value(data, 'quantity', 0),
+                        _get_value(data, 'unit', 'g'),
+                        _get_value(data, 'price', 0),
+                        _get_value(data, 'min_stock', 10),
+                        _get_value(data, 'notes', '')
                     ))
                     added += 1
                     
             except Exception as e:
                 errors.append(f"第{i+1}行: {str(e)}")
+                logger.error(f"导入数据失败: {e}")
                 
             self.progress.emit(int((i + 1) / total * 100), f"正在处理: {name}")
             
@@ -260,6 +284,7 @@ class BatchImportView(QWidget):
             self.import_btn.setEnabled(True)
             
         except Exception as e:
+            logger.error(f"文件解析失败: {e}")
             QMessageBox.warning(self, '错误', f'文件解析失败: {str(e)}')
             
     def parse_csv(self, filename):
@@ -411,6 +436,8 @@ class BatchImportView(QWidget):
                 self.log_text.append(f'  {err}')
             if len(error_list) > 10:
                 self.log_text.append(f'  ... 还有 {len(error_list) - 10} 条错误')
+        
+        logger.info(f"批量导入完成: 新增{added}条, 更新{updated}条, 错误{errors}条")
                 
         self.reset_ui()
         

@@ -4,6 +4,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from datetime import datetime
+import logging
+
+logger = logging.getLogger('MedicineSystem')
 
 
 class OperationLogDialog(QDialog):
@@ -36,7 +39,18 @@ class OperationLogDialog(QDialog):
     def load_logs(self):
         self.log_table.setRowCount(len(self.log_data))
         for i, row in enumerate(self.log_data):
-            for j, data in enumerate(row):
+            if isinstance(row, dict):
+                data_list = [
+                    row.get('operation_type', ''),
+                    row.get('target_type', ''),
+                    row.get('target_id', ''),
+                    row.get('operator', ''),
+                    row.get('created_at', '')
+                ]
+            else:
+                data_list = list(row)
+            
+            for j, data in enumerate(data_list):
                 self.log_table.setItem(i, j, QTableWidgetItem(str(data) if data else ''))
 
 
@@ -60,8 +74,8 @@ class HistoryView(QWidget):
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"创建操作日志表失败: {e}")
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -168,38 +182,58 @@ class HistoryView(QWidget):
             }
         ''')
 
+    def _get_row_value(self, row, key, index=None):
+        if isinstance(row, dict):
+            return row.get(key, '')
+        elif index is not None and index < len(row):
+            return row[index]
+        return ''
+
     def refresh_data(self):
-        rows = self.db.fetchall(
-            "SELECT id, patient_name, patient_age, diagnosis, total_amount, created_at FROM prescriptions ORDER BY created_at DESC")
-        
-        self.list_table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            for j, data in enumerate(row):
-                item = QTableWidgetItem(str(data) if data else '')
-                item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-                self.list_table.setItem(i, j, item)
+        try:
+            rows = self.db.fetchall(
+                "SELECT id, patient_name, patient_age, diagnosis, total_amount, created_at FROM prescriptions ORDER BY created_at DESC")
             
-            delete_btn = QPushButton('删除')
-            delete_btn.setProperty('prescription_id', row[0])
-            delete_btn.setProperty('row_index', i)
-            delete_btn.clicked.connect(self._on_delete_clicked)
-            delete_btn.setStyleSheet('''
-                QPushButton {
-                    background-color: #ff4d4f;
-                    color: white;
-                    border: none;
-                    padding: 4px 12px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                }
-                QPushButton:hover {
-                    background-color: #ff7875;
-                }
-            ''')
+            self.list_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                pres_id = self._get_row_value(row, 'id', 0)
+                patient_name = self._get_row_value(row, 'patient_name', 1)
+                patient_age = self._get_row_value(row, 'patient_age', 2)
+                diagnosis = self._get_row_value(row, 'diagnosis', 3)
+                total_amount = self._get_row_value(row, 'total_amount', 4)
+                created_at = self._get_row_value(row, 'created_at', 5)
+                
+                data_list = [pres_id, patient_name, patient_age, diagnosis, total_amount, created_at]
+                
+                for j, data in enumerate(data_list):
+                    item = QTableWidgetItem(str(data) if data else '')
+                    item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                    self.list_table.setItem(i, j, item)
+                
+                delete_btn = QPushButton('删除')
+                delete_btn.setProperty('prescription_id', pres_id)
+                delete_btn.setProperty('row_index', i)
+                delete_btn.clicked.connect(self._on_delete_clicked)
+                delete_btn.setStyleSheet('''
+                    QPushButton {
+                        background-color: #ff4d4f;
+                        color: white;
+                        border: none;
+                        padding: 4px 12px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover {
+                        background-color: #ff7875;
+                    }
+                ''')
+                
+                self.list_table.setCellWidget(i, 6, delete_btn)
             
-            self.list_table.setCellWidget(i, 6, delete_btn)
-        
-        self.record_count_label.setText(f'共 {len(rows)} 条记录')
+            self.record_count_label.setText(f'共 {len(rows)} 条记录')
+        except Exception as e:
+            logger.error(f"刷新历史记录失败: {e}")
+            QMessageBox.critical(self, '错误', f'刷新数据失败：{str(e)}')
 
     def _on_delete_clicked(self):
         btn = self.sender()
@@ -246,6 +280,7 @@ class HistoryView(QWidget):
             
             self.db.commit()
             
+            logger.info(f"删除处方成功: ID={prescription_id}, 患者={patient_name}")
             QMessageBox.information(self, '删除成功', '处方记录已成功删除')
             self.refresh_data()
             
@@ -253,6 +288,7 @@ class HistoryView(QWidget):
             
         except Exception as e:
             self.db.rollback()
+            logger.error(f"删除处方失败: {e}")
             QMessageBox.critical(self, '删除失败', f'删除处方记录时发生错误：\n{str(e)}')
 
     def _log_operation(self, operation_type, target_type, target_id, details):
@@ -262,29 +298,46 @@ class HistoryView(QWidget):
                 VALUES (?, ?, ?, ?, ?)
             ''', (operation_type, target_type, target_id, '系统管理员', details))
         except Exception as e:
-            print(f"记录操作日志失败: {e}")
+            logger.error(f"记录操作日志失败: {e}")
 
     def show_detail(self):
-        selected = self.list_table.selectedItems()
-        if not selected:
-            return
+        try:
+            selected = self.list_table.selectedItems()
+            if not selected:
+                return
 
-        pres_id = selected[0].text()
-        rows = self.db.fetchall(
-            "SELECT medicine_name, quantity, price, amount FROM prescription_items WHERE prescription_id = ?",
-            (pres_id,))
+            pres_id = selected[0].text()
+            rows = self.db.fetchall(
+                "SELECT medicine_name, quantity, price, amount FROM prescription_items WHERE prescription_id = ?",
+                (pres_id,))
 
-        self.detail_table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            for j, data in enumerate(row):
-                item = QTableWidgetItem(str(data) if data else '')
-                item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-                self.detail_table.setItem(i, j, item)
+            self.detail_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                if isinstance(row, dict):
+                    data_list = [
+                        row.get('medicine_name', ''),
+                        row.get('quantity', ''),
+                        row.get('price', ''),
+                        row.get('amount', '')
+                    ]
+                else:
+                    data_list = list(row)
+                
+                for j, data in enumerate(data_list):
+                    item = QTableWidgetItem(str(data) if data else '')
+                    item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                    self.detail_table.setItem(i, j, item)
+        except Exception as e:
+            logger.error(f"显示处方详情失败: {e}")
 
     def show_operation_logs(self):
-        logs = self.db.fetchall(
-            "SELECT operation_type, target_type, target_id, operator, created_at FROM operation_logs WHERE target_type = 'prescription' ORDER BY created_at DESC LIMIT 100"
-        )
-        
-        dialog = OperationLogDialog(self, logs)
-        dialog.exec_()
+        try:
+            logs = self.db.fetchall(
+                "SELECT operation_type, target_type, target_id, operator, created_at FROM operation_logs WHERE target_type = 'prescription' ORDER BY created_at DESC LIMIT 100"
+            )
+            
+            dialog = OperationLogDialog(self, logs)
+            dialog.exec_()
+        except Exception as e:
+            logger.error(f"显示操作日志失败: {e}")
+            QMessageBox.critical(self, '错误', f'获取操作日志失败：{str(e)}')
