@@ -1,7 +1,0 @@
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\obj\Debug\MedicineSystem.csproj.AssemblyReference.cache
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\obj\Debug\MedicineSystem.csproj.CoreCompileInputs.cache
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\bin\Debug\中药材销售管理系统.exe.config
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\bin\Debug\中药材销售管理系统.exe
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\bin\Debug\中药材销售管理系统.pdb
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\obj\Debug\中药材销售管理系统.exe
-D:\learn\DOCTOR\csharp_app_simple\MedicineSystem\obj\Debug\中药材销售管理系统.pdb
