@@ -45,7 +45,93 @@ python_app_windows7/
 
 ---
 
-## 二、代码变更详情
+## 二、代码变更详情（2026-02-27 更新）
+
+### 2.0 新增模块: `utils/excel_template.py`
+
+**功能**: Excel模板生成器和数据验证器
+
+**主要功能**:
+- 生成标准化的Excel导入模板 (`ExcelTemplateGenerator`)
+- 数据验证功能 (`DataValidator`)
+- 支持必填字段验证
+- 支持数据类型验证（数值、文本）
+- 支持药性字段验证（寒/热/温/凉/平）
+
+### 2.1 修改文件: `views/batch_import_view.py`
+
+**变更内容**:
+
+1. **增强数据验证**
+   - 导入 `ExcelTemplateGenerator` 和 `DataValidator`
+   - 导入前进行数据验证
+   - 显示验证错误信息
+
+2. **改进模板下载**
+   - 支持Excel和CSV两种格式
+   - Excel模板包含字段说明sheet
+   - 必填字段用红色表头标识
+
+3. **改进错误提示**
+   - 验证错误显示在日志区域
+   - 提供继续导入有效数据的选项
+
+### 2.2 修改文件: `views/history_view.py`
+
+**变更内容**: 修复删除按钮布局对齐问题
+
+1. **表格行高设置**
+   ```python
+   self.list_table.verticalHeader().setDefaultSectionSize(40)
+   ```
+
+2. **列宽固定设置**
+   ```python
+   self.list_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
+   self.list_table.setColumnWidth(6, 80)
+   ```
+
+3. **删除按钮样式优化**
+   - 添加 `min-width: 50px`
+   - 添加悬停和按下状态样式
+   - 添加鼠标指针样式
+
+### 2.3 修改文件: `views/prescription_view.py`
+
+**变更内容**: 修复删除按钮布局对齐问题
+
+1. **表格行高设置**
+   ```python
+   self.prescription_table.verticalHeader().setDefaultSectionSize(40)
+   ```
+
+2. **列宽固定设置**
+   ```python
+   self.prescription_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+   self.prescription_table.setColumnWidth(4, 70)
+   ```
+
+3. **单元格文本对齐**
+   ```python
+   item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+   ```
+
+### 2.4 更新依赖: `requirements_win7.txt`
+
+**新增依赖**:
+```
+openpyxl==3.0.10  # Excel文件支持
+```
+
+### 2.5 更新打包配置: `medicine_system_win7.spec`
+
+**新增隐藏导入**:
+```python
+'openpyxl',
+'openpyxl.styles',
+'openpyxl.utils',
+'utils.excel_template',
+```
 
 ### 2.1 新增模块: `core/win7_compat.py`
 
@@ -297,8 +383,12 @@ dist/
 | `core/win7_compat.py` | 新增 | 兼容性适配模块 |
 | `main.py` | 修改 | 添加兼容代码 |
 | `utils/updater.py` | 修改 | TLS兼容处理 |
+| `utils/excel_template.py` | 新增 | Excel模板生成器和数据验证器 |
+| `views/batch_import_view.py` | 修改 | 增强数据验证和模板下载 |
+| `views/history_view.py` | 修改 | 修复删除按钮布局对齐 |
+| `views/prescription_view.py` | 修改 | 修复删除按钮布局对齐 |
 | `core/__init__.py` | 修改 | 导出新模块 |
-| `medicine_system_win7.spec` | 新增 | 打包配置 |
+| `medicine_system_win7.spec` | 修改 | 打包配置（添加openpyxl） |
 | `version_info.txt` | 新增 | 版本信息 |
 | `build_win7.bat` | 新增 | 构建脚本 |
 | `system_check.bat` | 新增 | 系统检测工具 |

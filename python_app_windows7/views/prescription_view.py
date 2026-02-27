@@ -1,10 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+处方开具视图 - Windows 7兼容版本
+白底黑字风格
+"""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
                              QPushButton, QMessageBox, QTextEdit, QLabel, QComboBox,
-                             QInputDialog, QHeaderView)
+                             QInputDialog, QHeaderView, QFrame)
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt5.QtGui import QTextDocument
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
 from datetime import datetime
 import logging
 
@@ -36,7 +41,7 @@ class PrescriptionView(QWidget):
         form_layout.addRow('诊断:', self.diagnosis)
 
         self.med_search = QLineEdit()
-        self.med_search.setPlaceholderText('输入药材名称')
+        self.med_search.setPlaceholderText('输入药材名称搜索')
         self.med_search.textChanged.connect(self.search_medicine)
         self.med_list = QTableWidget()
         self.med_list.setColumnCount(3)
@@ -47,9 +52,10 @@ class PrescriptionView(QWidget):
         self.med_list.setSelectionBehavior(QTableWidget.SelectRows)
         self.med_list.verticalHeader().setVisible(False)
         self.med_list.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.med_list.verticalHeader().setDefaultSectionSize(35)
 
         add_btn = QPushButton('添加到处方')
-        add_btn.setStyleSheet('background-color: #67c23a; color: white;')
+        add_btn.setStyleSheet('background-color: #ffffff; color: #000000; border: 2px solid #000000; padding: 10px 20px;')
         add_btn.clicked.connect(self.add_to_prescription)
 
         left_panel.addLayout(form_layout)
@@ -59,23 +65,39 @@ class PrescriptionView(QWidget):
         left_panel.addWidget(add_btn)
 
         right_panel = QVBoxLayout()
+        
+        prescription_header = QLabel('当前处方:')
+        prescription_header.setStyleSheet('font-weight: bold; font-size: 14px; color: #000000;')
+        right_panel.addWidget(prescription_header)
+        
         self.prescription_table = QTableWidget()
         self.prescription_table.setColumnCount(5)
         self.prescription_table.setHorizontalHeaderLabels(['药材', '数量', '单价', '小计', '操作'])
-        self.prescription_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.prescription_table.verticalHeader().setVisible(False)
+        self.prescription_table.verticalHeader().setDefaultSectionSize(40)
         self.prescription_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        
+        self.prescription_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.prescription_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
+        self.prescription_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.prescription_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
+        self.prescription_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+        self.prescription_table.setColumnWidth(1, 80)
+        self.prescription_table.setColumnWidth(2, 80)
+        self.prescription_table.setColumnWidth(3, 80)
+        self.prescription_table.setColumnWidth(4, 70)
 
         self.total_label = QLabel('总计: ¥ 0.00')
-        self.total_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #e74c3c;")
+        self.total_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #000000;")
 
         save_btn = QPushButton('保存处方')
-        save_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 10px 20px;')
+        save_btn.setStyleSheet('background-color: #ffffff; color: #000000; border: 2px solid #000000; padding: 10px 20px;')
         save_btn.clicked.connect(self.save_prescription)
         print_btn = QPushButton('打印处方')
-        print_btn.setStyleSheet('background-color: #409eff; color: white; padding: 10px 20px;')
+        print_btn.setStyleSheet('background-color: #ffffff; color: #000000; border: 1px solid #000000; padding: 10px 20px;')
         print_btn.clicked.connect(self.print_prescription)
         clear_btn = QPushButton('清空')
-        clear_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 20px;')
+        clear_btn.setStyleSheet('background-color: #ffffff; color: #666666; border: 1px solid #e0e0e0; padding: 10px 20px;')
         clear_btn.clicked.connect(self.clear_form)
 
         btn_row = QHBoxLayout()
@@ -83,7 +105,6 @@ class PrescriptionView(QWidget):
         btn_row.addWidget(print_btn)
         btn_row.addWidget(clear_btn)
 
-        right_panel.addWidget(QLabel('当前处方:'))
         right_panel.addWidget(self.prescription_table)
         right_panel.addWidget(self.total_label)
         right_panel.addLayout(btn_row)
@@ -103,9 +124,18 @@ class PrescriptionView(QWidget):
                 name = row.get('name', '') if isinstance(row, dict) else row[0]
                 price = row.get('price', 0) if isinstance(row, dict) else row[1]
                 qty = row.get('quantity', 0) if isinstance(row, dict) else row[2]
-                self.med_list.setItem(i, 0, QTableWidgetItem(str(name)))
-                self.med_list.setItem(i, 1, QTableWidgetItem(f'¥{price}'))
-                self.med_list.setItem(i, 2, QTableWidgetItem(f'{qty}g'))
+                
+                name_item = QTableWidgetItem(str(name))
+                name_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.med_list.setItem(i, 0, name_item)
+                
+                price_item = QTableWidgetItem(f'¥{price}')
+                price_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.med_list.setItem(i, 1, price_item)
+                
+                qty_item = QTableWidgetItem(f'{qty}g')
+                qty_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.med_list.setItem(i, 2, qty_item)
         except Exception as e:
             logger.error(f"搜索药材失败: {e}")
             self.med_list.setRowCount(0)
@@ -189,13 +219,41 @@ class PrescriptionView(QWidget):
             self.prescription_table.setRowCount(len(self.cart))
             total_amount = 0
             for i, item in enumerate(self.cart):
-                self.prescription_table.setItem(i, 0, QTableWidgetItem(item['name']))
-                self.prescription_table.setItem(i, 1, QTableWidgetItem(f"{item['qty']}g"))
-                self.prescription_table.setItem(i, 2, QTableWidgetItem(f"¥{item['price']}"))
-                self.prescription_table.setItem(i, 3, QTableWidgetItem(f"¥{item['amount']:.2f}"))
+                name_item = QTableWidgetItem(item['name'])
+                name_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.prescription_table.setItem(i, 0, name_item)
+                
+                qty_item = QTableWidgetItem(f"{item['qty']}g")
+                qty_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.prescription_table.setItem(i, 1, qty_item)
+                
+                price_item = QTableWidgetItem(f"¥{item['price']}")
+                price_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.prescription_table.setItem(i, 2, price_item)
+                
+                amount_item = QTableWidgetItem(f"¥{item['amount']:.2f}")
+                amount_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.prescription_table.setItem(i, 3, amount_item)
                 
                 remove_btn = QPushButton('删除')
-                remove_btn.setStyleSheet('background-color: #f56c6c; color: white;')
+                remove_btn.setCursor(Qt.PointingHandCursor)
+                remove_btn.setStyleSheet('''
+                    QPushButton {
+                        background-color: #ffffff;
+                        color: #ff4d4f;
+                        border: 1px solid #ff4d4f;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover {
+                        background-color: #fff1f0;
+                    }
+                    QPushButton:pressed {
+                        background-color: #ff4d4f;
+                        color: #ffffff;
+                    }
+                ''')
                 remove_btn.clicked.connect(lambda checked, row=i: self.remove_from_prescription(row))
                 self.prescription_table.setCellWidget(i, 4, remove_btn)
                 

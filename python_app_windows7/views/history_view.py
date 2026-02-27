@@ -1,7 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+处方历史视图 - Windows 7兼容版本
+白底黑字风格
+"""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QMessageBox, QLabel,
-                             QHeaderView, QDialog, QTextEdit, QGroupBox)
-from PyQt5.QtCore import Qt
+                             QHeaderView, QDialog, QTextEdit, QGroupBox, QFrame)
+from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont
 from datetime import datetime
 import logging
@@ -83,12 +88,12 @@ class HistoryView(QWidget):
         
         header_layout = QHBoxLayout()
         header_label = QLabel('历史处方列表')
-        header_label.setStyleSheet('font-size: 16px; font-weight: bold; color: #262626;')
+        header_label.setStyleSheet('font-size: 16px; font-weight: bold; color: #000000;')
         header_layout.addWidget(header_label)
         header_layout.addStretch()
         
         self.record_count_label = QLabel('共 0 条记录')
-        self.record_count_label.setStyleSheet('color: #8c8c8c;')
+        self.record_count_label.setStyleSheet('color: #666666;')
         header_layout.addWidget(self.record_count_label)
         
         layout.addLayout(header_layout)
@@ -100,9 +105,21 @@ class HistoryView(QWidget):
         self.list_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.list_table.setAlternatingRowColors(True)
         self.list_table.verticalHeader().setVisible(False)
-        self.list_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.list_table.verticalHeader().setDefaultSectionSize(40)
+        
+        self.list_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.list_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.list_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.list_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.list_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+        self.list_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
         self.list_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
-        self.list_table.setColumnWidth(6, 100)
+        
+        self.list_table.setColumnWidth(0, 80)
+        self.list_table.setColumnWidth(2, 60)
+        self.list_table.setColumnWidth(4, 100)
+        self.list_table.setColumnWidth(5, 160)
+        self.list_table.setColumnWidth(6, 80)
         
         layout.addWidget(self.list_table)
         
@@ -145,32 +162,31 @@ class HistoryView(QWidget):
     def _apply_styles(self):
         self.setStyleSheet('''
             QPushButton#refresh_btn {
-                background-color: #1890ff;
-                color: white;
-                border: none;
+                background-color: #ffffff;
+                color: #000000;
+                border: 1px solid #000000;
                 padding: 8px 16px;
                 border-radius: 4px;
                 min-width: 80px;
             }
             QPushButton#refresh_btn:hover {
-                background-color: #40a9ff;
+                background-color: #f0f0f0;
             }
             QPushButton#view_log_btn {
                 background-color: #ffffff;
-                color: #595959;
-                border: 1px solid #d9d9d9;
+                color: #333333;
+                border: 1px solid #e0e0e0;
                 padding: 8px 16px;
                 border-radius: 4px;
                 min-width: 100px;
             }
             QPushButton#view_log_btn:hover {
-                border-color: #1890ff;
-                color: #1890ff;
+                background-color: #f5f5f5;
             }
             QGroupBox {
                 font-weight: 500;
-                color: #262626;
-                border: 1px solid #d9d9d9;
+                color: #000000;
+                border: 1px solid #e0e0e0;
                 border-radius: 4px;
                 margin-top: 12px;
                 padding-top: 8px;
@@ -179,6 +195,27 @@ class HistoryView(QWidget):
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 8px;
+            }
+            QTableWidget {
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                gridline-color: #f0f0f0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QTableWidget::item:selected {
+                background-color: #e0e0e0;
+                color: #000000;
+            }
+            QHeaderView::section {
+                font-weight: 500;
+                padding: 10px 8px;
+                background-color: #fafafa;
+                border: none;
+                border-bottom: 1px solid #e0e0e0;
+                color: #000000;
             }
         ''')
 
@@ -203,7 +240,7 @@ class HistoryView(QWidget):
                 total_amount = self._get_row_value(row, 'total_amount', 4)
                 created_at = self._get_row_value(row, 'created_at', 5)
                 
-                data_list = [pres_id, patient_name, patient_age, diagnosis, total_amount, created_at]
+                data_list = [pres_id, patient_name, patient_age, diagnosis, f'¥{total_amount}', created_at]
                 
                 for j, data in enumerate(data_list):
                     item = QTableWidgetItem(str(data) if data else '')
@@ -214,17 +251,23 @@ class HistoryView(QWidget):
                 delete_btn.setProperty('prescription_id', pres_id)
                 delete_btn.setProperty('row_index', i)
                 delete_btn.clicked.connect(self._on_delete_clicked)
+                delete_btn.setCursor(Qt.PointingHandCursor)
                 delete_btn.setStyleSheet('''
                     QPushButton {
-                        background-color: #ff4d4f;
-                        color: white;
-                        border: none;
-                        padding: 4px 12px;
+                        background-color: #ffffff;
+                        color: #ff4d4f;
+                        border: 1px solid #ff4d4f;
+                        padding: 6px 16px;
                         border-radius: 4px;
                         font-size: 12px;
+                        min-width: 50px;
                     }
                     QPushButton:hover {
-                        background-color: #ff7875;
+                        background-color: #fff1f0;
+                    }
+                    QPushButton:pressed {
+                        background-color: #ff4d4f;
+                        color: #ffffff;
                     }
                 ''')
                 

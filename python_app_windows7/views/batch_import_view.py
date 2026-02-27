@@ -1,8 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+批量导入视图 - Windows 7兼容版本
+支持CSV和Excel文件导入，增强数据验证和错误提示
+"""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QFileDialog, QProgressBar, QTextEdit, QGroupBox, QMessageBox,
-                             QTableWidget, QTableWidgetItem, QHeaderView)
+                             QTableWidget, QTableWidgetItem, QHeaderView, QCheckBox)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor
 import csv
 import os
 import logging
@@ -14,6 +19,8 @@ try:
     HAS_OPENPYXL = True
 except ImportError:
     HAS_OPENPYXL = False
+
+from utils.excel_template import ExcelTemplateGenerator, DataValidator
 
 
 def _get_value(data, key, default=''):
@@ -153,6 +160,7 @@ class BatchImportView(QWidget):
         self.db = db
         self.worker = None
         self.preview_data = []
+        self.validation_errors = []
         self.init_ui()
         
     def init_ui(self):
@@ -170,11 +178,11 @@ class BatchImportView(QWidget):
         self.file_label.setStyleSheet('color: #909399;')
         
         self.select_btn = QPushButton('选择文件')
-        self.select_btn.setStyleSheet('background-color: #409eff; color: white; padding: 8px 20px;')
+        self.select_btn.setStyleSheet('background-color: #ffffff; color: #000000; border: 2px solid #000000; padding: 8px 20px;')
         self.select_btn.clicked.connect(self.select_file)
         
         self.template_btn = QPushButton('下载模板')
-        self.template_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 8px 20px;')
+        self.template_btn.setStyleSheet('background-color: #ffffff; color: #000000; border: 1px solid #000000; padding: 8px 20px;')
         self.template_btn.clicked.connect(self.download_template)
         
         file_layout.addWidget(self.file_label, 1)
@@ -188,11 +196,20 @@ class BatchImportView(QWidget):
         self.preview_table = QTableWidget()
         self.preview_table.setMaximumHeight(200)
         self.preview_table.setAlternatingRowColors(True)
+        self.preview_table.verticalHeader().setVisible(False)
         preview_layout.addWidget(self.preview_table)
         
+        preview_info_layout = QHBoxLayout()
         self.preview_info = QLabel()
         self.preview_info.setStyleSheet('color: #666;')
-        preview_layout.addWidget(self.preview_info)
+        preview_info_layout.addWidget(self.preview_info)
+        
+        self.error_info = QLabel()
+        self.error_info.setStyleSheet('color: #f56c6c;')
+        preview_info_layout.addWidget(self.error_info)
+        preview_info_layout.addStretch()
+        
+        preview_layout.addLayout(preview_info_layout)
         
         self.preview_group.setVisible(False)
         layout.addWidget(self.preview_group)
@@ -208,12 +225,12 @@ class BatchImportView(QWidget):
         
         btn_layout = QHBoxLayout()
         self.import_btn = QPushButton('开始导入')
-        self.import_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 10px 30px;')
+        self.import_btn.setStyleSheet('background-color: #ffffff; color: #000000; border: 2px solid #000000; padding: 10px 30px;')
         self.import_btn.clicked.connect(self.start_import)
         self.import_btn.setEnabled(False)
         
         self.cancel_btn = QPushButton('取消')
-        self.cancel_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 30px;')
+        self.cancel_btn.setStyleSheet('background-color: #ffffff; color: #666666; border: 1px solid #e0e0e0; padding: 10px 30px;')
         self.cancel_btn.clicked.connect(self.cancel_import)
         self.cancel_btn.setVisible(False)
         
@@ -240,19 +257,21 @@ class BatchImportView(QWidget):
         help_group = QGroupBox('导入说明')
         help_layout = QVBoxLayout(help_group)
         help_text = QLabel('''
-支持的文件格式: CSV、Excel (.xlsx)
-必填字段: name (药材名称)
-可选字段: alias (别名), category (分类), nature (药性), taste (药味), meridian (归经),
-         efficacy (功效), indications (主治), usage (用法), dosage (用量),
-         contraindication (禁忌), notes (备注), quantity (库存数量), unit (单位),
-         price (单价), min_stock (最低库存)
+<span style="color: #e74c3c; font-weight: bold;">必填字段:</span> name (药材名称) - 标红色表头
+<span style="color: #409eff; font-weight: bold;">可选字段:</span> alias (别名), category (分类), nature (药性: 寒/热/温/凉/平), 
+         taste (药味), meridian (归经), efficacy (功效), indications (主治), 
+         usage (用法), dosage (用量), contraindication (禁忌), notes (备注), 
+         quantity (库存数量), unit (单位), price (单价), min_stock (最低库存)
 
-注意事项:
+<span style="font-weight: bold;">支持的文件格式:</span> CSV、Excel (.xlsx)
+<span style="font-weight: bold;">注意事项:</span>
 1. 药材名称不能为空，重复名称将更新已有数据
 2. CSV文件请使用UTF-8编码
-3. 数值字段(库存、价格等)请填写数字
+3. 数值字段(库存、价格等)请填写数字，不能为负数
+4. 药性字段请填写: 寒/热/温/凉/平
         ''')
-        help_text.setStyleSheet('color: #666; line-height: 1.6;')
+        help_text.setStyleSheet('color: #666; line-height: 1.8;')
+        help_text.setWordWrap(True)
         help_layout.addWidget(help_text)
         layout.addWidget(help_group)
         
@@ -279,10 +298,42 @@ class BatchImportView(QWidget):
             else:
                 QMessageBox.warning(self, '错误', '不支持的文件格式')
                 return
-                
-            self.show_preview()
-            self.import_btn.setEnabled(True)
             
+            valid_data, errors = DataValidator.validate_all(self.preview_data)
+            self.validation_errors = errors
+            
+            self.show_preview()
+            
+            if errors:
+                self.error_info.setText(f'发现 {len(errors)} 个验证错误')
+                self.error_info.setStyleSheet('color: #f56c6c; font-weight: bold;')
+                self.log_text.clear()
+                self.log_text.append('<span style="color: #e74c3c;">数据验证错误:</span>')
+                for err in errors[:20]:
+                    self.log_text.append(f'  {err}')
+                if len(errors) > 20:
+                    self.log_text.append(f'  ... 还有 {len(errors) - 20} 个错误')
+                
+                reply = QMessageBox.warning(
+                    self, '数据验证警告',
+                    f'发现 {len(errors)} 个数据验证错误。\n\n'
+                    f'有效数据: {len(valid_data)} 条\n'
+                    f'错误数据: {len(self.preview_data) - len(valid_data)} 条\n\n'
+                    f'是否继续导入有效数据？',
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self.preview_data = valid_data
+                    self.import_btn.setEnabled(len(valid_data) > 0)
+                else:
+                    self.import_btn.setEnabled(False)
+                    return
+            else:
+                self.error_info.setText('')
+                self.import_btn.setEnabled(True)
+                
         except Exception as e:
             logger.error(f"文件解析失败: {e}")
             QMessageBox.warning(self, '错误', f'文件解析失败: {str(e)}')
@@ -298,7 +349,7 @@ class BatchImportView(QWidget):
                     headers = reader.fieldnames
                     
                     if not headers or 'name' not in [h.lower() for h in headers]:
-                        raise ValueError('CSV文件必须包含name列')
+                        raise ValueError('CSV文件必须包含name列（药材名称）')
                         
                     for row in reader:
                         normalized = {}
@@ -309,6 +360,8 @@ class BatchImportView(QWidget):
                 break
             except UnicodeDecodeError:
                 continue
+            except Exception as e:
+                raise ValueError(f'CSV解析错误: {str(e)}')
                 
         return data
         
@@ -318,10 +371,10 @@ class BatchImportView(QWidget):
         ws = wb.active
         
         headers = [cell.value for cell in ws[1] if cell.value]
-        headers_lower = [h.lower() for h in headers]
+        headers_lower = [str(h).lower() for h in headers]
         
         if 'name' not in headers_lower:
-            raise ValueError('Excel文件必须包含name列')
+            raise ValueError('Excel文件必须包含name列（药材名称）')
             
         for row in ws.iter_rows(min_row=2, values_only=True):
             if not row[0]:
@@ -329,7 +382,7 @@ class BatchImportView(QWidget):
             item = {}
             for i, header in enumerate(headers_lower):
                 if i < len(row):
-                    item[header] = str(row[i]) if row[i] else ''
+                    item[header] = str(row[i]) if row[i] is not None else ''
             data.append(item)
             
         return data
@@ -341,17 +394,18 @@ class BatchImportView(QWidget):
         self.preview_group.setVisible(True)
         
         self.preview_table.clear()
-        self.preview_table.setRowCount(min(5, len(self.preview_data)))
+        self.preview_table.setRowCount(min(10, len(self.preview_data)))
         
         if self.preview_data:
             headers = list(self.preview_data[0].keys())
             self.preview_table.setColumnCount(len(headers))
             self.preview_table.setHorizontalHeaderLabels(headers)
             
-            for row_idx, row_data in enumerate(self.preview_data[:5]):
+            for row_idx, row_data in enumerate(self.preview_data[:10]):
                 for col_idx, header in enumerate(headers):
                     value = row_data.get(header, '')
                     item = QTableWidgetItem(str(value)[:30] if value else '')
+                    item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                     self.preview_table.setItem(row_idx, col_idx, item)
                     
             self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -359,32 +413,33 @@ class BatchImportView(QWidget):
         self.preview_info.setText(f'共 {len(self.preview_data)} 条数据待导入')
         
     def download_template(self):
-        filename, _ = QFileDialog.getSaveFileName(
-            self, '保存模板文件', '药材导入模板.csv', 'CSV文件 (*.csv)'
-        )
+        format_dialog = QMessageBox(self)
+        format_dialog.setWindowTitle('选择模板格式')
+        format_dialog.setText('请选择要下载的模板格式:')
+        format_dialog.addButton('Excel格式 (.xlsx)', QMessageBox.AcceptRole)
+        format_dialog.addButton('CSV格式 (.csv)', QMessageBox.RejectRole)
+        format_dialog.addButton(QMessageBox.Cancel)
         
-        if not filename:
-            return
-            
-        headers = [
-            'name', 'alias', 'category', 'nature', 'taste', 'meridian',
-            'efficacy', 'indications', 'usage', 'dosage', 'contraindication',
-            'notes', 'quantity', 'unit', 'price', 'min_stock'
-        ]
+        result = format_dialog.exec_()
         
-        sample_data = [
-            ['人参', '黄参', '补虚药', '温', '甘、微苦', '归脾、肺、心经',
-             '大补元气', '体虚欲脱', '煎服', '3-9g', '实证忌服', '', '500', 'g', '85', '50'],
-            ['黄芪', '黄耆', '补虚药', '微温', '甘', '归脾、肺经',
-             '补气升阳', '气虚乏力', '煎服', '9-30g', '实证禁服', '', '600', 'g', '42', '60'],
-        ]
-        
-        with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
-            writer.writerows(sample_data)
-            
-        QMessageBox.information(self, '成功', f'模板已保存到:\n{filename}')
+        if format_dialog.clickedButton().text() == 'Excel格式 (.xlsx)' and HAS_OPENPYXL:
+            filename, _ = QFileDialog.getSaveFileName(
+                self, '保存Excel模板', '药材导入模板.xlsx', 'Excel文件 (*.xlsx)'
+            )
+            if filename:
+                if ExcelTemplateGenerator.generate_excel_template(filename):
+                    QMessageBox.information(self, '成功', f'Excel模板已保存到:\n{filename}\n\n请参考模板格式填写数据。')
+                else:
+                    QMessageBox.warning(self, '失败', '生成Excel模板失败')
+        elif format_dialog.clickedButton().text() == 'CSV格式 (.csv)' or not HAS_OPENPYXL:
+            filename, _ = QFileDialog.getSaveFileName(
+                self, '保存CSV模板', '药材导入模板.csv', 'CSV文件 (*.csv)'
+            )
+            if filename:
+                if ExcelTemplateGenerator.generate_csv_template(filename):
+                    QMessageBox.information(self, '成功', f'CSV模板已保存到:\n{filename}\n\n请参考模板格式填写数据。')
+                else:
+                    QMessageBox.warning(self, '失败', '生成CSV模板失败')
         
     def start_import(self):
         if not self.preview_data:
@@ -392,7 +447,8 @@ class BatchImportView(QWidget):
             
         reply = QMessageBox.question(
             self, '确认导入',
-            f'确定要导入 {len(self.preview_data)} 条数据吗？\n重复的药材名称将更新已有数据。',
+            f'确定要导入 {len(self.preview_data)} 条数据吗？\n\n'
+            f'<span style="color: #e74c3c;">重复的药材名称将更新已有数据。</span>',
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         
@@ -413,7 +469,7 @@ class BatchImportView(QWidget):
     def cancel_import(self):
         if self.worker and self.worker.isRunning():
             self.worker.terminate()
-            self.log_text.append('导入已取消')
+            self.log_text.append('<span style="color: #e74c3c;">导入已取消</span>')
             
         self.reset_ui()
         
@@ -425,13 +481,13 @@ class BatchImportView(QWidget):
         self.progress_bar.setValue(100)
         self.status_label.setText(f'导入完成！新增 {added} 条，更新 {updated} 条')
         
-        self.log_text.append(f'导入完成！')
-        self.log_text.append(f'  新增: {added} 条')
-        self.log_text.append(f'  更新: {updated} 条')
+        self.log_text.append('<span style="color: #67c23a; font-weight: bold;">导入完成！</span>')
+        self.log_text.append(f'  <span style="color: #67c23a;">新增: {added} 条</span>')
+        self.log_text.append(f'  <span style="color: #409eff;">更新: {updated} 条</span>')
         
         if errors > 0:
-            self.log_text.append(f'  错误: {errors} 条')
-            self.log_text.append('\n错误详情:')
+            self.log_text.append(f'  <span style="color: #e74c3c;">错误: {errors} 条</span>')
+            self.log_text.append('\n<span style="font-weight: bold;">错误详情:</span>')
             for err in error_list[:10]:
                 self.log_text.append(f'  {err}')
             if len(error_list) > 10:

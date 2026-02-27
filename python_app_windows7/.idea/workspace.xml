@@ -5,35 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3111d2d6-cdf8-41a0-a8e8-9168095adbbc" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem.sln" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/App.config" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Core/UpdateChecker.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Data/DataInitializer.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Data/DataStore.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Forms/HistoryForm.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Forms/InventoryForm.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Forms/MainForm.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Forms/MedicineForm.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Forms/PrescriptionForm.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/MedicineSystem.csproj" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Models/Inventory.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Models/InventoryHistory.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Models/Medicine.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Models/OperationLog.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Models/Prescription.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Models/PrescriptionItem.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Program.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/Properties/AssemblyInfo.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/UI/ModernUI.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/bin/Debug/中药材销售管理系统.exe" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/bin/Debug/中药材销售管理系统.exe.config" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/bin/Debug/中药材销售管理系统.pdb" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/obj/Debug/.NETFramework,Version=v4.5.2.AssemblyAttributes.cs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/obj/Debug/MedicineSystem.csproj.AssemblyReference.cache" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/obj/Debug/MedicineSystem.csproj.CoreCompileInputs.cache" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/obj/Debug/MedicineSystem.csproj.FileListAbsolute.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/obj/Debug/中药材销售管理系统.exe" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../csharp_app_simple/MedicineSystem/obj/Debug/中药材销售管理系统.pdb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MIGRATION_WIN7.md" beforeDir="false" afterPath="$PROJECT_DIR$/MIGRATION_WIN7.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements_win7.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements_win7.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/batch_import_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/batch_import_view.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/history_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/history_view.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/prescription_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/prescription_view.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/widgets/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/__init__.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,7 +39,7 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "master",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
+    "settings.editor.selected.configurable": "preferences.rainbow.brackets.lite"
   }
 }]]></component>
   <component name="RunManager">
@@ -109,7 +89,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/main.py</url>
-          <line>8</line>
+          <line>13</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
       </breakpoints>
