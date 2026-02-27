@@ -7,13 +7,23 @@
     <list default="true" id="3111d2d6-cdf8-41a0-a8e8-9168095adbbc" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MIGRATION_WIN7.md" beforeDir="false" afterPath="$PROJECT_DIR$/MIGRATION_WIN7.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build_win7.bat" beforeDir="false" afterPath="$PROJECT_DIR$/build_win7.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/core/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/win7_compat.py" beforeDir="false" afterPath="$PROJECT_DIR$/core/win7_compat.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/requirements_win7.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements_win7.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/system_check.bat" beforeDir="false" afterPath="$PROJECT_DIR$/system_check.bat" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/utils/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/excel_template.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/excel_template.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/style_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/style_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/updater.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/updater.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/version_info.txt" beforeDir="false" afterPath="$PROJECT_DIR$/version_info.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/views/batch_import_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/batch_import_view.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/views/history_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/history_view.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/views/prescription_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/prescription_view.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/widgets/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/widgets/import_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/import_dialog.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/widgets/sidebar.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/sidebar.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
