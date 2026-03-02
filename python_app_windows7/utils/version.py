@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-CURRENT_VERSION = "2.4.3"
+CURRENT_VERSION = "2.7.4"
 VERSION_DATE = "2026-03-02"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
@@ -13,6 +13,23 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "2.7.4": {
+        "date": "2026-03-02",
+        "changes": [
+            "优化'使用模板'按钮位置",
+            "按钮移至右侧处方区域标题旁",
+            "视觉更加突出，操作更便捷"
+        ]
+    },
+    "2.7.3": {
+        "date": "2026-03-02",
+        "changes": [
+            "优化'使用处方模板'按钮位置",
+            "按钮移至患者选择器同行，操作流程更自然",
+            "简化按钮文字为'模板'，更简洁",
+            "提升界面布局合理性"
+        ]
+    },
     "2.4.3": {
         "date": "2026-03-02",
         "changes": [

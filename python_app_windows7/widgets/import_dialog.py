@@ -407,8 +407,16 @@ class ImportDialog(QDialog):
     def _setup_window(self):
         self.setWindowTitle('批量导入药材数据')
         self.setModal(True)
-        self.setMinimumSize(800, 650)
-        self.resize(900, 700)
+        
+        if self.parent():
+            parent_rect = self.parent().geometry()
+            max_width = min(750, parent_rect.width() - 100)
+            max_height = min(550, parent_rect.height() - 100)
+            self.setMinimumSize(500, 400)
+            self.resize(max_width, max_height)
+        else:
+            self.setMinimumSize(600, 450)
+            self.resize(700, 500)
         
         c = FluentColors
         self.setStyleSheet(f'''
@@ -433,8 +441,8 @@ class ImportDialog(QDialog):
         e = FluentEffects
         
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(s.LG, s.LG, s.LG, s.LG)
-        main_layout.setSpacing(s.MD)
+        main_layout.setContentsMargins(s.MD, s.MD, s.MD, s.MD)
+        main_layout.setSpacing(s.SM)
         
         header_layout = QHBoxLayout()
         title_label = QLabel('批量导入药材数据')
@@ -499,10 +507,12 @@ class ImportDialog(QDialog):
         
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(s.LG)
+        layout.setSpacing(s.MD)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         self.drop_area = FileDropArea()
         self.drop_area.file_dropped.connect(self._load_file)
+        self.drop_area.setMinimumHeight(150)
         
         select_layout = QHBoxLayout()
         select_layout.setAlignment(Qt.AlignCenter)
@@ -514,7 +524,7 @@ class ImportDialog(QDialog):
         hint_label.setStyleSheet(f'color: {c.TEXT["tertiary"]}; font-size: {t.SIZES["body_small"]}px;')
         
         select_layout.addWidget(self.select_file_btn)
-        select_layout.addSpacing(s.LG)
+        select_layout.addSpacing(s.MD)
         select_layout.addWidget(hint_label)
         
         layout.addWidget(self.drop_area)
@@ -526,22 +536,18 @@ class ImportDialog(QDialog):
                 background-color: {c.SEMANTIC['info_background']};
                 border: 1px solid {c.BRAND['primary_light']};
                 border-radius: {e.CORNERS['medium']}px;
-                padding: {s.MD}px;
+                padding: {s.SM}px;
             }}
         ''')
         help_layout = QVBoxLayout(help_frame)
-        help_layout.setContentsMargins(s.MD, s.MD, s.MD, s.MD)
+        help_layout.setContentsMargins(s.SM, s.SM, s.SM, s.SM)
+        help_layout.setSpacing(4)
         
         help_title = QLabel('导入说明')
-        help_title.setStyleSheet(f'font-weight: {t.WEIGHTS["semibold"]}; color: {c.BRAND["primary"]};')
+        help_title.setStyleSheet(f'font-weight: {t.WEIGHTS["semibold"]}; color: {c.BRAND["primary"]}; font-size: 12px;')
         
-        help_text = QLabel('''
-• 必填字段：药材名称 (name)
-• 可选字段：别名、分类、药性、药味、归经、功效、主治、用法、用量、禁忌、备注、库存数量、单位、单价、最低库存
-• 重复的药材名称将更新已有数据
-• CSV文件请使用UTF-8编码
-        ''')
-        help_text.setStyleSheet(f'color: {c.TEXT["secondary"]}; line-height: 1.6;')
+        help_text = QLabel('• 必填：药材名称 (name)\n• 可选：别名、分类、药性、药味、归经、功效、主治、用法、用量、禁忌、备注、库存数量、单位、单价、最低库存\n• 重复的药材名称将更新已有数据')
+        help_text.setStyleSheet(f'color: {c.TEXT["secondary"]}; font-size: 11px;')
         help_text.setWordWrap(True)
         
         help_layout.addWidget(help_title)
@@ -559,7 +565,8 @@ class ImportDialog(QDialog):
         
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(s.MD)
+        layout.setSpacing(s.SM)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         info_frame = QFrame()
         info_frame.setStyleSheet(f'''
@@ -570,13 +577,13 @@ class ImportDialog(QDialog):
             }}
         ''')
         info_layout = QHBoxLayout(info_frame)
-        info_layout.setContentsMargins(s.MD, s.SM, s.MD, s.SM)
+        info_layout.setContentsMargins(s.SM, s.XS, s.SM, s.XS)
         
         self.file_info_label = QLabel()
-        self.file_info_label.setStyleSheet(f'font-weight: {t.WEIGHTS["semibold"]}; color: {c.TEXT["primary"]};')
+        self.file_info_label.setStyleSheet(f'font-weight: {t.WEIGHTS["semibold"]}; color: {c.TEXT["primary"]}; font-size: 12px;')
         
         self.record_count_label = QLabel()
-        self.record_count_label.setStyleSheet(f'color: {c.TEXT["secondary"]};')
+        self.record_count_label.setStyleSheet(f'color: {c.TEXT["secondary"]}; font-size: 11px;')
         
         self.error_count_label = QLabel()
         
@@ -596,20 +603,21 @@ class ImportDialog(QDialog):
             }}
         ''')
         preview_layout = QVBoxLayout(preview_group)
-        preview_layout.setContentsMargins(s.SM, s.SM, s.SM, s.SM)
+        preview_layout.setContentsMargins(s.XS, s.XS, s.XS, s.XS)
+        preview_layout.setSpacing(4)
         
         preview_title = QLabel('数据预览 (显示前20条)')
-        preview_title.setStyleSheet(f'font-weight: {t.WEIGHTS["semibold"]}; color: {c.TEXT["primary"]}; margin-bottom: {s.SM}px;')
+        preview_title.setStyleSheet(f'font-weight: {t.WEIGHTS["semibold"]}; color: {c.TEXT["primary"]}; font-size: 12px;')
         preview_layout.addWidget(preview_title)
         
         self.preview_table = QTableWidget()
         self.preview_table.setAlternatingRowColors(True)
         self.preview_table.verticalHeader().setVisible(False)
         self.preview_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.preview_table.setMinimumHeight(250)
+        self.preview_table.setMinimumHeight(200)
         preview_layout.addWidget(self.preview_table)
         
-        layout.addWidget(preview_group)
+        layout.addWidget(preview_group, 1)
         
         error_group = QFrame()
         error_group.setStyleSheet(f'''
@@ -655,24 +663,24 @@ class ImportDialog(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setAlignment(Qt.AlignCenter)
-        layout.setSpacing(s.XL)
+        layout.setSpacing(s.MD)
         
         progress_frame = QFrame()
         progress_frame.setStyleSheet(f'''
             QFrame {{
                 background-color: {c.SURFACE['card']};
                 border: 1px solid {c.STROKE['card']};
-                border-radius: {e.CORNERS['large']}px;
+                border-radius: {e.CORNERS['medium']}px;
             }}
         ''')
         progress_layout = QVBoxLayout(progress_frame)
-        progress_layout.setContentsMargins(s.XXL, s.XXL, s.XXL, s.XXL)
-        progress_layout.setSpacing(s.LG)
+        progress_layout.setContentsMargins(s.LG, s.LG, s.LG, s.LG)
+        progress_layout.setSpacing(s.SM)
         progress_layout.setAlignment(Qt.AlignCenter)
         
         self.progress_title = QLabel('正在导入数据...')
         self.progress_title.setStyleSheet(f'''
-            font-size: {t.SIZES['subtitle']}px;
+            font-size: 14px;
             font-weight: {t.WEIGHTS['semibold']};
             color: {c.TEXT['primary']};
         ''')
@@ -680,7 +688,7 @@ class ImportDialog(QDialog):
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
-        self.progress_bar.setMinimumWidth(400)
+        self.progress_bar.setMinimumWidth(350)
         self.progress_bar.setStyleSheet(f'''
             QProgressBar {{
                 background-color: {c.NEUTRAL['gray_40']};
@@ -717,49 +725,49 @@ class ImportDialog(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setAlignment(Qt.AlignCenter)
-        layout.setSpacing(s.XL)
+        layout.setSpacing(s.MD)
         
         result_frame = QFrame()
         result_frame.setStyleSheet(f'''
             QFrame {{
                 background-color: {c.SURFACE['card']};
                 border: 1px solid {c.STROKE['card']};
-                border-radius: {e.CORNERS['large']}px;
+                border-radius: {e.CORNERS['medium']}px;
             }}
         ''')
         result_layout = QVBoxLayout(result_frame)
-        result_layout.setContentsMargins(s.XXL, s.XXL, s.XXL, s.XXL)
-        result_layout.setSpacing(s.LG)
+        result_layout.setContentsMargins(s.LG, s.LG, s.LG, s.LG)
+        result_layout.setSpacing(s.SM)
         result_layout.setAlignment(Qt.AlignCenter)
         
         self.result_title = QLabel('导入完成')
         self.result_title.setStyleSheet(f'''
-            font-size: {t.SIZES['subtitle']}px;
+            font-size: 14px;
             font-weight: {t.WEIGHTS['semibold']};
             color: {c.TEXT['primary']};
         ''')
         self.result_title.setAlignment(Qt.AlignCenter)
         
         stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(s.XXL)
+        stats_layout.setSpacing(s.LG)
         
         self.added_label = QLabel()
         self.added_label.setStyleSheet(f'''
-            font-size: {t.SIZES['body_large']}px;
+            font-size: 13px;
             color: {c.SEMANTIC['success']};
         ''')
         self.added_label.setAlignment(Qt.AlignCenter)
         
         self.updated_label = QLabel()
         self.updated_label.setStyleSheet(f'''
-            font-size: {t.SIZES['body_large']}px;
+            font-size: 13px;
             color: {c.BRAND['primary']};
         ''')
         self.updated_label.setAlignment(Qt.AlignCenter)
         
         self.error_result_label = QLabel()
         self.error_result_label.setStyleSheet(f'''
-            font-size: {t.SIZES['body_large']}px;
+            font-size: 13px;
             color: {c.SEMANTIC['error']};
         ''')
         self.error_result_label.setAlignment(Qt.AlignCenter)

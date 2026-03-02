@@ -336,14 +336,60 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, '备份失败', str(e))
 
     def _show_about(self):
-        QMessageBox.about(self, '关于',
-            f'<h3>中药材销售管理系统</h3>'
-            f'<p>版本: {CURRENT_VERSION}</p>'
-            f'<p>发布日期: {VERSION_DATE}</p>'
-            f'<hr>'
-            f'<p>一款专业的中药材信息管理系统</p>'
-            f'<p>支持药材管理、处方开具、库存管理等功能</p>'
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QDialogButtonBox
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle('关于')
+        dialog.setMinimumWidth(400)
+        dialog.setMinimumHeight(300)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(15)
+        
+        title_label = QLabel('中药材销售管理系统')
+        title_label.setStyleSheet('font-size: 20px; font-weight: bold; color: #1890ff;')
+        title_label.setAlignment(Qt.AlignCenter)
+        
+        version_label = QLabel(f'版本: {CURRENT_VERSION}')
+        version_label.setStyleSheet('font-size: 14px;')
+        version_label.setAlignment(Qt.AlignCenter)
+        
+        date_label = QLabel(f'发布日期: {VERSION_DATE}')
+        date_label.setStyleSheet('font-size: 12px; color: #666;')
+        date_label.setAlignment(Qt.AlignCenter)
+        
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setStyleSheet('background-color: #e0e0e0;')
+        
+        desc_label = QLabel(
+            '一款专业的中药材信息管理系统\n\n'
+            '主要功能:\n'
+            '• 药材信息管理\n'
+            '• 处方开具与管理\n'
+            '• 库存监控与调配\n'
+            '• 患者信息管理\n'
+            '• 数据统计与分析'
         )
+        desc_label.setStyleSheet('font-size: 13px; line-height: 1.6;')
+        desc_label.setAlignment(Qt.AlignCenter)
+        
+        copyright_label = QLabel('© 2026 TCM System')
+        copyright_label.setStyleSheet('font-size: 11px; color: #999;')
+        copyright_label.setAlignment(Qt.AlignCenter)
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        
+        layout.addWidget(title_label)
+        layout.addWidget(version_label)
+        layout.addWidget(date_label)
+        layout.addWidget(separator)
+        layout.addWidget(desc_label)
+        layout.addWidget(copyright_label)
+        layout.addWidget(button_box)
+        
+        dialog.exec_()
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, '退出确认', '确定要退出程序吗？', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)

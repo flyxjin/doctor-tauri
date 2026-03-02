@@ -106,16 +106,32 @@ class Database:
                     FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE CASCADE
                 )
             ''',
+            'patients': '''
+                CREATE TABLE IF NOT EXISTS patients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    gender TEXT,
+                    age INTEGER,
+                    phone TEXT,
+                    address TEXT,
+                    allergy TEXT,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
             'prescriptions': '''
                 CREATE TABLE IF NOT EXISTS prescriptions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    patient_id INTEGER,
                     patient_name TEXT,
                     patient_age INTEGER,
                     patient_gender TEXT,
                     diagnosis TEXT,
                     total_amount REAL DEFAULT 0,
                     created_by TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL
                 )
             ''',
             'prescription_items': '''
@@ -130,6 +146,19 @@ class Database:
                     amount REAL NOT NULL,
                     FOREIGN KEY (prescription_id) REFERENCES prescriptions(id) ON DELETE CASCADE,
                     FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+                )
+            ''',
+            'prescription_templates': '''
+                CREATE TABLE IF NOT EXISTS prescription_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    category TEXT,
+                    diagnosis TEXT,
+                    medicines TEXT NOT NULL,
+                    notes TEXT,
+                    use_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''',
             'inventory_history': '''
@@ -176,14 +205,78 @@ class Database:
             'CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines (name)',
             'CREATE INDEX IF NOT EXISTS idx_medicines_category ON medicines (category)',
             'CREATE INDEX IF NOT EXISTS idx_inventory_medicine_id ON inventory (medicine_id)',
+            'CREATE INDEX IF NOT EXISTS idx_patients_name ON patients (name)',
             'CREATE INDEX IF NOT EXISTS idx_prescriptions_created_at ON prescriptions (created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions (patient_id)',
+            'CREATE INDEX IF NOT EXISTS idx_prescription_items_prescription_id ON prescription_items (prescription_id)',
+            'CREATE INDEX IF NOT EXISTS idx_prescription_templates_category ON prescription_templates (category)',
+            'CREATE INDEX IF NOT EXISTS idx_prescription_templates_use_count ON prescription_templates (use_count)',
             'CREATE INDEX IF NOT EXISTS idx_inventory_history_medicine_id ON inventory_history (medicine_id)',
+            'CREATE INDEX IF NOT EXISTS idx_inventory_history_created_at ON inventory_history (created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs (created_at)',
         ]
         
         for index_sql in indexes:
-            self.cursor.execute(index_sql)
+            try:
+                self.cursor.execute(index_sql)
+            except sqlite3.OperationalError:
+                pass
         
         self.conn.commit()
+        self._run_migrations()
+    
+    def _run_migrations(self):
+        """运行数据库迁移，处理现有数据库结构升级"""
+        try:
+            self.cursor.execute("PRAGMA table_info(prescriptions)")
+            columns = [col[1] for col in self.cursor.fetchall()]
+            
+            if 'patient_id' not in columns:
+                self.cursor.execute("ALTER TABLE prescriptions ADD COLUMN patient_id INTEGER REFERENCES patients(id)")
+                self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='patients'")
+            if not self.cursor.fetchone():
+                self.cursor.execute('''
+                    CREATE TABLE patients (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        gender TEXT,
+                        age INTEGER,
+                        phone TEXT,
+                        address TEXT,
+                        allergy TEXT,
+                        notes TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prescription_templates'")
+            if not self.cursor.fetchone():
+                self.cursor.execute('''
+                    CREATE TABLE prescription_templates (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        category TEXT,
+                        diagnosis TEXT,
+                        medicines TEXT NOT NULL,
+                        notes TEXT,
+                        use_count INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
     
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         try:
