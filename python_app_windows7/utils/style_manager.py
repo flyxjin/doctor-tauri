@@ -2,7 +2,7 @@
 """
 样式管理器 - Windows 7兼容版本
 提供统一的样式定义和管理
-白底黑字风格，按钮使用黑色边框
+白底黑字风格，优化导航栏选中状态对比度
 """
 
 
@@ -16,17 +16,21 @@ class StyleManager:
     3. 主文字: 黑色 (#000000)
     4. 次文字: 深灰 (#333333)
     5. 按钮: 白底黑边框
+    6. 导航选中: 深色背景配白色文字（高对比度）
     """
     
     COLORS = {
         'primary': '#000000',
         'primary_hover': '#333333',
         'primary_active': '#000000',
-        'sidebar_bg': '#ffffff',
-        'sidebar_text': '#000000',
-        'sidebar_text_secondary': '#666666',
-        'sidebar_text_active': '#000000',
-        'sidebar_border': '#e0e0e0',
+        'sidebar_bg': '#2d2d2d',
+        'sidebar_text': '#ffffff',
+        'sidebar_text_secondary': '#b0b0b0',
+        'sidebar_text_active': '#ffffff',
+        'sidebar_border': '#404040',
+        'nav_active_bg': '#0066cc',
+        'nav_active_text': '#ffffff',
+        'nav_hover_bg': '#3d3d3d',
         'bg_main': '#f5f5f5',
         'bg_card': '#ffffff',
         'text_main': '#000000',
@@ -42,8 +46,6 @@ class StyleManager:
         'button_text': '#000000',
         'button_border': '#000000',
         'button_hover': '#f0f0f0',
-        'nav_active_bg': '#000000',
-        'nav_active_text': '#ffffff',
     }
     
     FONT_FAMILY = '"Microsoft YaHei", "SimSun", sans-serif'
@@ -93,20 +95,20 @@ class StyleManager:
                 background-color: {c['sidebar_border']};
             }}
             QPushButton#nav_btn {{
-                background-color: {c['button_bg']};
-                color: {c['button_text']};
+                background-color: transparent;
+                color: {c['sidebar_text']};
                 text-align: left;
                 padding: 12px 20px;
-                border-radius: 4px;
-                margin: 2px 10px;
+                border-radius: 6px;
+                margin: 2px 8px;
                 font-size: {button_size}px;
                 font-weight: normal;
-                border: 1px solid {c['sidebar_border']};
+                border: 1px solid transparent;
                 font-family: {font_family};
             }}
             QPushButton#nav_btn:hover {{
-                background-color: {c['button_hover']};
-                border-color: {c['button_border']};
+                background-color: {c['nav_hover_bg']};
+                border-color: transparent;
             }}
             QPushButton#nav_btn:checked {{
                 background-color: {c['nav_active_bg']};
@@ -115,25 +117,27 @@ class StyleManager:
                 border: 1px solid {c['nav_active_bg']};
             }}
             QPushButton#import_btn {{
-                background-color: {c['button_bg']};
-                color: {c['button_text']};
-                text-align: center;
-                padding: 10px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: {button_size}px;
-                border: 2px solid {c['button_border']};
-                font-family: {font_family};
-            }}
-            QPushButton#import_btn:hover {{
-                background-color: {c['button_hover']};
-            }}
-            QPushButton#import_btn:pressed {{
                 background-color: {c['nav_active_bg']};
                 color: {c['nav_active_text']};
+                text-align: center;
+                padding: 10px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: {button_size}px;
+                border: 2px solid {c['nav_active_bg']};
+                font-family: {font_family};
+                margin: 8px;
+            }}
+            QPushButton#import_btn:hover {{
+                background-color: #0052a3;
+                border-color: #0052a3;
+            }}
+            QPushButton#import_btn:pressed {{
+                background-color: #003d7a;
+                border-color: #003d7a;
             }}
             QLabel#version_label {{
-                color: {c['text_hint']};
+                color: {c['sidebar_text_secondary']};
                 font-size: {tiny_size}px;
                 padding: 8px;
                 font-family: {font_family};
@@ -236,10 +240,10 @@ class StyleManager:
             }}
             QGroupBox {{
                 border: 1px solid {c['border_light']};
-                border-radius: 4px;
+                border-radius: 6px;
                 margin-top: 16px;
                 font-weight: bold;
-                font-size: {int(base_size * 1.2)}px;
+                font-size: {int(base_size * 1.1)}px;
                 color: {c['text_main']};
                 padding-top: 12px;
                 background-color: white;
@@ -263,6 +267,28 @@ class StyleManager:
             QMessageBox QPushButton {{
                 min-width: 80px;
                 padding: 6px 12px;
+            }}
+            QComboBox {{
+                font-size: {body_size}px;
+                padding: 6px 10px;
+                border: 1px solid {c['border_light']};
+                border-radius: 4px;
+                background-color: white;
+                color: {c['text_main']};
+                font-family: {font_family};
+            }}
+            QComboBox:hover {{
+                border-color: {c['border']};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 24px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: white;
+                border: 1px solid {c['border_light']};
+                selection-background-color: #f0f0f0;
+                selection-color: {c['text_main']};
             }}
         '''
     

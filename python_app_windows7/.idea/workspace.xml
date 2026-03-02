@@ -6,21 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="3111d2d6-cdf8-41a0-a8e8-9168095adbbc" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MIGRATION_WIN7.md" beforeDir="false" afterPath="$PROJECT_DIR$/MIGRATION_WIN7.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_win7.bat" beforeDir="false" afterPath="$PROJECT_DIR$/build_win7.bat" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/core/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/win7_compat.py" beforeDir="false" afterPath="$PROJECT_DIR$/core/win7_compat.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements_win7.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements_win7.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/system_check.bat" beforeDir="false" afterPath="$PROJECT_DIR$/system_check.bat" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/excel_template.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/excel_template.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/medicine_system.db" beforeDir="false" afterPath="$PROJECT_DIR$/medicine_system.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/utils/style_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/style_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/updater.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/updater.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/version_info.txt" beforeDir="false" afterPath="$PROJECT_DIR$/version_info.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/views/batch_import_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/batch_import_view.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/views/history_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/history_view.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/views/prescription_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/prescription_view.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/widgets/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/widgets/import_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/import_dialog.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/widgets/sidebar.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/sidebar.py" afterDir="false" />
@@ -41,17 +30,17 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
-    "settings.editor.selected.configurable": "preferences.rainbow.brackets.lite"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.rainbow.brackets.lite&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="python_app_windows7" />

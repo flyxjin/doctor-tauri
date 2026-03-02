@@ -6,10 +6,10 @@
 模块化结构:
 - widgets/sidebar.py: 侧边栏组件
 - widgets/import_dialog.py: 导入对话框
-- utils/style_manager.py: 样式管理
+- utils/modern_design.py: 现代设计系统
 - views/: 各视图模块
 
-白底黑字风格
+现代UI设计系统风格
 """
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QFrame, QMessageBox
@@ -21,7 +21,10 @@ from views.medicine_view import MedicineView
 from views.prescription_view import PrescriptionView
 from views.inventory_view import InventoryView
 from views.history_view import HistoryView
-from views.batch_import_view import BatchImportView
+from views.dashboard_view import DashboardView
+from views.prescription_template_view import PrescriptionTemplateView
+from views.patient_view import PatientView
+from views.print_template_view import PrintTemplateView
 from widgets.page_header import PageHeader
 from widgets.update_dialog import UpdateDialog
 from widgets.import_dialog import ImportDialog
@@ -29,7 +32,7 @@ from widgets.sidebar import SidebarWidget
 from utils.responsive_font import get_font_manager
 from utils.version import CURRENT_VERSION, VERSION_DATE, VersionManager
 from utils.updater import UpdateManager, UpdateInfo
-from utils.style_manager import StyleManager
+from utils.style import UIStyles
 
 if hasattr(Qt, 'AA_EnableHighDpiScaling'):
     QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
@@ -38,9 +41,7 @@ if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
 
 
 class MainWindow(QMainWindow):
-    """
-    主窗口类 - 白底黑字风格
-    """
+    """主窗口类"""
 
     def __init__(self):
         super().__init__()
@@ -55,7 +56,6 @@ class MainWindow(QMainWindow):
         self.update_manager = UpdateManager(self.version_manager)
         self.font_manager.font_changed.connect(self._on_font_changed)
         self._resize_timer = None
-        self._last_window_state = None
 
         self.init_ui()
         self._check_update_on_startup()
@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         self._create_status_bar()
 
         central_widget = QWidget()
-        central_widget.setStyleSheet(f"background-color: {StyleManager.COLORS['bg_main']};")
+        central_widget.setStyleSheet(f"background-color: {UIStyles.COLORS['bg_main']};")
         self.setCentralWidget(central_widget)
 
         main_layout = QHBoxLayout(central_widget)
@@ -80,13 +80,13 @@ class MainWindow(QMainWindow):
         self._create_content_area(main_layout)
         self._apply_styles()
 
-        self.sidebar.set_current_nav('medicine')
+        self.sidebar.set_current_nav('dashboard')
         self.stacked_widget.setCurrentIndex(0)
         self.font_manager.update_for_window_size(self.width())
 
     def _create_menu_bar(self):
         menubar = self.menuBar()
-        menubar.setStyleSheet(StyleManager.get_menu_bar_style())
+        menubar.setStyleSheet(UIStyles.get_main_stylesheet())
 
         file_menu = menubar.addMenu('文件')
         
@@ -126,7 +126,7 @@ class MainWindow(QMainWindow):
         from PyQt5.QtWidgets import QStatusBar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.setStyleSheet(StyleManager.get_status_bar_style())
+        self.status_bar.setStyleSheet(UIStyles.get_main_stylesheet())
         self.status_bar.showMessage('就绪')
 
     def _create_sidebar(self, main_layout):
@@ -140,33 +140,51 @@ class MainWindow(QMainWindow):
         content_area = QFrame()
         content_area.setObjectName('content_area')
         content_layout = QVBoxLayout(content_area)
-        content_layout.setContentsMargins(20, 20, 20, 20)
-        content_layout.setSpacing(15)
+        content_layout.setContentsMargins(16, 16, 16, 16)
+        content_layout.setSpacing(16)
 
-        self.page_header = PageHeader('medicine')
+        self.page_header = PageHeader('dashboard')
         content_layout.addWidget(self.page_header)
 
         self.stacked_widget = QStackedWidget()
 
+        self.dashboard_view = DashboardView(self.db)
         self.medicine_view = MedicineView(self.db)
         self.prescription_view = PrescriptionView(self.db)
         self.inventory_view = InventoryView(self.db)
         self.history_view = HistoryView(self.db)
+        self.template_view = PrescriptionTemplateView(self.db)
+        self.patient_view = PatientView(self.db)
+        self.print_view = PrintTemplateView(self.db)
 
+        self.stacked_widget.addWidget(self.dashboard_view)
         self.stacked_widget.addWidget(self.medicine_view)
         self.stacked_widget.addWidget(self.prescription_view)
         self.stacked_widget.addWidget(self.inventory_view)
         self.stacked_widget.addWidget(self.history_view)
+        self.stacked_widget.addWidget(self.template_view)
+        self.stacked_widget.addWidget(self.patient_view)
+        self.stacked_widget.addWidget(self.print_view)
+
+        self.stacked_widget.currentChanged.connect(self._on_view_changed)
 
         content_layout.addWidget(self.stacked_widget)
         main_layout.addWidget(content_area)
 
     def _apply_styles(self):
-        self.setStyleSheet(StyleManager.get_main_window_style(self.font_manager.current_base_size))
+        self.setStyleSheet(UIStyles.get_main_stylesheet())
+        
+    def _on_view_changed(self, index):
+        view_names = ['dashboard', 'medicine', 'prescription', 'inventory', 
+                     'history', 'template', 'patient', 'print']
+        if index < len(view_names):
+            self.page_header.update_title(view_names[index])
 
     def _on_font_changed(self, preset, base_size):
         self._apply_styles()
-        for view in [self.medicine_view, self.inventory_view, self.prescription_view, self.history_view]:
+        for view in [self.medicine_view, self.inventory_view, self.prescription_view, 
+                     self.history_view, self.dashboard_view, self.template_view,
+                     self.patient_view, self.print_view]:
             if hasattr(view, 'update_fonts'):
                 view.update_fonts()
 
@@ -244,9 +262,19 @@ class MainWindow(QMainWindow):
         dialog.exec_()
         self.medicine_view.load_data()
         self.inventory_view.refresh_data()
+        self.dashboard_view.load_statistics()
 
     def switch_view(self, name):
-        view_map = {'medicine': 0, 'prescription': 1, 'inventory': 2, 'history': 3}
+        view_map = {
+            'dashboard': 0,
+            'medicine': 1,
+            'prescription': 2,
+            'inventory': 3,
+            'history': 4,
+            'template': 5,
+            'patient': 6,
+            'print': 7
+        }
         index = view_map.get(name, 0)
         self.stacked_widget.setCurrentIndex(index)
         self.page_header.set_page(name)
@@ -256,8 +284,23 @@ class MainWindow(QMainWindow):
             self.inventory_view.refresh_data()
         elif name == 'history':
             self.history_view.refresh_data()
+        elif name == 'dashboard':
+            self.dashboard_view.load_statistics()
+        elif name == 'template':
+            self.template_view.load_data()
+        elif name == 'patient':
+            self.patient_view.load_data()
 
-        view_names = {'medicine': '药材管理', 'prescription': '开处方', 'inventory': '库存管理', 'history': '处方历史'}
+        view_names = {
+            'dashboard': '数据统计',
+            'medicine': '药材管理',
+            'prescription': '开处方',
+            'inventory': '库存管理',
+            'history': '处方历史',
+            'template': '处方模板',
+            'patient': '患者管理',
+            'print': '打印设置'
+        }
         self.status_bar.showMessage(view_names.get(name, ''))
 
     def _export_data(self):
@@ -315,11 +358,13 @@ def main():
     app.setStyle('Fusion')
 
     font_manager = get_font_manager()
-    font_name = "Microsoft YaHei"
+    font_name = "Segoe UI"
     font_db = QFontDatabase()
     font_families = font_db.families()
     if font_name not in font_families:
-        font_name = "SimSun"
+        font_name = "Microsoft YaHei"
+        if font_name not in font_families:
+            font_name = "SimSun"
 
     font = QFont(font_name, font_manager.current_base_size)
     app.setFont(font)
