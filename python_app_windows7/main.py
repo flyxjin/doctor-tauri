@@ -13,7 +13,7 @@
 """
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QFrame, QMessageBox
-from PyQt5.QtCore import Qt, QTimer, QCoreApplication
+from PyQt5.QtCore import Qt, QTimer, QCoreApplication, QEvent
 from PyQt5.QtGui import QFont, QFontDatabase
 
 from core import Database, BuiltinDataLoader, get_app_logger
@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
         self.update_manager = UpdateManager(self.version_manager)
         self.font_manager.font_changed.connect(self._on_font_changed)
         self._resize_timer = None
+        self._last_window_state = self.windowState()
 
         self.init_ui()
         self._check_update_on_startup()
@@ -132,7 +133,6 @@ class MainWindow(QMainWindow):
     def _create_sidebar(self, main_layout):
         self.sidebar = SidebarWidget(version_text=f'v{CURRENT_VERSION}')
         self.sidebar.nav_clicked.connect(self.switch_view)
-        self.sidebar.import_clicked.connect(self.show_import_dialog)
         self.sidebar.set_fixed_width(220)
         main_layout.addWidget(self.sidebar)
 
@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        if event.type() == event.Type.WindowStateChange:
+        if event.type() == QEvent.WindowStateChange:
             current_state = self.windowState()
             if current_state != self._last_window_state:
                 self._last_window_state = current_state
@@ -212,6 +212,8 @@ class MainWindow(QMainWindow):
         self.font_manager.update_for_window_size(new_width)
         if self.font_manager.current_base_size != old_base_size:
             self._apply_styles()
+        if hasattr(self.sidebar, 'update_for_window_size'):
+            self.sidebar.update_for_window_size(new_width)
 
     def _check_update_on_startup(self):
         if self.version_manager.should_check_update():
@@ -354,8 +356,48 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    # 全局异常处理 - 捕获未处理的异常防止闪退
+    def global_exception_handler(exc_type, exc_value, exc_traceback):
+        import traceback
+        logger = get_app_logger()
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        
+        error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        logger.error(f"未捕获的异常:\n{error_msg}")
+        
+        # 显示错误对话框
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            app = QApplication.instance()
+            if app:
+                msg_box = QMessageBox()
+                msg_box.setWindowTitle('程序错误')
+                msg_box.setIcon(QMessageBox.Critical)
+                msg_box.setText('程序发生了一个错误')
+                msg_box.setDetailedText(error_msg)
+                msg_box.exec_()
+        except:
+            pass
+    
+    sys.excepthook = global_exception_handler
+
+    # 设置 Qt 异常处理
+    def qt_exception_handler(message):
+        logger = get_app_logger()
+        logger.error(f"Qt 异常: {message}")
+
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+
+    # 安装 Qt 消息处理器
+    from PyQt5.QtCore import qInstallMessageHandler
+    def qt_message_handler(msg_type, context, message):
+        logger = get_app_logger()
+        level = {0: 'INFO', 1: 'WARNING', 2: 'CRITICAL', 3: 'FATAL'}
+        logger.error(f"Qt Message [{level.get(msg_type, 'UNKNOWN')}]: {message}")
+    qInstallMessageHandler(qt_message_handler)
 
     font_manager = get_font_manager()
     font_name = "Segoe UI"

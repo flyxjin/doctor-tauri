@@ -4,7 +4,7 @@
 提供销售统计、库存预警、热门药材排行等功能
 Microsoft Fluent Design System风格
 """
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QGroupBox, QGridLayout, QFrame, QProgressBar,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QComboBox, QPushButton, QScrollArea, QSizePolicy,
@@ -15,8 +15,9 @@ from datetime import datetime, timedelta
 import logging
 
 from utils.style import UIStyles
+from core.logger import get_app_logger
 
-logger = logging.getLogger('MedicineSystem')
+logger = get_app_logger()
 
 
 class StatCard(QFrame):
@@ -36,12 +37,13 @@ class StatCard(QFrame):
     
     def _apply_style(self):
         c = UIStyles.COLORS
+        dt = UIStyles.DT
         
         styles = {
-            'warning': f'background-color: {c["warning"]}15; border: 1px solid {c["warning"]};',
-            'success': f'background-color: {c["success"]}15; border: 1px solid {c["success"]};',
-            'error': f'background-color: {c["error"]}15; border: 1px solid {c["error"]};',
-            'info': f'background-color: {c["primary"]}10; border: 1px solid {c["primary"]};',
+            'warning': f'background-color: {dt.COLORS["semantic"]["warning"]["bg"]}; border: 1px solid {dt.COLORS["semantic"]["warning"]["border"]};',
+            'success': f'background-color: {dt.COLORS["semantic"]["success"]["bg"]}; border: 1px solid {dt.COLORS["semantic"]["success"]["border"]};',
+            'error': f'background-color: {dt.COLORS["semantic"]["error"]["bg"]}; border: 1px solid {dt.COLORS["semantic"]["error"]["border"]};',
+            'info': f'background-color: {dt.COLORS["primary"]["subtle"]}; border: 1px solid {dt.COLORS["primary"]["light"]};',
         }
         
         style = styles.get(self._accent, 'background-color: #ffffff; border: 1px solid #e2e8f0;')
@@ -290,154 +292,166 @@ class DashboardView(QWidget):
             logger.error(f"加载统计数据失败: {e}")
     
     def _load_overview_data(self):
-        medicines_count = self.db.fetchone("SELECT COUNT(*) as count FROM medicines")
-        total_medicines = medicines_count['count'] if medicines_count else 0
-        
-        prescriptions_count = self.db.fetchone("SELECT COUNT(*) as count FROM prescriptions")
-        total_prescriptions = prescriptions_count['count'] if prescriptions_count else 0
-        
-        sales_sum = self.db.fetchone("SELECT COALESCE(SUM(total_amount), 0) as total FROM prescriptions")
-        total_sales = sales_sum['total'] if sales_sum else 0
-        
-        low_stock = self.db.fetchall(
-            "SELECT COUNT(*) as count FROM inventory WHERE quantity <= min_stock"
-        )
-        low_stock_count = low_stock[0]['count'] if low_stock else 0
-        
-        self.total_medicines_card.update_value(str(total_medicines), '种药材在库')
-        self.total_prescriptions_card.update_value(str(total_prescriptions), '累计开具')
-        self.total_sales_card.update_value(f'¥{total_sales:.2f}', '累计销售额')
-        self.low_stock_card.update_value(str(low_stock_count), '种药材库存不足')
-        
-        if low_stock_count > 0:
-            self.low_stock_card.update_accent('warning')
-            self.low_stock_card.update_color(UIStyles.COLORS['error'])
-        else:
-            self.low_stock_card.update_accent('success')
-            self.low_stock_card.update_color(UIStyles.COLORS['success'])
+        try:
+            medicines_count = self.db.fetchone("SELECT COUNT(*) as count FROM medicines")
+            total_medicines = medicines_count['count'] if medicines_count else 0
+            
+            prescriptions_count = self.db.fetchone("SELECT COUNT(*) as count FROM prescriptions")
+            total_prescriptions = prescriptions_count['count'] if prescriptions_count else 0
+            
+            sales_sum = self.db.fetchone("SELECT COALESCE(SUM(total_amount), 0) as total FROM prescriptions")
+            total_sales = sales_sum['total'] if sales_sum else 0
+            
+            low_stock = self.db.fetchall(
+                "SELECT COUNT(*) as count FROM inventory WHERE quantity <= min_stock"
+            )
+            low_stock_count = low_stock[0]['count'] if low_stock else 0
+            
+            self.total_medicines_card.update_value(str(total_medicines), '种药材在库')
+            self.total_prescriptions_card.update_value(str(total_prescriptions), '累计开具')
+            self.total_sales_card.update_value(f'¥{total_sales:.2f}', '累计销售额')
+            self.low_stock_card.update_value(str(low_stock_count), '种药材库存不足')
+            
+            if low_stock_count > 0:
+                self.low_stock_card.update_accent('warning')
+                self.low_stock_card.update_color(UIStyles.COLORS['error'])
+            else:
+                self.low_stock_card.update_accent('success')
+                self.low_stock_card.update_color(UIStyles.COLORS['success'])
+        except Exception as e:
+            logger.error(f"加载概览数据失败: {e}")
     
     def _load_sales_data(self):
-        start, end = self._get_time_range()
-        
-        if start and end:
-            rows = self.db.fetchall('''
-                SELECT DATE(created_at) as date, 
-                       COUNT(*) as prescription_count,
-                       SUM(total_amount) as total_amount,
-                       (SELECT COUNT(DISTINCT medicine_id) FROM prescription_items pi 
-                        JOIN prescriptions p2 ON pi.prescription_id = p2.id 
-                        WHERE DATE(p2.created_at) = DATE(p.created_at)) as medicine_types
-                FROM prescriptions p
-                WHERE created_at BETWEEN ? AND ?
-                GROUP BY DATE(created_at)
-                ORDER BY date DESC
-                LIMIT 7
-            ''', (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
-        else:
-            rows = self.db.fetchall('''
-                SELECT DATE(created_at) as date, 
-                       COUNT(*) as prescription_count,
-                       SUM(total_amount) as total_amount,
-                       (SELECT COUNT(DISTINCT medicine_id) FROM prescription_items pi 
-                        WHERE DATE(pi.prescription_id) = DATE(p.created_at)) as medicine_types
-                FROM prescriptions p
-                GROUP BY DATE(created_at)
-                ORDER BY date DESC
-                LIMIT 7
-            ''')
-        
-        self.sales_table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            date = row.get('date', '')
-            pres_count = row.get('prescription_count', 0)
-            total = row.get('total_amount', 0) or 0
-            med_types = row.get('medicine_types', 0) or 0
+        try:
+            start, end = self._get_time_range()
             
-            self.sales_table.setItem(i, 0, QTableWidgetItem(str(date) if date else '-'))
-            self.sales_table.setItem(i, 1, QTableWidgetItem(str(pres_count)))
-            self.sales_table.setItem(i, 2, QTableWidgetItem(f'¥{total:.2f}'))
-            self.sales_table.setItem(i, 3, QTableWidgetItem(str(med_types)))
+            if start and end:
+                rows = self.db.fetchall('''
+                    SELECT DATE(created_at) as date, 
+                           COUNT(*) as prescription_count,
+                           SUM(total_amount) as total_amount,
+                           (SELECT COUNT(DISTINCT medicine_id) FROM prescription_items pi 
+                            JOIN prescriptions p2 ON pi.prescription_id = p2.id 
+                            WHERE DATE(p2.created_at) = DATE(p.created_at)) as medicine_types
+                    FROM prescriptions p
+                    WHERE created_at BETWEEN ? AND ?
+                    GROUP BY DATE(created_at)
+                    ORDER BY date DESC
+                    LIMIT 7
+                ''', (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
+            else:
+                rows = self.db.fetchall('''
+                    SELECT DATE(created_at) as date, 
+                           COUNT(*) as prescription_count,
+                           SUM(total_amount) as total_amount,
+                           (SELECT COUNT(DISTINCT medicine_id) FROM prescription_items pi 
+                            WHERE DATE(pi.prescription_id) = DATE(p.created_at)) as medicine_types
+                    FROM prescriptions p
+                    GROUP BY DATE(created_at)
+                    ORDER BY date DESC
+                    LIMIT 7
+                ''')
+            
+            self.sales_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                date = row.get('date', '')
+                pres_count = row.get('prescription_count', 0)
+                total = row.get('total_amount', 0) or 0
+                med_types = row.get('medicine_types', 0) or 0
+                
+                self.sales_table.setItem(i, 0, QTableWidgetItem(str(date) if date else '-'))
+                self.sales_table.setItem(i, 1, QTableWidgetItem(str(pres_count)))
+                self.sales_table.setItem(i, 2, QTableWidgetItem(f'¥{total:.2f}'))
+                self.sales_table.setItem(i, 3, QTableWidgetItem(str(med_types)))
+        except Exception as e:
+            logger.error(f"加载销售数据失败: {e}")
     
     def _load_inventory_warning(self):
-        rows = self.db.fetchall('''
-            SELECT m.name, i.quantity, i.min_stock, i.unit
-            FROM inventory i
-            JOIN medicines m ON i.medicine_id = m.id
-            WHERE i.quantity <= i.min_stock
-            ORDER BY i.quantity ASC
-            LIMIT 10
-        ''')
-        
-        self.inventory_table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            name = row.get('name', '')
-            quantity = row.get('quantity', 0)
-            min_stock = row.get('min_stock', 0)
-            unit = row.get('unit', 'g')
-            
-            self.inventory_table.setItem(i, 0, QTableWidgetItem(name))
-            self.inventory_table.setItem(i, 1, QTableWidgetItem(f'{quantity}{unit}'))
-            self.inventory_table.setItem(i, 2, QTableWidgetItem(f'{min_stock}{unit}'))
-            
-            if quantity <= 0:
-                status = '缺货'
-                status_item = QTableWidgetItem(status)
-                status_item.setForeground(QColor('#ff4d4f'))
-            elif quantity <= min_stock * 0.5:
-                status = '严重不足'
-                status_item = QTableWidgetItem(status)
-                status_item.setForeground(QColor('#fa8c16'))
-            else:
-                status = '库存不足'
-                status_item = QTableWidgetItem(status)
-                status_item.setForeground(QColor('#faad14'))
-            
-            self.inventory_table.setItem(i, 3, status_item)
-            self.inventory_table.setItem(i, 4, QTableWidgetItem('采购'))
-    
-    def _load_ranking_data(self):
-        start, end = self._get_time_range()
-        
-        if start and end:
+        try:
             rows = self.db.fetchall('''
-                SELECT pi.medicine_name, 
-                       SUM(pi.quantity) as total_quantity,
-                       SUM(pi.amount) as total_amount
-                FROM prescription_items pi
-                JOIN prescriptions p ON pi.prescription_id = p.id
-                WHERE p.created_at BETWEEN ? AND ?
-                GROUP BY pi.medicine_name
-                ORDER BY total_quantity DESC
-                LIMIT 10
-            ''', (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
-        else:
-            rows = self.db.fetchall('''
-                SELECT medicine_name, 
-                       SUM(quantity) as total_quantity,
-                       SUM(amount) as total_amount
-                FROM prescription_items
-                GROUP BY medicine_name
-                ORDER BY total_quantity DESC
+                SELECT m.name, i.quantity, i.min_stock, i.unit
+                FROM inventory i
+                JOIN medicines m ON i.medicine_id = m.id
+                WHERE i.quantity <= i.min_stock
+                ORDER BY i.quantity ASC
                 LIMIT 10
             ''')
-        
-        self.ranking_table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            name = row.get('medicine_name', '')
-            quantity = row.get('total_quantity', 0) or 0
-            amount = row.get('total_amount', 0) or 0
             
-            rank_item = QTableWidgetItem(str(i + 1))
-            rank_item.setTextAlignment(Qt.AlignCenter)
+            self.inventory_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                name = row.get('name', '')
+                quantity = row.get('quantity', 0)
+                min_stock = row.get('min_stock', 0)
+                unit = row.get('unit', 'g')
+                
+                self.inventory_table.setItem(i, 0, QTableWidgetItem(name))
+                self.inventory_table.setItem(i, 1, QTableWidgetItem(f'{quantity}{unit}'))
+                self.inventory_table.setItem(i, 2, QTableWidgetItem(f'{min_stock}{unit}'))
+                
+                if quantity <= 0:
+                    status = '缺货'
+                    status_item = QTableWidgetItem(status)
+                    status_item.setForeground(QColor('#ff4d4f'))
+                elif quantity <= min_stock * 0.5:
+                    status = '严重不足'
+                    status_item = QTableWidgetItem(status)
+                    status_item.setForeground(QColor('#fa8c16'))
+                else:
+                    status = '库存不足'
+                    status_item = QTableWidgetItem(status)
+                    status_item.setForeground(QColor('#faad14'))
+                
+                self.inventory_table.setItem(i, 3, status_item)
+                self.inventory_table.setItem(i, 4, QTableWidgetItem('采购'))
+        except Exception as e:
+            logger.error(f"加载库存预警失败: {e}")
+    
+    def _load_ranking_data(self):
+        try:
+            start, end = self._get_time_range()
             
-            if i < 3:
-                rank_item.setForeground(QColor('#fa8c16'))
-                rank_item.setFont(QFont('', -1, QFont.Bold))
+            if start and end:
+                rows = self.db.fetchall('''
+                    SELECT pi.medicine_name, 
+                           SUM(pi.quantity) as total_quantity,
+                           SUM(pi.amount) as total_amount
+                    FROM prescription_items pi
+                    JOIN prescriptions p ON pi.prescription_id = p.id
+                    WHERE p.created_at BETWEEN ? AND ?
+                    GROUP BY pi.medicine_name
+                    ORDER BY total_quantity DESC
+                    LIMIT 10
+                ''', (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
+            else:
+                rows = self.db.fetchall('''
+                    SELECT medicine_name, 
+                           SUM(quantity) as total_quantity,
+                           SUM(amount) as total_amount
+                    FROM prescription_items
+                    GROUP BY medicine_name
+                    ORDER BY total_quantity DESC
+                    LIMIT 10
+                ''')
             
-            self.ranking_table.setItem(i, 0, rank_item)
-            self.ranking_table.setItem(i, 1, QTableWidgetItem(name))
-            self.ranking_table.setItem(i, 2, QTableWidgetItem(f'{quantity}g'))
-            self.ranking_table.setItem(i, 3, QTableWidgetItem(f'¥{amount:.2f}'))
+            self.ranking_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                name = row.get('medicine_name', '')
+                quantity = row.get('total_quantity', 0) or 0
+                amount = row.get('total_amount', 0) or 0
+                
+                rank_item = QTableWidgetItem(str(i + 1))
+                rank_item.setTextAlignment(Qt.AlignCenter)
+                
+                if i < 3:
+                    rank_item.setForeground(QColor('#fa8c16'))
+                    rank_item.setFont(QFont('', -1, QFont.Bold))
+                
+                self.ranking_table.setItem(i, 0, rank_item)
+                self.ranking_table.setItem(i, 1, QTableWidgetItem(name))
+                self.ranking_table.setItem(i, 2, QTableWidgetItem(f'{quantity}g'))
+                self.ranking_table.setItem(i, 3, QTableWidgetItem(f'¥{amount:.2f}'))
+        except Exception as e:
+            logger.error(f"加载排行数据失败: {e}")
     
     def refresh_data(self):
         self.load_statistics()

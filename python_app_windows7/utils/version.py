@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-CURRENT_VERSION = "2.4.2"
-VERSION_DATE = "2026-02-25"
+CURRENT_VERSION = "2.4.3"
+VERSION_DATE = "2026-03-02"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
@@ -13,6 +13,20 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "2.4.3": {
+        "date": "2026-03-02",
+        "changes": [
+            "添加全局异常处理器，防止程序闪退",
+            "修复全屏切换时闪退问题",
+            "修复PageHeader缺少update_title方法",
+            "修复批量导入对话框FluentEffects未定义错误",
+            "修复Excel模板表头与解析不匹配问题",
+            "优化侧边栏导航设计，支持自适应布局",
+            "优化顶部导航栏视觉层次",
+            "删除左侧边栏重复的导入按钮",
+            "Excel导入支持中英文表头"
+        ]
+    },
     "2.4.2": {
         "date": "2026-02-25",
         "changes": [

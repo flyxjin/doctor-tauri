@@ -495,6 +495,7 @@ class ImportDialog(QDialog):
         c = FluentColors
         t = FluentTypography
         s = FluentSpacing
+        e = FluentEffects
         
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -554,6 +555,7 @@ class ImportDialog(QDialog):
         c = FluentColors
         t = FluentTypography
         s = FluentSpacing
+        e = FluentEffects
         
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -648,6 +650,7 @@ class ImportDialog(QDialog):
         c = FluentColors
         t = FluentTypography
         s = FluentSpacing
+        e = FluentEffects
         
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -709,6 +712,7 @@ class ImportDialog(QDialog):
         c = FluentColors
         t = FluentTypography
         s = FluentSpacing
+        e = FluentEffects
         
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -862,24 +866,68 @@ class ImportDialog(QDialog):
         wb = openpyxl.load_workbook(filepath, read_only=True)
         ws = wb.active
         
+        header_mapping = {
+            'name': 'name',
+            '药材名称': 'name',
+            'alias': 'alias',
+            '别名': 'alias',
+            'category': 'category',
+            '分类': 'category',
+            'nature': 'nature',
+            '药性': 'nature',
+            'taste': 'taste',
+            '药味': 'taste',
+            'meridian': 'meridian',
+            '归经': 'meridian',
+            'efficacy': 'efficacy',
+            '功效': 'efficacy',
+            'indications': 'indications',
+            '主治': 'indications',
+            'usage': 'usage',
+            '用法': 'usage',
+            'dosage': 'dosage',
+            '用量': 'dosage',
+            'contraindication': 'contraindication',
+            '禁忌': 'contraindication',
+            'notes': 'notes',
+            '备注': 'notes',
+            'quantity': 'quantity',
+            '库存数量': 'quantity',
+            'unit': 'unit',
+            '单位': 'unit',
+            'price': 'price',
+            '单价': 'price',
+            'min_stock': 'min_stock',
+            '最低库存': 'min_stock',
+        }
+        
         headers = []
+        normalized_headers = []
         for cell in ws[1]:
             if cell.value:
-                headers.append(str(cell.value).lower().strip())
+                raw_header = str(cell.value).strip()
+                headers.append(raw_header)
+                normalized = header_mapping.get(raw_header.lower(), raw_header.lower())
+                normalized_headers.append(normalized)
             else:
                 headers.append('')
+                normalized_headers.append('')
                 
-        if 'name' not in headers:
+        if 'name' not in normalized_headers:
             wb.close()
             raise ValueError('Excel文件必须包含name列（药材名称）')
             
         for row in ws.iter_rows(min_row=2, values_only=True):
-            if not row[0]:
+            if not row or not any(row):
                 continue
             item = {}
-            for i, header in enumerate(headers):
-                if header and i < len(row):
-                    item[header] = str(row[i]) if row[i] is not None else ''
+            for i, norm_header in enumerate(normalized_headers):
+                if norm_header and i < len(row):
+                    value = row[i]
+                    if value is not None:
+                        item[norm_header] = str(value).strip() if isinstance(value, str) else value
+                    else:
+                        item[norm_header] = ''
             if item.get('name'):
                 data.append(item)
                 
@@ -1070,7 +1118,7 @@ class ImportDialog(QDialog):
             ws.title = '药材导入模板'
             
             headers = [
-                ('name', '药材名称', True),
+                ('name', '药材名称 *必填*', True),
                 ('alias', '别名', False),
                 ('category', '分类', False),
                 ('nature', '药性', False),
@@ -1100,19 +1148,24 @@ class ImportDialog(QDialog):
             
             for col_idx, (name, label, required) in enumerate(headers, 1):
                 cell = ws.cell(row=1, column=col_idx)
-                cell.value = label
+                cell.value = name
                 cell.fill = required_fill if required else normal_fill
                 cell.font = header_font
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = thin_border
                 ws.column_dimensions[get_column_letter(col_idx)].width = 15
                 
+                comment_cell = ws.cell(row=2, column=col_idx)
+                comment_cell.value = label
+                comment_cell.font = Font(italic=True, color='666666', size=10)
+                comment_cell.alignment = Alignment(horizontal='center', vertical='center')
+            
             sample_data = [
                 ['人参', '黄参', '补虚药', '温', '甘、微苦', '归脾、肺、心经', '大补元气', '体虚欲脱', '煎服', '3-9g', '实证禁服', '', 500, 'g', 85.0, 50],
                 ['黄芪', '黄耆', '补虚药', '微温', '甘', '归脾、肺经', '补气升阳', '气虚乏力', '煎服', '9-30g', '实证禁服', '', 600, 'g', 42.0, 60],
             ]
             
-            for row_idx, row_data in enumerate(sample_data, 2):
+            for row_idx, row_data in enumerate(sample_data, 3):
                 for col_idx, value in enumerate(row_data, 1):
                     cell = ws.cell(row=row_idx, column=col_idx)
                     cell.value = value
