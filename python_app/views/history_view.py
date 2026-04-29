@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QMessageBox, QLabel,
-                             QHeaderView, QDialog, QTextEdit, QGroupBox)
-from PyQt5.QtCore import Qt
+                             QHeaderView, QDialog, QTextEdit, QGroupBox, QLineEdit,
+                             QDateEdit)
+from PyQt5.QtCore import Qt, QDate, QTimer
 from PyQt5.QtGui import QFont
 from datetime import datetime
 import logging
@@ -92,7 +93,46 @@ class HistoryView(QWidget):
         header_layout.addWidget(self.record_count_label)
         
         layout.addLayout(header_layout)
-        
+
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(10)
+
+        self.name_search = QLineEdit()
+        self.name_search.setPlaceholderText('患者姓名')
+        self.name_search.setFixedWidth(150)
+
+        self.date_from = QDateEdit()
+        self.date_from.setCalendarPopup(True)
+        self.date_from.setDate(QDate.currentDate().addMonths(-1))
+        self.date_from.setDisplayFormat('yyyy-MM-dd')
+        self.date_from.setFixedWidth(120)
+
+        self.date_to = QDateEdit()
+        self.date_to.setCalendarPopup(True)
+        self.date_to.setDate(QDate.currentDate())
+        self.date_to.setDisplayFormat('yyyy-MM-dd')
+        self.date_to.setFixedWidth(120)
+
+        search_btn = QPushButton('搜索')
+        search_btn.setStyleSheet('background-color: #1890ff; color: white; padding: 6px 16px; border-radius: 4px;')
+        search_btn.clicked.connect(self.refresh_data)
+
+        reset_btn = QPushButton('重置')
+        reset_btn.setStyleSheet('background-color: #909399; color: white; padding: 6px 16px; border-radius: 4px;')
+        reset_btn.clicked.connect(self._reset_filters)
+
+        search_layout.addWidget(QLabel('患者:'))
+        search_layout.addWidget(self.name_search)
+        search_layout.addWidget(QLabel('从:'))
+        search_layout.addWidget(self.date_from)
+        search_layout.addWidget(QLabel('至:'))
+        search_layout.addWidget(self.date_to)
+        search_layout.addWidget(search_btn)
+        search_layout.addWidget(reset_btn)
+        search_layout.addStretch()
+
+        layout.addLayout(search_layout)
+
         self.list_table = QTableWidget()
         self.list_table.setColumnCount(7)
         self.list_table.setHorizontalHeaderLabels(['处方ID', '患者姓名', '年龄', '诊断', '总金额', '开具时间', '操作'])
@@ -189,10 +229,30 @@ class HistoryView(QWidget):
             return row[index]
         return ''
 
+    def _reset_filters(self):
+        self.name_search.clear()
+        self.date_from.setDate(QDate.currentDate().addMonths(-1))
+        self.date_to.setDate(QDate.currentDate())
+        self.refresh_data()
+
     def refresh_data(self):
         try:
-            rows = self.db.fetchall(
-                "SELECT id, patient_name, patient_age, diagnosis, total_amount, created_at FROM prescriptions ORDER BY created_at DESC")
+            query = "SELECT id, patient_name, patient_age, diagnosis, total_amount, created_at FROM prescriptions WHERE 1=1"
+            params = []
+
+            name = self.name_search.text().strip()
+            if name:
+                query += " AND patient_name LIKE ?"
+                params.append(f'%{name}%')
+
+            date_from = self.date_from.date().toString('yyyy-MM-dd')
+            date_to = self.date_to.date().toString('yyyy-MM-dd')
+            query += " AND DATE(created_at) >= ? AND DATE(created_at) <= ?"
+            params.extend([date_from, date_to])
+
+            query += " ORDER BY created_at DESC"
+
+            rows = self.db.fetchall(query, tuple(params))
             
             self.list_table.setRowCount(len(rows))
             for i, row in enumerate(rows):

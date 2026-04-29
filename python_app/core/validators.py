@@ -103,7 +103,7 @@ class MedicineValidator:
         for t in tastes:
             t = t.strip()
             if t and t not in cls.VALID_TASTES and not any(v in t for v in cls.VALID_TASTES):
-                pass
+                return False
         return True
     
     @classmethod
@@ -116,7 +116,7 @@ class MedicineValidator:
         for pattern in patterns:
             if re.match(pattern, dosage):
                 return True
-        return True
+        return False
 
 
 class PrescriptionValidator:
@@ -180,44 +180,6 @@ class PrescriptionValidator:
                 errors.append(f"第{index}项: 价格必须是数字")
         
         return errors
-
-
-class InventoryValidator:
-    @classmethod
-    def validate_stock_operation(cls, medicine_id: int, quantity: float, 
-                                  operation_type: str) -> Tuple[bool, List[str]]:
-        errors = []
-        
-        if not medicine_id or medicine_id <= 0:
-            errors.append("无效的药材ID")
-        
-        try:
-            q = float(quantity)
-            if q <= 0:
-                errors.append("操作数量必须大于0")
-        except (ValueError, TypeError):
-            errors.append("数量必须是数字")
-        
-        if operation_type not in ['入库', '出库', '调整']:
-            errors.append(f"无效的操作类型: {operation_type}")
-        
-        return len(errors) == 0, errors
-    
-    @classmethod
-    def validate_price_update(cls, medicine_id: int, price: float) -> Tuple[bool, List[str]]:
-        errors = []
-        
-        if not medicine_id or medicine_id <= 0:
-            errors.append("无效的药材ID")
-        
-        try:
-            p = float(price)
-            if p < 0:
-                errors.append("价格不能为负数")
-        except (ValueError, TypeError):
-            errors.append("价格必须是数字")
-        
-        return len(errors) == 0, errors
 
 
 class DataIntegrityValidator:

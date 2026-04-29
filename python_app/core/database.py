@@ -7,6 +7,7 @@ import os
 import sys
 import shutil
 from typing import Optional, List, Dict, Any
+from contextlib import contextmanager
 from datetime import datetime
 
 
@@ -212,12 +213,22 @@ class Database:
     
     def begin_transaction(self):
         self.cursor.execute('BEGIN TRANSACTION')
-    
+
     def commit(self):
         self.conn.commit()
-    
+
     def rollback(self):
         self.conn.rollback()
+
+    @contextmanager
+    def transaction(self):
+        self.begin_transaction()
+        try:
+            yield self
+            self.commit()
+        except Exception:
+            self.rollback()
+            raise
     
     def backup(self) -> str:
         backup_dir = get_backup_dir()
@@ -238,3 +249,15 @@ class Database:
     def reset_instance(cls):
         cls._instance = None
         cls._initialized = False
+
+    @classmethod
+    def create_worker_connection(cls, db_path: str = None) -> 'Database':
+        """Create a new non-singleton Database connection for use in worker threads."""
+        if db_path is None:
+            db_path = get_db_path()
+        instance = object.__new__(cls)
+        instance.db_path = db_path
+        instance.conn = None
+        instance.cursor = None
+        instance._connect()
+        return instance

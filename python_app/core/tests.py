@@ -198,6 +198,31 @@ class TestCache(unittest.TestCase):
         results2 = cache.search('', category='补虚药', nature='温')
         self.assertEqual(len(results2), 2)
 
+    def test_medicine_cache_update(self):
+        cache = MedicineCache()
+        medicines = [
+            {'id': 1, 'name': '人参', 'category': '补虚药', 'nature': '温'},
+        ]
+        cache.initialize(medicines)
+
+        # Update the medicine
+        cache.update_medicine({'id': 1, 'name': '人参', 'category': '补虚药', 'nature': '微温'})
+        result = cache.get_by_id(1)
+        self.assertEqual(result['nature'], '微温')
+
+    def test_medicine_cache_delete(self):
+        cache = MedicineCache()
+        medicines = [
+            {'id': 1, 'name': '人参', 'category': '补虚药', 'nature': '温'},
+            {'id': 2, 'name': '黄芪', 'category': '补虚药', 'nature': '微温'},
+        ]
+        cache.initialize(medicines)
+
+        cache.delete_medicine(1)
+        self.assertIsNone(cache.get_by_id(1))
+        self.assertIsNone(cache.get_by_name('人参'))
+        self.assertEqual(len(cache.get_all()), 1)
+
 
 class TestValidators(unittest.TestCase):
     def test_medicine_validator(self):
@@ -258,10 +283,39 @@ class TestValidators(unittest.TestCase):
             'patient_name': '张三',
             'items': []
         }
-        
+
         is_valid, errors = PrescriptionValidator.validate(invalid_data)
         self.assertFalse(is_valid)
         self.assertIn('处方必须包含至少一个药材', errors)
+
+    def test_validate_taste_invalid(self):
+        data = {
+            'name': '测试',
+            'category': '分类',
+            'nature': '温',
+            'taste': '甜味',
+            'meridian': '归经',
+            'efficacy': '功效',
+            'indications': '主治'
+        }
+        is_valid, errors = MedicineValidator.validate(data)
+        self.assertFalse(is_valid)
+        self.assertIn('无效的药味: 甜味', errors)
+
+    def test_validate_dosage_invalid(self):
+        data = {
+            'name': '测试',
+            'category': '分类',
+            'nature': '温',
+            'taste': '甘',
+            'meridian': '归经',
+            'efficacy': '功效',
+            'indications': '主治',
+            'dosage': '适量服用'
+        }
+        is_valid, errors = MedicineValidator.validate(data)
+        self.assertFalse(is_valid)
+        self.assertIn('无效的用量格式: 适量服用', errors)
 
 
 class TestExceptions(unittest.TestCase):

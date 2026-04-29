@@ -3,6 +3,7 @@
 缓存模块 - 高效的内存缓存机制
 """
 from typing import Dict, List, Any, Optional, Callable, Generic, TypeVar
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from threading import RLock
@@ -39,48 +40,41 @@ class LRUCache(Generic[T]):
     def __init__(self, max_size: int = 1000, default_ttl: float = None):
         self.max_size = max_size
         self.default_ttl = default_ttl
-        self._cache: Dict[str, CacheEntry[T]] = {}
+        self._cache: OrderedDict[str, CacheEntry[T]] = OrderedDict()
         self._lock = RLock()
         self._hits = 0
         self._misses = 0
-    
+
     def get(self, key: str) -> Optional[T]:
         with self._lock:
             entry = self._cache.get(key)
             if entry is None:
                 self._misses += 1
                 return None
-            
+
             if entry.is_expired():
                 del self._cache[key]
                 self._misses += 1
                 return None
-            
+
+            self._cache.move_to_end(key)
             self._hits += 1
             return entry.access()
-    
+
     def set(self, key: str, value: T, ttl: float = None) -> None:
         with self._lock:
-            if len(self._cache) >= self.max_size:
-                self._evict_lru()
-            
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            elif len(self._cache) >= self.max_size:
+                self._cache.popitem(last=False)
+
             actual_ttl = ttl if ttl is not None else self.default_ttl
             self._cache[key] = CacheEntry(value, actual_ttl)
-    
-    def _evict_lru(self) -> None:
-        sorted_entries = sorted(
-            self._cache.items(),
-            key=lambda x: x[1].last_accessed
-        )
-        if sorted_entries:
-            key_to_remove = sorted_entries[0][0]
-            del self._cache[key_to_remove]
-    
+
     def delete(self, key: str) -> None:
         with self._lock:
-            if key in self._cache:
-                del self._cache[key]
-    
+            self._cache.pop(key, None)
+
     def clear(self) -> None:
         with self._lock:
             self._cache.clear()
@@ -246,8 +240,8 @@ class MedicineCache:
     def update_medicine(self, medicine: Dict[str, Any]) -> None:
         with self._lock:
             med_id = medicine.get('id')
-            old_med = self._medicines.get(med_id)
-            if old_med:
+            if med_id in self._medicines:
+                self._medicines[med_id] = medicine
                 self._rebuild_index()
             else:
                 self._add_to_index(medicine)
@@ -255,8 +249,8 @@ class MedicineCache:
     
     def delete_medicine(self, medicine_id: int) -> None:
         with self._lock:
-            medicine = self._medicines.get(medicine_id)
-            if medicine:
+            if medicine_id in self._medicines:
+                del self._medicines[medicine_id]
                 self._rebuild_index()
             self._query_cache.clear()
     

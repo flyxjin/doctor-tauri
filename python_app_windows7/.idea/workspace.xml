@@ -4,16 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3111d2d6-cdf8-41a0-a8e8-9168095adbbc" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/medicine_system.db" beforeDir="false" afterPath="$PROJECT_DIR$/medicine_system.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/style_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/style_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/views/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/widgets/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/widgets/import_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/import_dialog.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/widgets/sidebar.py" beforeDir="false" afterPath="$PROJECT_DIR$/widgets/sidebar.py" afterDir="false" />
-    </list>
+    <list default="true" id="3111d2d6-cdf8-41a0-a8e8-9168095adbbc" name="更改" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

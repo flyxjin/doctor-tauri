@@ -37,113 +37,135 @@ def _get_id_from_result(result):
 class ImportWorker(QThread):
     progress = pyqtSignal(int, str)
     finished = pyqtSignal(int, int, int, list)
-    
-    def __init__(self, db, data_list):
+
+    def __init__(self, db_path, data_list):
         super().__init__()
-        self.db = db
+        self.db_path = db_path
         self.data_list = data_list
-        
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
     def run(self):
+        from core.database import Database
+        db = Database.create_worker_connection(self.db_path)
+
         added = 0
         updated = 0
         errors = []
-        
         total = len(self.data_list)
-        
-        for i, data in enumerate(self.data_list):
-            try:
-                name = _get_value(data, 'name', '').strip()
-                if not name:
-                    errors.append(f"第{i+1}行: 药材名称不能为空")
-                    continue
-                
-                existing = self.db.fetchone(
-                    "SELECT id FROM medicines WHERE name = ?", (name,)
-                )
-                
-                if existing:
-                    existing_id = _get_id_from_result(existing)
-                    self.db.execute('''
-                        UPDATE medicines 
-                        SET alias=?, category=?, nature=?, taste=?, meridian=?,
-                            efficacy=?, indications=?, usage=?, dosage=?, 
-                            contraindication=?, notes=?
-                        WHERE id=?
-                    ''', (
-                        _get_value(data, 'alias', ''),
-                        _get_value(data, 'category', ''),
-                        _get_value(data, 'nature', ''),
-                        _get_value(data, 'taste', ''),
-                        _get_value(data, 'meridian', ''),
-                        _get_value(data, 'efficacy', ''),
-                        _get_value(data, 'indications', ''),
-                        _get_value(data, 'usage', ''),
-                        _get_value(data, 'dosage', ''),
-                        _get_value(data, 'contraindication', ''),
-                        _get_value(data, 'notes', ''),
-                        existing_id
-                    ))
-                    
-                    if _get_value(data, 'quantity') is not None:
-                        self.db.execute('''
-                            UPDATE inventory 
-                            SET quantity=?, unit=?, price=?, min_stock=?, notes=?
-                            WHERE medicine_id=?
+        batch_size = 50
+
+        try:
+            for i, data in enumerate(self.data_list):
+                if self._cancelled:
+                    errors.append("导入已取消")
+                    break
+
+                try:
+                    name = _get_value(data, 'name', '').strip()
+                    if not name:
+                        errors.append(f"第{i+1}行: 药材名称不能为空")
+                        continue
+
+                    existing = db.fetchone(
+                        "SELECT id FROM medicines WHERE name = ?", (name,)
+                    )
+
+                    if existing:
+                        existing_id = _get_id_from_result(existing)
+                        db.execute('''
+                            UPDATE medicines
+                            SET alias=?, category=?, nature=?, taste=?, meridian=?,
+                                efficacy=?, indications=?, usage=?, dosage=?,
+                                contraindication=?, notes=?
+                            WHERE id=?
                         ''', (
+                            _get_value(data, 'alias', ''),
+                            _get_value(data, 'category', ''),
+                            _get_value(data, 'nature', ''),
+                            _get_value(data, 'taste', ''),
+                            _get_value(data, 'meridian', ''),
+                            _get_value(data, 'efficacy', ''),
+                            _get_value(data, 'indications', ''),
+                            _get_value(data, 'usage', ''),
+                            _get_value(data, 'dosage', ''),
+                            _get_value(data, 'contraindication', ''),
+                            _get_value(data, 'notes', ''),
+                            existing_id
+                        ))
+
+                        if _get_value(data, 'quantity') is not None:
+                            db.execute('''
+                                UPDATE inventory
+                                SET quantity=?, unit=?, price=?, min_stock=?, notes=?
+                                WHERE medicine_id=?
+                            ''', (
+                                _get_value(data, 'quantity', 0),
+                                _get_value(data, 'unit', 'g'),
+                                _get_value(data, 'price', 0),
+                                _get_value(data, 'min_stock', 10),
+                                _get_value(data, 'notes', ''),
+                                existing_id
+                            ))
+                        updated += 1
+                    else:
+                        db.execute('''
+                            INSERT INTO medicines
+                            (name, alias, category, nature, taste, meridian,
+                             efficacy, indications, usage, dosage, contraindication, notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            name,
+                            _get_value(data, 'alias', ''),
+                            _get_value(data, 'category', ''),
+                            _get_value(data, 'nature', ''),
+                            _get_value(data, 'taste', ''),
+                            _get_value(data, 'meridian', ''),
+                            _get_value(data, 'efficacy', ''),
+                            _get_value(data, 'indications', ''),
+                            _get_value(data, 'usage', ''),
+                            _get_value(data, 'dosage', ''),
+                            _get_value(data, 'contraindication', ''),
+                            _get_value(data, 'notes', '')
+                        ))
+
+                        new_record = db.fetchone(
+                            "SELECT id FROM medicines WHERE name = ?", (name,)
+                        )
+                        med_id = _get_id_from_result(new_record)
+
+                        db.execute('''
+                            INSERT INTO inventory
+                            (medicine_id, quantity, unit, price, min_stock, notes)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (
+                            med_id,
                             _get_value(data, 'quantity', 0),
                             _get_value(data, 'unit', 'g'),
                             _get_value(data, 'price', 0),
                             _get_value(data, 'min_stock', 10),
-                            _get_value(data, 'notes', ''),
-                            existing_id
+                            _get_value(data, 'notes', '')
                         ))
-                    updated += 1
-                else:
-                    self.db.execute('''
-                        INSERT INTO medicines 
-                        (name, alias, category, nature, taste, meridian, 
-                         efficacy, indications, usage, dosage, contraindication, notes)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
-                        name,
-                        _get_value(data, 'alias', ''),
-                        _get_value(data, 'category', ''),
-                        _get_value(data, 'nature', ''),
-                        _get_value(data, 'taste', ''),
-                        _get_value(data, 'meridian', ''),
-                        _get_value(data, 'efficacy', ''),
-                        _get_value(data, 'indications', ''),
-                        _get_value(data, 'usage', ''),
-                        _get_value(data, 'dosage', ''),
-                        _get_value(data, 'contraindication', ''),
-                        _get_value(data, 'notes', '')
-                    ))
-                    
-                    new_record = self.db.fetchone(
-                        "SELECT id FROM medicines WHERE name = ?", (name,)
-                    )
-                    med_id = _get_id_from_result(new_record)
-                    
-                    self.db.execute('''
-                        INSERT INTO inventory 
-                        (medicine_id, quantity, unit, price, min_stock, notes)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (
-                        med_id,
-                        _get_value(data, 'quantity', 0),
-                        _get_value(data, 'unit', 'g'),
-                        _get_value(data, 'price', 0),
-                        _get_value(data, 'min_stock', 10),
-                        _get_value(data, 'notes', '')
-                    ))
-                    added += 1
-                    
-            except Exception as e:
-                errors.append(f"第{i+1}行: {str(e)}")
-                logger.error(f"导入数据失败: {e}")
-                
-            self.progress.emit(int((i + 1) / total * 100), f"正在处理: {name}")
-            
+                        added += 1
+
+                except Exception as e:
+                    errors.append(f"第{i+1}行: {str(e)}")
+                    logger.error(f"导入数据失败: {e}")
+
+                self.progress.emit(int((i + 1) / total * 100), f"正在处理: {name}")
+
+                if (i + 1) % batch_size == 0:
+                    db.commit()
+
+            db.commit()
+        except Exception as e:
+            errors.append(f"导入异常: {str(e)}")
+            logger.error(f"批量导入异常: {e}")
+        finally:
+            db.close()
+
         self.finished.emit(added, updated, len(errors), errors)
 
 
@@ -389,32 +411,32 @@ class BatchImportView(QWidget):
     def start_import(self):
         if not self.preview_data:
             return
-            
+
         reply = QMessageBox.question(
             self, '确认导入',
             f'确定要导入 {len(self.preview_data)} 条数据吗？\n重复的药材名称将更新已有数据。',
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
-        
+
         if reply != QMessageBox.Yes:
             return
-            
+
         self.import_btn.setEnabled(False)
         self.select_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.cancel_btn.setVisible(True)
         self.log_text.clear()
-        
-        self.worker = ImportWorker(self.db, self.preview_data)
+
+        self.worker = ImportWorker(self.db.db_path, self.preview_data)
         self.worker.progress.connect(self.on_progress)
         self.worker.finished.connect(self.on_finished)
         self.worker.start()
-        
+
     def cancel_import(self):
         if self.worker and self.worker.isRunning():
-            self.worker.terminate()
-            self.log_text.append('导入已取消')
-            
+            self.worker.cancel()
+            self.log_text.append('正在取消导入...')
+
         self.reset_ui()
         
     def on_progress(self, percent, message):

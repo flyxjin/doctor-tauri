@@ -291,15 +291,19 @@ class InventoryView(QWidget, ResponsiveWidget):
         dialog = StockDialog(self, med_name, med_id, "入库", current_price=current_price)
         if dialog.exec_():
             qty, price, unit, notes = dialog.get_data()
-            self.db.execute(
-                "UPDATE inventory SET quantity = quantity + ?, price = ?, unit = ?, notes = ? WHERE medicine_id = ?",
-                (qty, price, unit, notes, med_id))
-            self.db.execute('''
-                INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, notes)
-                VALUES (?, ?, '入库', ?, ?, ?, ?)
-            ''', (med_id, med_name, qty, price, qty * price, notes))
-            QMessageBox.information(self, '成功', '入库成功！')
-            self.refresh_data()
+            try:
+                with self.db.transaction():
+                    self.db.execute(
+                        "UPDATE inventory SET quantity = quantity + ?, price = ?, unit = ?, notes = ? WHERE medicine_id = ?",
+                        (qty, price, unit, notes, med_id))
+                    self.db.execute('''
+                        INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, notes)
+                        VALUES (?, ?, '入库', ?, ?, ?, ?)
+                    ''', (med_id, med_name, qty, price, qty * price, notes))
+                QMessageBox.information(self, '成功', '入库成功！')
+                self.refresh_data()
+            except Exception as e:
+                QMessageBox.critical(self, '错误', f'入库失败：{str(e)}')
 
     def stock_out(self):
         selected = self.table.selectedItems()
@@ -321,15 +325,19 @@ class InventoryView(QWidget, ResponsiveWidget):
                 QMessageBox.warning(self, '错误', '出库数量不能大于当前库存！')
                 return
 
-            self.db.execute(
-                "UPDATE inventory SET quantity = quantity - ? WHERE medicine_id = ?",
-                (qty, med_id))
-            self.db.execute('''
-                INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, notes)
-                VALUES (?, ?, '出库', ?, ?, ?, ?)
-            ''', (med_id, med_name, qty, price, qty * price, notes))
-            QMessageBox.information(self, '成功', '出库成功！')
-            self.refresh_data()
+            try:
+                with self.db.transaction():
+                    self.db.execute(
+                        "UPDATE inventory SET quantity = quantity - ? WHERE medicine_id = ?",
+                        (qty, med_id))
+                    self.db.execute('''
+                        INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, notes)
+                        VALUES (?, ?, '出库', ?, ?, ?, ?)
+                    ''', (med_id, med_name, qty, price, qty * price, notes))
+                QMessageBox.information(self, '成功', '出库成功！')
+                self.refresh_data()
+            except Exception as e:
+                QMessageBox.critical(self, '错误', f'出库失败：{str(e)}')
 
     def adjust_stock(self):
         selected = self.table.selectedItems()
@@ -385,11 +393,15 @@ class InventoryView(QWidget, ResponsiveWidget):
         layout.addRow(btn_box)
 
         if dialog.exec_():
-            self.db.execute(
-                "UPDATE inventory SET quantity = ?, price = ?, min_stock = ?, notes = ? WHERE medicine_id = ?",
-                (qty_spin.value(), price_spin.value(), min_stock_spin.value(), notes_edit.text(), med_id))
-            QMessageBox.information(self, '成功', '库存调整成功！')
-            self.refresh_data()
+            try:
+                with self.db.transaction():
+                    self.db.execute(
+                        "UPDATE inventory SET quantity = ?, price = ?, min_stock = ?, notes = ? WHERE medicine_id = ?",
+                        (qty_spin.value(), price_spin.value(), min_stock_spin.value(), notes_edit.text(), med_id))
+                QMessageBox.information(self, '成功', '库存调整成功！')
+                self.refresh_data()
+            except Exception as e:
+                QMessageBox.critical(self, '错误', f'调整失败：{str(e)}')
 
     def export_inventory(self):
         try:

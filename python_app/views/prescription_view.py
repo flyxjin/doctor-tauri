@@ -4,9 +4,11 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QInputDialog, QHeaderView)
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt5.QtGui import QTextDocument
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from datetime import datetime
 import logging
+import re
+import html as html_mod
 
 logger = logging.getLogger('MedicineSystem')
 
@@ -37,7 +39,11 @@ class PrescriptionView(QWidget):
 
         self.med_search = QLineEdit()
         self.med_search.setPlaceholderText('输入药材名称')
-        self.med_search.textChanged.connect(self.search_medicine)
+        self._search_timer = QTimer()
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(200)
+        self._search_timer.timeout.connect(self._do_search)
+        self.med_search.textChanged.connect(self._search_timer.start)
         self.med_list = QTableWidget()
         self.med_list.setColumnCount(3)
         self.med_list.setHorizontalHeaderLabels(['名称', '价格', '库存'])
@@ -93,6 +99,10 @@ class PrescriptionView(QWidget):
         right_widget.setLayout(right_panel)
         main_layout.addWidget(right_widget, 60)
 
+    def _do_search(self):
+        text = self.med_search.text()
+        self.search_medicine(text)
+
     def search_medicine(self, text):
         try:
             rows = self.db.fetchall(
@@ -137,10 +147,13 @@ class PrescriptionView(QWidget):
                 stock = stock or 0
                 contraindication = contraindication or ''
 
-            for item in self.cart:
-                if contraindication and item['name'] in str(contraindication):
-                    QMessageBox.warning(self, '配伍禁忌提醒',
-                                        f'警告："{name}" 与 "{item["name"]}" 可能存在配伍禁忌！\n禁忌说明：{contraindication}')
+            if contraindication:
+                contraindication_set = set(re.split(r'[、,，\s；;]+', str(contraindication).strip()))
+                contraindication_set.discard('')
+                for item in self.cart:
+                    if item['name'] in contraindication_set:
+                        QMessageBox.warning(self, '配伍禁忌提醒',
+                                            f'警告："{name}" 与 "{item["name"]}" 可能存在配伍禁忌！\n禁忌说明：{contraindication}')
 
             if stock <= 0:
                 QMessageBox.warning(self, '库存不足', f'药材 "{name}" 库存不足，无法添加')
@@ -221,6 +234,8 @@ class PrescriptionView(QWidget):
             diagnosis = self.diagnosis.text().strip()
             total_amount = sum(item['amount'] for item in self.cart)
 
+            self.db.begin_transaction()
+
             cursor = self.db.execute('''
                 INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -244,11 +259,14 @@ class PrescriptionView(QWidget):
                     VALUES (?, ?, '出库', ?, ?, ?)
                 ''', (item['id'], item['name'], item['qty'], item['amount'], f'处方销售-{pres_id}'))
 
+            self.db.commit()
+
             logger.info(f"处方保存成功, 处方ID: {pres_id}, 患者: {patient_name}, 总金额: {total_amount}")
             QMessageBox.information(self, '成功', f'处方保存成功，库存已更新。\n处方编号：{pres_id}')
             self.clear_form()
-            
+
         except Exception as e:
+            self.db.rollback()
             logger.error(f"保存处方失败: {e}")
             QMessageBox.critical(self, '错误', f'保存失败：{str(e)}')
 
@@ -266,14 +284,14 @@ class PrescriptionView(QWidget):
                 content = f"""
                 <h2 align='center'>中药材处方单</h2>
                 <hr>
-                <p>患者姓名：{self.patient_name.text()} &nbsp;&nbsp;&nbsp; 年龄：{self.patient_age.value()} &nbsp;&nbsp;&nbsp; 性别：{self.patient_gender.currentText()}</p>
-                <p>诊断：{self.diagnosis.text()}</p>
+                <p>患者姓名：{html_mod.escape(self.patient_name.text())} &nbsp;&nbsp;&nbsp; 年龄：{self.patient_age.value()} &nbsp;&nbsp;&nbsp; 性别：{self.patient_gender.currentText()}</p>
+                <p>诊断：{html_mod.escape(self.diagnosis.text())}</p>
                 <hr>
                 <table width='100%' border='1' cellspacing='0' cellpadding='2'>
                 <tr><th>药材</th><th>数量</th><th>单价</th><th>金额</th></tr>
                 """
                 for item in self.cart:
-                    content += f"<tr><td>{item['name']}</td><td>{item['qty']}g</td><td>¥{item['price']}</td><td>¥{item['amount']:.2f}</td></tr>"
+                    content += f"<tr><td>{html_mod.escape(item['name'])}</td><td>{item['qty']}g</td><td>¥{item['price']}</td><td>¥{item['amount']:.2f}</td></tr>"
                 content += f"""
                 </table>
                 <hr>
@@ -290,6 +308,7 @@ class PrescriptionView(QWidget):
     def clear_form(self):
         self.patient_name.clear()
         self.patient_age.setValue(0)
+        self.patient_gender.setCurrentIndex(0)
         self.diagnosis.clear()
         self.cart = []
         self.refresh_prescription_table()

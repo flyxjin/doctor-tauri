@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import html
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTableWidgetItem, QPushButton, QLineEdit,
                              QDialog, QFormLayout, QMessageBox, QComboBox,
@@ -383,11 +384,17 @@ class MedicineView(QWidget, ResponsiveWidget):
         reply = QMessageBox.question(self, '确认', f'确定要删除药材 "{med_name}" 吗？\n此操作将同时删除库存记录！', 
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.db.execute("DELETE FROM inventory WHERE medicine_id = ?", (med_id,))
-            self.db.execute("DELETE FROM medicines WHERE id = ?", (med_id,))
-            self._cache.delete_medicine(med_id)
-            QMessageBox.information(self, '成功', '删除成功！')
-            self.load_data()
+            try:
+                self.db.begin_transaction()
+                self.db.execute("DELETE FROM inventory WHERE medicine_id = ?", (med_id,))
+                self.db.execute("DELETE FROM medicines WHERE id = ?", (med_id,))
+                self.db.commit()
+                self._cache.delete_medicine(med_id)
+                QMessageBox.information(self, '成功', '删除成功！')
+                self.load_data()
+            except Exception as e:
+                self.db.rollback()
+                QMessageBox.critical(self, '错误', f'删除失败：{str(e)}')
 
     def view_detail(self):
         selected = self.table.selectedItems()
@@ -397,27 +404,30 @@ class MedicineView(QWidget, ResponsiveWidget):
 
         row = selected[0].row()
         medicine_data = self._full_data[row]
-        
+
+        def e(key, fallback=''):
+            return html.escape(str(medicine_data.get(key) or fallback))
+
         detail_text = f'''
-        <h2 style="color: #409eff;">{medicine_data['name']}</h2>
+        <h2 style="color: #409eff;">{e('name')}</h2>
         <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>别名</b></td><td style="padding: 8px;">{medicine_data['alias'] or '无'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>分类</b></td><td style="padding: 8px;">{medicine_data['category'] or '未分类'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药性</b></td><td style="padding: 8px;">{medicine_data['nature'] or '未知'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药味</b></td><td style="padding: 8px;">{medicine_data['taste'] or '未知'}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>归经</b></td><td style="padding: 8px;">{medicine_data['meridian'] or '未知'}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>别名</b></td><td style="padding: 8px;">{e('alias', '无')}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>分类</b></td><td style="padding: 8px;">{e('category', '未分类')}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药性</b></td><td style="padding: 8px;">{e('nature', '未知')}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药味</b></td><td style="padding: 8px;">{e('taste', '未知')}</td></tr>
+            <tr><td style="padding: 8px; background: #f5f7fa;"><b>归经</b></td><td style="padding: 8px;">{e('meridian', '未知')}</td></tr>
         </table>
         <hr style="margin: 15px 0;">
         <h3 style="color: #67c23a;">功效</h3>
-        <p style="padding: 10px; background: #f0f9eb; border-radius: 5px;">{medicine_data['efficacy'] or '暂无'}</p>
+        <p style="padding: 10px; background: #f0f9eb; border-radius: 5px;">{e('efficacy', '暂无')}</p>
         <h3 style="color: #409eff;">主治</h3>
-        <p style="padding: 10px; background: #ecf5ff; border-radius: 5px;">{medicine_data['indications'] or '暂无'}</p>
+        <p style="padding: 10px; background: #ecf5ff; border-radius: 5px;">{e('indications', '暂无')}</p>
         <h3 style="color: #e6a23c;">用法用量</h3>
-        <p style="padding: 10px; background: #fdf6ec; border-radius: 5px;">{medicine_data['usage'] or '暂无'} | {medicine_data['dosage'] or '暂无'}</p>
+        <p style="padding: 10px; background: #fdf6ec; border-radius: 5px;">{e('usage', '暂无')} | {e('dosage', '暂无')}</p>
         <h3 style="color: #f56c6c;">禁忌</h3>
-        <p style="padding: 10px; background: #fef0f0; border-radius: 5px;">{medicine_data['contraindication'] or '暂无'}</p>
+        <p style="padding: 10px; background: #fef0f0; border-radius: 5px;">{e('contraindication', '暂无')}</p>
         <h3 style="color: #909399;">备注</h3>
-        <p style="padding: 10px; background: #f4f4f5; border-radius: 5px;">{medicine_data['notes'] or '无'}</p>
+        <p style="padding: 10px; background: #f4f4f5; border-radius: 5px;">{e('notes', '无')}</p>
         '''
         
         msg_box = QMessageBox(self)
