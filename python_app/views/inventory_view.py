@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
 from PyQt5.QtGui import QColor, QBrush, QFont
 from PyQt5.QtCore import Qt
 from utils.responsive_font import ResponsiveWidget, get_font_manager
+from core import InventoryService
 import csv
 
 
@@ -72,6 +73,7 @@ class InventoryView(QWidget, ResponsiveWidget):
         QWidget.__init__(self)
         ResponsiveWidget.__init__(self)
         self.db = db
+        self._inventory_service = InventoryService(db)
         self._font_manager = get_font_manager()
         self._base_column_widths = [0, 150, 80, 100, 60, 90, 110, 80, 120]
         self.init_ui()
@@ -220,20 +222,7 @@ class InventoryView(QWidget, ResponsiveWidget):
             if qty < min_stock:
                 low_stock_list.append(name)
         
-        display_rows = filtered_rows if stock_filter != '全部' else [
-            (
-                row['medicine_id'],
-                row['name'],
-                row['category'],
-                row['quantity'] or 0,
-                row['unit'],
-                row['price'] or 0,
-                row['min_stock'] or 0,
-                row['notes'],
-                (row['quantity'] or 0) * (row['price'] or 0)
-            )
-            for row in rows
-        ]
+        display_rows = filtered_rows
         
         self.table.setRowCount(len(display_rows))
         
@@ -292,14 +281,7 @@ class InventoryView(QWidget, ResponsiveWidget):
         if dialog.exec_():
             qty, price, unit, notes = dialog.get_data()
             try:
-                with self.db.transaction():
-                    self.db.execute(
-                        "UPDATE inventory SET quantity = quantity + ?, price = ?, unit = ?, notes = ? WHERE medicine_id = ?",
-                        (qty, price, unit, notes, med_id))
-                    self.db.execute('''
-                        INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, notes)
-                        VALUES (?, ?, '入库', ?, ?, ?, ?)
-                    ''', (med_id, med_name, qty, price, qty * price, notes))
+                self._inventory_service.stock_in(med_id, qty, price, notes)
                 QMessageBox.information(self, '成功', '入库成功！')
                 self.refresh_data()
             except Exception as e:
@@ -326,14 +308,7 @@ class InventoryView(QWidget, ResponsiveWidget):
                 return
 
             try:
-                with self.db.transaction():
-                    self.db.execute(
-                        "UPDATE inventory SET quantity = quantity - ? WHERE medicine_id = ?",
-                        (qty, med_id))
-                    self.db.execute('''
-                        INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, notes)
-                        VALUES (?, ?, '出库', ?, ?, ?, ?)
-                    ''', (med_id, med_name, qty, price, qty * price, notes))
+                self._inventory_service.stock_out(med_id, qty, price, notes)
                 QMessageBox.information(self, '成功', '出库成功！')
                 self.refresh_data()
             except Exception as e:
@@ -394,10 +369,10 @@ class InventoryView(QWidget, ResponsiveWidget):
 
         if dialog.exec_():
             try:
-                with self.db.transaction():
-                    self.db.execute(
-                        "UPDATE inventory SET quantity = ?, price = ?, min_stock = ?, notes = ? WHERE medicine_id = ?",
-                        (qty_spin.value(), price_spin.value(), min_stock_spin.value(), notes_edit.text(), med_id))
+                self._inventory_service.adjust_stock(
+                    med_id, qty_spin.value(), price_spin.value(),
+                    min_stock_spin.value(), notes_edit.text()
+                )
                 QMessageBox.information(self, '成功', '库存调整成功！')
                 self.refresh_data()
             except Exception as e:

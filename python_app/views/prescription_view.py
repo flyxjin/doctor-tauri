@@ -9,14 +9,19 @@ from datetime import datetime
 import logging
 import re
 import html as html_mod
+from core import Prescription, PrescriptionItem, PrescriptionService
+from utils.responsive_font import ResponsiveWidget, get_font_manager
 
 logger = logging.getLogger('MedicineSystem')
 
 
-class PrescriptionView(QWidget):
+class PrescriptionView(QWidget, ResponsiveWidget):
     def __init__(self, db):
-        super().__init__()
+        QWidget.__init__(self)
+        ResponsiveWidget.__init__(self)
         self.db = db
+        self._prescription_service = PrescriptionService(db)
+        self._font_manager = get_font_manager()
         self.cart = []
         self.init_ui()
 
@@ -222,7 +227,7 @@ class PrescriptionView(QWidget):
         if not self.patient_name.text().strip():
             QMessageBox.warning(self, '提示', '请填写患者姓名')
             return
-        
+
         if not self.cart:
             QMessageBox.warning(self, '提示', '请添加药材到处方')
             return
@@ -234,39 +239,35 @@ class PrescriptionView(QWidget):
             diagnosis = self.diagnosis.text().strip()
             total_amount = sum(item['amount'] for item in self.cart)
 
-            self.db.begin_transaction()
+            prescription = Prescription(
+                patient_name=patient_name,
+                patient_age=patient_age,
+                patient_gender=patient_gender,
+                diagnosis=diagnosis,
+                total_amount=total_amount,
+                created_by='医生'
+            )
 
-            cursor = self.db.execute('''
-                INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (patient_name, patient_age, patient_gender, diagnosis, total_amount, '医生'))
+            items = [
+                PrescriptionItem(
+                    prescription_id=0,
+                    medicine_id=item['id'],
+                    medicine_name=item['name'],
+                    quantity=item['qty'],
+                    unit='g',
+                    price=item['price'],
+                    amount=item['amount']
+                )
+                for item in self.cart
+            ]
 
-            pres_id = cursor.lastrowid
-            if not pres_id:
-                raise Exception("获取处方ID失败")
-
-            for item in self.cart:
-                self.db.execute('''
-                    INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount)
-                    VALUES (?, ?, ?, ?, 'g', ?, ?)
-                ''', (pres_id, item['id'], item['name'], item['qty'], item['price'], item['amount']))
-
-                self.db.execute("UPDATE inventory SET quantity = quantity - ? WHERE medicine_id = ?",
-                                (item['qty'], item['id']))
-
-                self.db.execute('''
-                    INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, total_amount, notes)
-                    VALUES (?, ?, '出库', ?, ?, ?)
-                ''', (item['id'], item['name'], item['qty'], item['amount'], f'处方销售-{pres_id}'))
-
-            self.db.commit()
+            pres_id = self._prescription_service.create(prescription, items)
 
             logger.info(f"处方保存成功, 处方ID: {pres_id}, 患者: {patient_name}, 总金额: {total_amount}")
             QMessageBox.information(self, '成功', f'处方保存成功，库存已更新。\n处方编号：{pres_id}')
             self.clear_form()
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"保存处方失败: {e}")
             QMessageBox.critical(self, '错误', f'保存失败：{str(e)}')
 
@@ -312,3 +313,15 @@ class PrescriptionView(QWidget):
         self.diagnosis.clear()
         self.cart = []
         self.refresh_prescription_table()
+
+    def _apply_responsive_table(self):
+        config = self._font_manager.get_table_config()
+        for table in [self.med_list, self.prescription_table]:
+            table.verticalHeader().setDefaultSectionSize(config['row_height'])
+            font = self._font_manager.get_font('table_cell')
+            table.setFont(font)
+            header_font = self._font_manager.get_font('table_header')
+            table.horizontalHeader().setFont(header_font)
+
+    def update_fonts(self):
+        self._apply_responsive_table()

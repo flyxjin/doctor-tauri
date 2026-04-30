@@ -6,6 +6,8 @@ from PyQt5.QtCore import Qt, QDate, QTimer
 from PyQt5.QtGui import QFont
 from datetime import datetime
 import logging
+from core import PrescriptionService
+from utils.responsive_font import ResponsiveWidget, get_font_manager
 
 logger = logging.getLogger('MedicineSystem')
 
@@ -55,28 +57,14 @@ class OperationLogDialog(QDialog):
                 self.log_table.setItem(i, j, QTableWidgetItem(str(data) if data else ''))
 
 
-class HistoryView(QWidget):
+class HistoryView(QWidget, ResponsiveWidget):
     def __init__(self, db):
-        super().__init__()
+        QWidget.__init__(self)
+        ResponsiveWidget.__init__(self)
         self.db = db
-        self._ensure_operation_logs_table()
+        self._prescription_service = PrescriptionService(db)
+        self._font_manager = get_font_manager()
         self.init_ui()
-
-    def _ensure_operation_logs_table(self):
-        try:
-            self.db.execute('''
-                CREATE TABLE IF NOT EXISTS operation_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    operation_type TEXT NOT NULL,
-                    target_type TEXT NOT NULL,
-                    target_id INTEGER NOT NULL,
-                    operator TEXT,
-                    details TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-        except Exception as e:
-            logger.error(f"创建操作日志表失败: {e}")
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -318,47 +306,17 @@ class HistoryView(QWidget):
 
     def _delete_prescription(self, prescription_id, patient_name):
         try:
-            self.db.begin_transaction()
-            
-            items = self.db.fetchall(
-                "SELECT medicine_name, quantity FROM prescription_items WHERE prescription_id = ?",
-                (prescription_id,)
-            )
-            
-            self.db.execute(
-                "DELETE FROM prescription_items WHERE prescription_id = ?",
-                (prescription_id,)
-            )
-            
-            self.db.execute(
-                "DELETE FROM prescriptions WHERE id = ?",
-                (prescription_id,)
-            )
-            
-            details = f"删除处方ID:{prescription_id}, 患者:{patient_name}, 包含{len(items)}味药材"
-            self._log_operation('DELETE', 'prescription', prescription_id, details)
-            
-            self.db.commit()
-            
+            self._prescription_service.delete(prescription_id, '系统管理员')
+
             logger.info(f"删除处方成功: ID={prescription_id}, 患者={patient_name}")
             QMessageBox.information(self, '删除成功', '处方记录已成功删除')
             self.refresh_data()
-            
+
             self.detail_table.setRowCount(0)
-            
+
         except Exception as e:
-            self.db.rollback()
             logger.error(f"删除处方失败: {e}")
             QMessageBox.critical(self, '删除失败', f'删除处方记录时发生错误：\n{str(e)}')
-
-    def _log_operation(self, operation_type, target_type, target_id, details):
-        try:
-            self.db.execute('''
-                INSERT INTO operation_logs (operation_type, target_type, target_id, operator, details)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (operation_type, target_type, target_id, '系统管理员', details))
-        except Exception as e:
-            logger.error(f"记录操作日志失败: {e}")
 
     def show_detail(self):
         try:
@@ -389,6 +347,19 @@ class HistoryView(QWidget):
                     self.detail_table.setItem(i, j, item)
         except Exception as e:
             logger.error(f"显示处方详情失败: {e}")
+
+    def _apply_responsive_table(self):
+        config = self._font_manager.get_table_config()
+        for table in [self.list_table, self.detail_table]:
+            table.verticalHeader().setDefaultSectionSize(config['row_height'])
+            font = self._font_manager.get_font('table_cell')
+            table.setFont(font)
+            header_font = self._font_manager.get_font('table_header')
+            table.horizontalHeader().setFont(header_font)
+
+    def update_fonts(self):
+        self._apply_responsive_table()
+        self.refresh_data()
 
     def show_operation_logs(self):
         try:

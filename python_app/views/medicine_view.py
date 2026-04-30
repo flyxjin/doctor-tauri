@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 from utils.responsive_font import ResponsiveWidget, get_font_manager
-from core import get_medicine_cache, measure, Timer
+from core import get_medicine_cache, measure, Timer, Medicine, MedicineService
 
 
 class MedicineDialog(QDialog):
@@ -67,40 +67,24 @@ class MedicineDialog(QDialog):
             self._populate_fields(medicine_data)
 
     def _populate_fields(self, data):
-        if isinstance(data, dict):
-            self.name_edit.setText(data.get('name', ''))
-            self.alias_edit.setText(data.get('alias', ''))
-            index = self.category_combo.findText(data.get('category', ''))
-            if index >= 0:
-                self.category_combo.setCurrentIndex(index)
-            index = self.nature_combo.findText(data.get('nature', ''))
-            if index >= 0:
-                self.nature_combo.setCurrentIndex(index)
-            self.taste_edit.setText(data.get('taste', ''))
-            self.meridian_edit.setText(data.get('meridian', ''))
-            self.efficacy_edit.setText(data.get('efficacy', ''))
-            self.indications_edit.setText(data.get('indications', ''))
-            self.usage_edit.setText(data.get('usage', ''))
-            self.dosage_edit.setText(data.get('dosage', ''))
-            self.contraindication_edit.setText(data.get('contraindication', ''))
-            self.notes_edit.setText(data.get('notes', ''))
-        else:
-            self.name_edit.setText(data[1] or '')
-            self.alias_edit.setText(data[2] or '')
-            index = self.category_combo.findText(data[3] or '')
-            if index >= 0:
-                self.category_combo.setCurrentIndex(index)
-            index = self.nature_combo.findText(data[4] or '')
-            if index >= 0:
-                self.nature_combo.setCurrentIndex(index)
-            self.taste_edit.setText(data[5] or '')
-            self.meridian_edit.setText(data[6] or '')
-            self.efficacy_edit.setText(data[7] or '')
-            self.indications_edit.setText(data[8] or '')
-            self.usage_edit.setText(data[9] or '')
-            self.dosage_edit.setText(data[10] or '')
-            self.contraindication_edit.setText(data[11] or '')
-            self.notes_edit.setText(data[12] or '')
+        if not isinstance(data, dict):
+            return
+        self.name_edit.setText(data.get('name', ''))
+        self.alias_edit.setText(data.get('alias', ''))
+        index = self.category_combo.findText(data.get('category', ''))
+        if index >= 0:
+            self.category_combo.setCurrentIndex(index)
+        index = self.nature_combo.findText(data.get('nature', ''))
+        if index >= 0:
+            self.nature_combo.setCurrentIndex(index)
+        self.taste_edit.setText(data.get('taste', ''))
+        self.meridian_edit.setText(data.get('meridian', ''))
+        self.efficacy_edit.setText(data.get('efficacy', ''))
+        self.indications_edit.setText(data.get('indications', ''))
+        self.usage_edit.setText(data.get('usage', ''))
+        self.dosage_edit.setText(data.get('dosage', ''))
+        self.contraindication_edit.setText(data.get('contraindication', ''))
+        self.notes_edit.setText(data.get('notes', ''))
 
     def get_data(self):
         return (
@@ -124,6 +108,7 @@ class MedicineView(QWidget, ResponsiveWidget):
         QWidget.__init__(self)
         ResponsiveWidget.__init__(self)
         self.db = db
+        self._medicine_service = MedicineService(db)
         self._font_manager = get_font_manager()
         self._base_column_widths = [0, 120, 100, 100, 80, 100, 150]
         self._cache = get_medicine_cache()
@@ -297,33 +282,21 @@ class MedicineView(QWidget, ResponsiveWidget):
                 QMessageBox.warning(self, '提示', '请输入药材名称！')
                 return
             try:
-                self.db.execute('''
-                    INSERT INTO medicines (name, alias, category, nature, taste, meridian, 
-                                         efficacy, indications, usage, dosage, contraindication, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', data)
-                med_id = self.db.fetchone("SELECT id FROM medicines WHERE name = ?", (data[0],))[0]
-                self.db.execute(
-                    "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock, notes) VALUES (?, 0, 'g', 0, 10, '')",
-                    (med_id,))
-                
+                medicine = Medicine(
+                    name=data[0], alias=data[1], category=data[2], nature=data[3],
+                    taste=data[4], meridian=data[5], efficacy=data[6], indications=data[7],
+                    usage=data[8], dosage=data[9], contraindication=data[10], notes=data[11]
+                )
+                med_id = self._medicine_service.create(medicine)
+
                 new_med = {
                     'id': med_id,
-                    'name': data[0],
-                    'alias': data[1],
-                    'category': data[2],
-                    'nature': data[3],
-                    'taste': data[4],
-                    'meridian': data[5],
-                    'efficacy': data[6],
-                    'indications': data[7],
-                    'usage': data[8],
-                    'dosage': data[9],
-                    'contraindication': data[10],
-                    'notes': data[11]
+                    'name': data[0], 'alias': data[1], 'category': data[2], 'nature': data[3],
+                    'taste': data[4], 'meridian': data[5], 'efficacy': data[6], 'indications': data[7],
+                    'usage': data[8], 'dosage': data[9], 'contraindication': data[10], 'notes': data[11]
                 }
                 self._cache.add_medicine(new_med)
-                
+
                 QMessageBox.information(self, '成功', '药材添加成功！')
                 self.load_data()
             except Exception as e:
@@ -345,29 +318,22 @@ class MedicineView(QWidget, ResponsiveWidget):
                 QMessageBox.warning(self, '提示', '请输入药材名称！')
                 return
             med_id = medicine_data['id']
-            self.db.execute('''
-                UPDATE medicines SET name=?, alias=?, category=?, nature=?, taste=?, meridian=?, 
-                                   efficacy=?, indications=?, usage=?, dosage=?, contraindication=?, notes=? 
-                WHERE id=?
-            ''', (*data, med_id))
-            
+            medicine = Medicine(
+                id=med_id,
+                name=data[0], alias=data[1], category=data[2], nature=data[3],
+                taste=data[4], meridian=data[5], efficacy=data[6], indications=data[7],
+                usage=data[8], dosage=data[9], contraindication=data[10], notes=data[11]
+            )
+            self._medicine_service.update(medicine)
+
             updated_med = {
                 'id': med_id,
-                'name': data[0],
-                'alias': data[1],
-                'category': data[2],
-                'nature': data[3],
-                'taste': data[4],
-                'meridian': data[5],
-                'efficacy': data[6],
-                'indications': data[7],
-                'usage': data[8],
-                'dosage': data[9],
-                'contraindication': data[10],
-                'notes': data[11]
+                'name': data[0], 'alias': data[1], 'category': data[2], 'nature': data[3],
+                'taste': data[4], 'meridian': data[5], 'efficacy': data[6], 'indications': data[7],
+                'usage': data[8], 'dosage': data[9], 'contraindication': data[10], 'notes': data[11]
             }
             self._cache.update_medicine(updated_med)
-            
+
             QMessageBox.information(self, '成功', '修改成功！')
             self.load_data()
 
@@ -381,19 +347,15 @@ class MedicineView(QWidget, ResponsiveWidget):
         med_id = self._full_data[row]['id']
         med_name = self._full_data[row]['name']
 
-        reply = QMessageBox.question(self, '确认', f'确定要删除药材 "{med_name}" 吗？\n此操作将同时删除库存记录！', 
+        reply = QMessageBox.question(self, '确认', f'确定要删除药材 "{med_name}" 吗？\n此操作将同时删除库存记录！',
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
-                self.db.begin_transaction()
-                self.db.execute("DELETE FROM inventory WHERE medicine_id = ?", (med_id,))
-                self.db.execute("DELETE FROM medicines WHERE id = ?", (med_id,))
-                self.db.commit()
+                self._medicine_service.delete(med_id)
                 self._cache.delete_medicine(med_id)
                 QMessageBox.information(self, '成功', '删除成功！')
                 self.load_data()
             except Exception as e:
-                self.db.rollback()
                 QMessageBox.critical(self, '错误', f'删除失败：{str(e)}')
 
     def view_detail(self):

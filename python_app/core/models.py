@@ -64,20 +64,8 @@ class Medicine:
     
     def validate(self) -> List[str]:
         errors = []
-        if not self.name:
+        if not self.name or not self.name.strip():
             errors.append("药材名称不能为空")
-        if not self.category:
-            errors.append("药材分类不能为空")
-        if not self.nature:
-            errors.append("药性不能为空")
-        if not self.taste:
-            errors.append("药味不能为空")
-        if not self.meridian:
-            errors.append("归经不能为空")
-        if not self.efficacy:
-            errors.append("功效不能为空")
-        if not self.indications:
-            errors.append("主治不能为空")
         return errors
 
 

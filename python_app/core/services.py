@@ -217,15 +217,18 @@ class InventoryService:
         if new_quantity < 0:
             raise ServiceError(f"库存不足，当前库存: {inventory.quantity}，需要: {abs(quantity_change)}")
         
-        update_query = '''
-            UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE medicine_id = ?
-        '''
-        self.db.execute(update_query, (new_quantity, medicine_id))
-        
         if price is not None:
-            price_query = 'UPDATE inventory SET price = ? WHERE medicine_id = ?'
-            self.db.execute(price_query, (price, medicine_id))
+            update_query = '''
+                UPDATE inventory SET quantity = ?, price = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE medicine_id = ?
+            '''
+            self.db.execute(update_query, (new_quantity, price, medicine_id))
+        else:
+            update_query = '''
+                UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE medicine_id = ?
+            '''
+            self.db.execute(update_query, (new_quantity, medicine_id))
         
         total_amount = None
         if price is not None and quantity_change != 0:
@@ -275,6 +278,36 @@ class InventoryService:
     def update_min_stock(self, medicine_id: int, min_stock: float) -> bool:
         query = 'UPDATE inventory SET min_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE medicine_id = ?'
         self.db.execute(query, (min_stock, medicine_id))
+        return True
+
+    def adjust_stock(self, medicine_id: int, new_quantity: float, price: float = None,
+                     min_stock: float = None, notes: str = '') -> bool:
+        inventory = self.get_by_medicine_id(medicine_id)
+        if not inventory:
+            raise ServiceError("库存记录不存在")
+
+        query = 'UPDATE inventory SET quantity = ?'
+        params = [new_quantity]
+
+        if price is not None:
+            query += ', price = ?'
+            params.append(price)
+        if min_stock is not None:
+            query += ', min_stock = ?'
+            params.append(min_stock)
+
+        query += ', updated_at = CURRENT_TIMESTAMP WHERE medicine_id = ?'
+        params.append(medicine_id)
+        self.db.execute(query, tuple(params))
+
+        history_query = '''
+            INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes)
+            VALUES (?, ?, '调整', ?, ?, ?, '系统', ?)
+        '''
+        self.db.execute(history_query, (
+            medicine_id, inventory.medicine_name, new_quantity,
+            price, new_quantity * (price or 0), notes
+        ))
         return True
 
 

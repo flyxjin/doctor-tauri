@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-CURRENT_VERSION = "2.4.2"
-VERSION_DATE = "2026-02-25"
+CURRENT_VERSION = "2.6.0"
+VERSION_DATE = "2026-04-30"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
@@ -13,6 +13,46 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "2.6.0": {
+        "date": "2026-04-30",
+        "changes": [
+            "prescription_view接入响应式字体系统，支持窗口缩放自适应",
+            "history_view接入响应式字体系统，支持窗口缩放自适应",
+            "所有视图统一继承ResponsiveWidget，窗口缩放时表格字体自动调整"
+        ]
+    },
+    "2.5.1": {
+        "date": "2026-04-30",
+        "changes": [
+            "将main.py中260行内联CSS提取到theme.py集中管理",
+            "新增get_main_window_style()统一生成主窗口样式",
+            "main.py._apply_responsive_styles从260行缩减为3行"
+        ]
+    },
+    "2.5.0": {
+        "date": "2026-04-30",
+        "changes": [
+            "View层全面接入Service层，激活数据验证和操作日志",
+            "medicine_view使用MedicineService进行增删改",
+            "inventory_view使用InventoryService进行出入库和调整",
+            "prescription_view使用PrescriptionService保存处方",
+            "history_view使用PrescriptionService删除处方",
+            "新增InventoryService.adjust_stock方法",
+            "简化Medicine.validate()验证规则"
+        ]
+    },
+    "2.4.3": {
+        "date": "2026-04-30",
+        "changes": [
+            "修复InventoryService.update_stock()双重UPDATE语句问题",
+            "修复version.py中bare except吞没所有异常的问题",
+            "优化PerformanceMetrics使用deque替代列表切片",
+            "移除MedicineDialog中废弃的tuple数据路径",
+            "修复inventory_view中'全部'过滤时的冗余逻辑",
+            "移除history_view中冗余的operation_logs表创建",
+            "删除未使用的database_optimized.py"
+        ]
+    },
     "2.4.2": {
         "date": "2026-02-25",
         "changes": [
@@ -145,7 +185,7 @@ class VersionManager:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     saved = json.load(f)
                     default_config.update(saved)
-            except:
+            except Exception:
                 pass
         
         return default_config
@@ -154,7 +194,7 @@ class VersionManager:
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
-        except:
+        except Exception:
             pass
     
     def get_current_version(self) -> Version:

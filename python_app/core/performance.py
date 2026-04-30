@@ -7,7 +7,7 @@ import statistics
 from typing import Dict, List, Any, Optional, Callable
 from functools import wraps
 from dataclasses import dataclass, field
-from collections import defaultdict
+from collections import defaultdict, deque
 import threading
 
 
@@ -18,8 +18,8 @@ class PerformanceMetrics:
     total_time: float = 0.0
     min_time: float = float('inf')
     max_time: float = 0.0
-    times: List[float] = field(default_factory=list)
-    
+    times: deque = field(default_factory=lambda: deque(maxlen=1000))
+
     def record(self, duration: float) -> None:
         self.call_count += 1
         self.total_time += duration
@@ -28,8 +28,6 @@ class PerformanceMetrics:
         if duration > self.max_time:
             self.max_time = duration
         self.times.append(duration)
-        if len(self.times) > 1000:
-            self.times = self.times[-1000:]
     
     def get_average(self) -> float:
         if self.call_count == 0:
