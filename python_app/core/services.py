@@ -8,10 +8,19 @@ import hashlib
 
 from .database import Database, DatabaseError
 from .models import Medicine, Inventory, Prescription, PrescriptionItem, InventoryHistory, OperationLog
+from .validators import MedicineValidator
 
 
 class ServiceError(Exception):
     pass
+
+
+def _log_operation(db, operation_type: str, target_type: str, target_id: int, details: str = ''):
+    query = '''
+        INSERT INTO operation_logs (operation_type, target_type, target_id, details)
+        VALUES (?, ?, ?, ?)
+    '''
+    db.execute(query, (operation_type, target_type, target_id, details))
 
 
 class MedicineService:
@@ -62,8 +71,8 @@ class MedicineService:
         return Medicine.from_dict(row) if row else None
     
     def create(self, medicine: Medicine) -> int:
-        errors = medicine.validate()
-        if errors:
+        is_valid, errors = MedicineValidator.validate(medicine.to_dict())
+        if not is_valid:
             raise ServiceError(f"数据验证失败: {', '.join(errors)}")
         
         existing = self.get_by_name(medicine.name)
@@ -90,25 +99,25 @@ class MedicineService:
         '''
         self.db.execute(inv_query, (medicine_id,))
         
-        self._log_operation('CREATE', 'medicine', medicine_id, f"创建药材: {medicine.name}")
-        
+        _log_operation(self.db, 'CREATE', 'medicine', medicine_id, f"创建药材: {medicine.name}")
+
         return medicine_id
-    
+
     def update(self, medicine: Medicine) -> bool:
         if not medicine.id:
             raise ServiceError("药材ID不能为空")
-        
-        errors = medicine.validate()
-        if errors:
+
+        is_valid, errors = MedicineValidator.validate(medicine.to_dict())
+        if not is_valid:
             raise ServiceError(f"数据验证失败: {', '.join(errors)}")
-        
+
         existing = self.get_by_name(medicine.name)
         if existing and existing.id != medicine.id:
             raise ServiceError(f"药材名称 '{medicine.name}' 已被其他药材使用")
-        
+
         query = '''
-            UPDATE medicines SET name=?, alias=?, category=?, nature=?, taste=?, 
-                                  meridian=?, efficacy=?, indications=?, usage=?, 
+            UPDATE medicines SET name=?, alias=?, category=?, nature=?, taste=?,
+                                  meridian=?, efficacy=?, indications=?, usage=?,
                                   dosage=?, contraindication=?, notes=?, updated_at=CURRENT_TIMESTAMP
             WHERE id=?
         '''
@@ -118,22 +127,22 @@ class MedicineService:
             medicine.usage, medicine.dosage, medicine.contraindication, medicine.notes,
             medicine.id
         )
-        
+
         self.db.execute(query, params)
-        self._log_operation('UPDATE', 'medicine', medicine.id, f"更新药材: {medicine.name}")
-        
+        _log_operation(self.db, 'UPDATE', 'medicine', medicine.id, f"更新药材: {medicine.name}")
+
         return True
-    
+
     def delete(self, medicine_id: int) -> bool:
         medicine = self.get_by_id(medicine_id)
         if not medicine:
             raise ServiceError("药材不存在")
-        
+
         query = 'DELETE FROM medicines WHERE id = ?'
         self.db.execute(query, (medicine_id,))
-        
-        self._log_operation('DELETE', 'medicine', medicine_id, f"删除药材: {medicine.name}")
-        
+
+        _log_operation(self.db, 'DELETE', 'medicine', medicine_id, f"删除药材: {medicine.name}")
+
         return True
     
     def get_categories(self) -> List[str]:
@@ -169,14 +178,6 @@ class MedicineService:
         rows = self.db.fetchall(query, tuple(params))
         return [Medicine.from_dict(row) for row in rows]
     
-    def _log_operation(self, operation_type: str, target_type: str, target_id: int, details: str = ''):
-        query = '''
-            INSERT INTO operation_logs (operation_type, target_type, target_id, details)
-            VALUES (?, ?, ?, ?)
-        '''
-        self.db.execute(query, (operation_type, target_type, target_id, details))
-
-
 class InventoryService:
     def __init__(self, db: Database = None):
         self.db = db or Database()
@@ -349,7 +350,7 @@ class PrescriptionService:
             
             self.db.commit()
             
-            self._log_operation('CREATE', 'prescription', prescription_id, 
+            _log_operation(self.db, 'CREATE', 'prescription', prescription_id,
                                f"创建处方: 患者 {prescription.patient_name}")
             
             return prescription_id
@@ -418,7 +419,7 @@ class PrescriptionService:
             
             self.db.commit()
             
-            self._log_operation('DELETE', 'prescription', prescription_id,
+            _log_operation(self.db, 'DELETE', 'prescription', prescription_id,
                                f"删除处方: 患者 {prescription.patient_name}")
             
             return True
@@ -449,14 +450,6 @@ class PrescriptionService:
             'total_amount': row['total_amount'] if row else 0
         }
     
-    def _log_operation(self, operation_type: str, target_type: str, target_id: int, details: str = ''):
-        query = '''
-            INSERT INTO operation_logs (operation_type, target_type, target_id, details)
-            VALUES (?, ?, ?, ?)
-        '''
-        self.db.execute(query, (operation_type, target_type, target_id, details))
-
-
 class DataLoader:
     def __init__(self, db: Database = None):
         self.db = db or Database()

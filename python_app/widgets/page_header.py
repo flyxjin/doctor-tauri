@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from utils.responsive_font import get_font_manager
+from core.theme import AppColors
 
 
 class PageHeader(QWidget):
@@ -65,26 +66,26 @@ class PageHeader(QWidget):
         base_size = self.font_manager.current_base_size
         title_size = int(base_size * 1.4)
         subtitle_size = int(base_size * 0.85)
-        
+
         self.setStyleSheet(f'''
             PageHeader {{
                 background-color: transparent;
                 padding: 8px 0;
             }}
             QFrame#page_indicator {{
-                background-color: #1890ff;
+                background-color: {AppColors.PRIMARY};
                 border-radius: 2px;
             }}
             QWidget#header_text_container {{
                 background-color: transparent;
             }}
             QLabel#header_title {{
-                color: #262626;
+                color: {AppColors.TEXT_HEADING};
                 font-size: {title_size}px;
                 font-weight: 500;
             }}
             QLabel#header_subtitle {{
-                color: #8c8c8c;
+                color: {AppColors.INFO};
                 font-size: {subtitle_size}px;
             }}
         ''')
@@ -147,24 +148,24 @@ class CompactHeader(QFrame):
         base_size = self.font_manager.current_base_size
         title_size = int(base_size * 1.2)
         subtitle_size = int(base_size * 0.85)
-        
+
         self.setStyleSheet(f'''
             QFrame#compact_header {{
-                background-color: #fafafa;
-                border: 1px solid #d9d9d9;
+                background-color: {AppColors.BG_HEADER};
+                border: 1px solid {AppColors.BORDER_DARK};
                 border-radius: 4px;
             }}
             QFrame#header_indicator {{
-                background-color: #1890ff;
+                background-color: {AppColors.PRIMARY};
                 border-radius: 1px;
             }}
             QLabel#compact_title {{
-                color: #262626;
+                color: {AppColors.TEXT_HEADING};
                 font-size: {title_size}px;
                 font-weight: 500;
             }}
             QLabel#compact_subtitle {{
-                color: #8c8c8c;
+                color: {AppColors.INFO};
                 font-size: {subtitle_size}px;
             }}
         ''')

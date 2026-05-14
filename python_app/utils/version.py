@@ -3,8 +3,8 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-CURRENT_VERSION = "2.6.0"
-VERSION_DATE = "2026-04-30"
+CURRENT_VERSION = "3.0.0"
+VERSION_DATE = "2026-05-14"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
@@ -13,6 +13,18 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "3.0.0": {
+        "date": "2026-05-14",
+        "changes": [
+            "修复数据导出崩溃问题（dict切片TypeError）",
+            "修复处方删除快速双击竞态问题",
+            "修复数据库事务原子性（execute自动commit破坏显式事务）",
+            "修复Database单例线程安全（添加threading.Lock保护）",
+            "修复自动更新SSL证书验证（移除不安全的CERT_NONE）",
+            "统一Service层验证器调用（使用MedicineValidator替代宽松验证）",
+            "声明openpyxl依赖"
+        ]
+    },
     "2.6.0": {
         "date": "2026-04-30",
         "changes": [

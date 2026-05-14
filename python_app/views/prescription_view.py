@@ -10,6 +10,7 @@ import logging
 import re
 import html as html_mod
 from core import Prescription, PrescriptionItem, PrescriptionService
+from core.theme import AppColors, get_button_style, get_table_style
 from utils.responsive_font import ResponsiveWidget, get_font_manager
 
 logger = logging.getLogger('MedicineSystem')
@@ -60,7 +61,7 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         self.med_list.setEditTriggers(QTableWidget.NoEditTriggers)
 
         add_btn = QPushButton('添加到处方')
-        add_btn.setStyleSheet('background-color: #67c23a; color: white;')
+        add_btn.setStyleSheet(get_button_style(AppColors.SUCCESS))
         add_btn.clicked.connect(self.add_to_prescription)
 
         left_panel.addLayout(form_layout)
@@ -77,16 +78,16 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         self.prescription_table.setEditTriggers(QTableWidget.NoEditTriggers)
 
         self.total_label = QLabel('总计: ¥ 0.00')
-        self.total_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #e74c3c;")
+        self.total_label.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {AppColors.DANGER};")
 
         save_btn = QPushButton('保存处方')
-        save_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 10px 20px;')
+        save_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='10px 20px'))
         save_btn.clicked.connect(self.save_prescription)
         print_btn = QPushButton('打印处方')
-        print_btn.setStyleSheet('background-color: #409eff; color: white; padding: 10px 20px;')
+        print_btn.setStyleSheet(get_button_style(AppColors.PRIMARY, padding='10px 20px'))
         print_btn.clicked.connect(self.print_prescription)
         clear_btn = QPushButton('清空')
-        clear_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 20px;')
+        clear_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='10px 20px'))
         clear_btn.clicked.connect(self.clear_form)
 
         btn_row = QHBoxLayout()
@@ -103,6 +104,8 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         right_widget = QWidget()
         right_widget.setLayout(right_panel)
         main_layout.addWidget(right_widget, 60)
+
+        self._apply_responsive_table()
 
     def _do_search(self):
         text = self.med_search.text()
@@ -194,13 +197,18 @@ class PrescriptionView(QWidget, ResponsiveWidget):
             QMessageBox.critical(self, '错误', f'添加失败：{str(e)}')
 
     def remove_from_prescription(self, row):
+        if getattr(self, '_removing', False):
+            return
         try:
+            self._removing = True
             if 0 <= row < len(self.cart):
                 removed = self.cart.pop(row)
                 logger.info(f"从处方移除药材: {removed['name']}")
                 self.refresh_prescription_table()
         except Exception as e:
             logger.error(f"移除药材失败: {e}")
+        finally:
+            self._removing = False
 
     def refresh_prescription_table(self):
         try:
@@ -213,7 +221,7 @@ class PrescriptionView(QWidget, ResponsiveWidget):
                 self.prescription_table.setItem(i, 3, QTableWidgetItem(f"¥{item['amount']:.2f}"))
                 
                 remove_btn = QPushButton('删除')
-                remove_btn.setStyleSheet('background-color: #f56c6c; color: white;')
+                remove_btn.setStyleSheet(get_button_style(AppColors.DANGER, padding='4px 12px'))
                 remove_btn.clicked.connect(lambda checked, row=i: self.remove_from_prescription(row))
                 self.prescription_table.setCellWidget(i, 4, remove_btn)
                 
@@ -316,12 +324,15 @@ class PrescriptionView(QWidget, ResponsiveWidget):
 
     def _apply_responsive_table(self):
         config = self._font_manager.get_table_config()
+        base_size = self._font_manager.current_base_size
+        table_style = get_table_style(config['font_size'], int(base_size * 1.1), config['cell_padding'])
         for table in [self.med_list, self.prescription_table]:
             table.verticalHeader().setDefaultSectionSize(config['row_height'])
             font = self._font_manager.get_font('table_cell')
             table.setFont(font)
             header_font = self._font_manager.get_font('table_header')
             table.horizontalHeader().setFont(header_font)
+            table.setStyleSheet(table_style)
 
     def update_fonts(self):
         self._apply_responsive_table()

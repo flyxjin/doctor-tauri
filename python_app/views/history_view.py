@@ -7,6 +7,7 @@ from PyQt5.QtGui import QFont
 from datetime import datetime
 import logging
 from core import PrescriptionService
+from core.theme import AppColors, get_button_style, get_secondary_button_style, get_table_style, get_dialog_style
 from utils.responsive_font import ResponsiveWidget, get_font_manager
 
 logger = logging.getLogger('MedicineSystem')
@@ -18,23 +19,29 @@ class OperationLogDialog(QDialog):
         self.setWindowTitle('操作日志')
         self.setMinimumSize(500, 400)
         self.log_data = log_data or []
+        self.font_manager = get_font_manager()
         self.init_ui()
-    
+
     def init_ui(self):
         layout = QVBoxLayout(self)
-        
+        self.setStyleSheet(get_dialog_style())
+
         self.log_table = QTableWidget()
         self.log_table.setColumnCount(5)
         self.log_table.setHorizontalHeaderLabels(['操作类型', '目标类型', '目标ID', '操作者', '操作时间'])
         self.log_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.log_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        
+        self.log_table.setAlternatingRowColors(True)
+        base_size = self.font_manager.current_base_size
+        self.log_table.setStyleSheet(get_table_style(base_size, int(base_size * 1.1), max(4, int(base_size * 0.5))))
+
         self.load_logs()
-        
+
         close_btn = QPushButton('关闭')
+        close_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='8px 24px'))
         close_btn.clicked.connect(self.accept)
-        
+
         layout.addWidget(QLabel('操作日志记录:'))
         layout.addWidget(self.log_table)
         layout.addWidget(close_btn)
@@ -72,12 +79,12 @@ class HistoryView(QWidget, ResponsiveWidget):
         
         header_layout = QHBoxLayout()
         header_label = QLabel('历史处方列表')
-        header_label.setStyleSheet('font-size: 16px; font-weight: bold; color: #262626;')
+        header_label.setStyleSheet(f'font-size: 16px; font-weight: bold; color: {AppColors.TEXT_HEADING};')
         header_layout.addWidget(header_label)
         header_layout.addStretch()
-        
+
         self.record_count_label = QLabel('共 0 条记录')
-        self.record_count_label.setStyleSheet('color: #8c8c8c;')
+        self.record_count_label.setStyleSheet(f'color: {AppColors.INFO};')
         header_layout.addWidget(self.record_count_label)
         
         layout.addLayout(header_layout)
@@ -102,11 +109,11 @@ class HistoryView(QWidget, ResponsiveWidget):
         self.date_to.setFixedWidth(120)
 
         search_btn = QPushButton('搜索')
-        search_btn.setStyleSheet('background-color: #1890ff; color: white; padding: 6px 16px; border-radius: 4px;')
+        search_btn.setStyleSheet(get_button_style(AppColors.PRIMARY, padding='6px 16px'))
         search_btn.clicked.connect(self.refresh_data)
 
         reset_btn = QPushButton('重置')
-        reset_btn.setStyleSheet('background-color: #909399; color: white; padding: 6px 16px; border-radius: 4px;')
+        reset_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='6px 16px'))
         reset_btn.clicked.connect(self._reset_filters)
 
         search_layout.addWidget(QLabel('患者:'))
@@ -167,47 +174,48 @@ class HistoryView(QWidget, ResponsiveWidget):
         layout.addWidget(detail_group)
         
         self._apply_styles()
-        
+        self._apply_responsive_table()
+
         self.list_table.itemSelectionChanged.connect(self.show_detail)
 
     def _apply_styles(self):
-        self.setStyleSheet('''
-            QPushButton#refresh_btn {
-                background-color: #1890ff;
+        self.setStyleSheet(f'''
+            QPushButton#refresh_btn {{
+                background-color: {AppColors.PRIMARY};
                 color: white;
                 border: none;
                 padding: 8px 16px;
                 border-radius: 4px;
                 min-width: 80px;
-            }
-            QPushButton#refresh_btn:hover {
-                background-color: #40a9ff;
-            }
-            QPushButton#view_log_btn {
-                background-color: #ffffff;
-                color: #595959;
-                border: 1px solid #d9d9d9;
+            }}
+            QPushButton#refresh_btn:hover {{
+                background-color: {AppColors.PRIMARY_HOVER};
+            }}
+            QPushButton#view_log_btn {{
+                background-color: {AppColors.BG_CARD};
+                color: {AppColors.TEXT_CAPTION};
+                border: 1px solid {AppColors.BORDER_DARK};
                 padding: 8px 16px;
                 border-radius: 4px;
                 min-width: 100px;
-            }
-            QPushButton#view_log_btn:hover {
-                border-color: #1890ff;
-                color: #1890ff;
-            }
-            QGroupBox {
+            }}
+            QPushButton#view_log_btn:hover {{
+                border-color: {AppColors.PRIMARY};
+                color: {AppColors.PRIMARY};
+            }}
+            QGroupBox {{
                 font-weight: 500;
-                color: #262626;
-                border: 1px solid #d9d9d9;
+                color: {AppColors.TEXT_HEADING};
+                border: 1px solid {AppColors.BORDER_DARK};
                 border-radius: 4px;
                 margin-top: 12px;
                 padding-top: 8px;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 8px;
-            }
+            }}
         ''')
 
     def _get_row_value(self, row, key, index=None):
@@ -262,19 +270,7 @@ class HistoryView(QWidget, ResponsiveWidget):
                 delete_btn.setProperty('prescription_id', pres_id)
                 delete_btn.setProperty('row_index', i)
                 delete_btn.clicked.connect(self._on_delete_clicked)
-                delete_btn.setStyleSheet('''
-                    QPushButton {
-                        background-color: #ff4d4f;
-                        color: white;
-                        border: none;
-                        padding: 4px 12px;
-                        border-radius: 4px;
-                        font-size: 12px;
-                    }
-                    QPushButton:hover {
-                        background-color: #ff7875;
-                    }
-                ''')
+                delete_btn.setStyleSheet(get_button_style(AppColors.DANGER, padding='4px 12px'))
                 
                 self.list_table.setCellWidget(i, 6, delete_btn)
             
@@ -294,7 +290,7 @@ class HistoryView(QWidget, ResponsiveWidget):
         reply = QMessageBox.question(
             self, '确认删除',
             f'<p style="font-size: 14px;">确定要删除此处方记录吗？</p>'
-            f'<p style="color: #ff4d4f; font-weight: bold;">此操作不可撤销！</p>'
+            f'<p style="color: {AppColors.DANGER}; font-weight: bold;">此操作不可撤销！</p>'
             f'<p>处方ID: {prescription_id}</p>'
             f'<p>患者姓名: {patient_name}</p>',
             QMessageBox.Yes | QMessageBox.No,
@@ -350,12 +346,15 @@ class HistoryView(QWidget, ResponsiveWidget):
 
     def _apply_responsive_table(self):
         config = self._font_manager.get_table_config()
+        base_size = self._font_manager.current_base_size
+        table_style = get_table_style(config['font_size'], int(base_size * 1.1), config['cell_padding'])
         for table in [self.list_table, self.detail_table]:
             table.verticalHeader().setDefaultSectionSize(config['row_height'])
             font = self._font_manager.get_font('table_cell')
             table.setFont(font)
             header_font = self._font_manager.get_font('table_header')
             table.horizontalHeader().setFont(header_font)
+            table.setStyleSheet(table_style)
 
     def update_fonts(self):
         self._apply_responsive_table()

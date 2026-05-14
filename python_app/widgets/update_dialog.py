@@ -1,5 +1,5 @@
 import os
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QProgressBar, QTextEdit, QCheckBox,
                              QFrame, QMessageBox, QGroupBox)
 from PyQt5.QtCore import Qt, QSize
@@ -7,6 +7,7 @@ from PyQt5.QtGui import QFont
 
 from utils.version import CURRENT_VERSION, VersionManager
 from utils.updater import UpdateInfo, UpdateManager, BackupManager
+from core.theme import AppColors
 
 
 class UpdateDialog(QDialog):
@@ -125,105 +126,105 @@ class UpdateDialog(QDialog):
         self._apply_styles()
     
     def _apply_styles(self):
-        self.setStyleSheet('''
-            QDialog {
-                background-color: #ffffff;
-            }
-            QFrame#status_indicator {
-                background-color: #1890ff;
+        self.setStyleSheet(f'''
+            QDialog {{
+                background-color: {AppColors.BG_CARD};
+            }}
+            QFrame#status_indicator {{
+                background-color: {AppColors.PRIMARY};
                 border-radius: 24px;
-            }
-            QFrame#content_frame {
-                background-color: #fafafa;
-                border: 1px solid #d9d9d9;
+            }}
+            QFrame#content_frame {{
+                background-color: {AppColors.BG_HEADER};
+                border: 1px solid {AppColors.BORDER_DARK};
                 border-radius: 4px;
                 padding: 12px;
-            }
-            QLabel#dialog_title {
+            }}
+            QLabel#dialog_title {{
                 font-size: 18px;
                 font-weight: 500;
-                color: #262626;
-            }
-            QLabel#dialog_subtitle {
+                color: {AppColors.TEXT_HEADING};
+            }}
+            QLabel#dialog_subtitle {{
                 font-size: 13px;
-                color: #8c8c8c;
-            }
-            QLabel#new_version_label {
+                color: {AppColors.INFO};
+            }}
+            QLabel#new_version_label {{
                 font-size: 15px;
                 font-weight: 500;
-                color: #1890ff;
-            }
-            QLabel#size_label {
+                color: {AppColors.PRIMARY};
+            }}
+            QLabel#size_label {{
                 font-size: 13px;
-                color: #595959;
-            }
-            QGroupBox#changelog_group {
+                color: {AppColors.TEXT_CAPTION};
+            }}
+            QGroupBox#changelog_group {{
                 font-weight: 500;
-                color: #262626;
-                border: 1px solid #d9d9d9;
+                color: {AppColors.TEXT_HEADING};
+                border: 1px solid {AppColors.BORDER_DARK};
                 border-radius: 4px;
                 margin-top: 12px;
                 padding-top: 8px;
-            }
-            QGroupBox#changelog_group::title {
+            }}
+            QGroupBox#changelog_group::title {{
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 8px;
-            }
-            QTextEdit#changelog_text {
-                background-color: #ffffff;
+            }}
+            QTextEdit#changelog_text {{
+                background-color: {AppColors.BG_CARD};
                 border: none;
                 font-size: 13px;
-                color: #595959;
-            }
-            QProgressBar#download_progress {
-                border: 1px solid #d9d9d9;
+                color: {AppColors.TEXT_CAPTION};
+            }}
+            QProgressBar#download_progress {{
+                border: 1px solid {AppColors.BORDER_DARK};
                 border-radius: 4px;
                 text-align: center;
                 height: 20px;
-                background-color: #f5f5f5;
-            }
-            QProgressBar#download_progress::chunk {
-                background-color: #1890ff;
+                background-color: {AppColors.BG_PROGRESS};
+            }}
+            QProgressBar#download_progress::chunk {{
+                background-color: {AppColors.PRIMARY};
                 border-radius: 3px;
-            }
-            QLabel#progress_label {
+            }}
+            QLabel#progress_label {{
                 font-size: 12px;
-                color: #8c8c8c;
-            }
-            QCheckBox#skip_checkbox {
+                color: {AppColors.INFO};
+            }}
+            QCheckBox#skip_checkbox {{
                 font-size: 13px;
-                color: #595959;
-            }
-            QPushButton#primary_btn {
-                background-color: #1890ff;
-                color: #ffffff;
+                color: {AppColors.TEXT_CAPTION};
+            }}
+            QPushButton#primary_btn {{
+                background-color: {AppColors.PRIMARY};
+                color: {AppColors.BG_CARD};
                 border: none;
                 padding: 8px 24px;
                 border-radius: 4px;
                 font-size: 14px;
                 min-width: 90px;
-            }
-            QPushButton#primary_btn:hover {
-                background-color: #40a9ff;
-            }
-            QPushButton#primary_btn:disabled {
-                background-color: #d9d9d9;
-                color: #8c8c8c;
-            }
-            QPushButton#secondary_btn {
-                background-color: #ffffff;
-                color: #595959;
-                border: 1px solid #d9d9d9;
+            }}
+            QPushButton#primary_btn:hover {{
+                background-color: {AppColors.PRIMARY_HOVER};
+            }}
+            QPushButton#primary_btn:disabled {{
+                background-color: {AppColors.DISABLED_BG};
+                color: {AppColors.DISABLED_TEXT};
+            }}
+            QPushButton#secondary_btn {{
+                background-color: {AppColors.BG_CARD};
+                color: {AppColors.TEXT_CAPTION};
+                border: 1px solid {AppColors.BORDER_DARK};
                 padding: 8px 24px;
                 border-radius: 4px;
                 font-size: 14px;
                 min-width: 90px;
-            }
-            QPushButton#secondary_btn:hover {
-                border-color: #1890ff;
-                color: #1890ff;
-            }
+            }}
+            QPushButton#secondary_btn:hover {{
+                border-color: {AppColors.PRIMARY};
+                color: {AppColors.PRIMARY};
+            }}
         ''')
     
     def _display_update_info(self):
@@ -231,11 +232,11 @@ class UpdateDialog(QDialog):
             return
         
         self.title_label.setText("发现新版本")
-        self.status_indicator.setStyleSheet('''
-            QFrame#status_indicator {
-                background-color: #52c41a;
+        self.status_indicator.setStyleSheet(f'''
+            QFrame#status_indicator {{
+                background-color: {AppColors.SUCCESS};
                 border-radius: 24px;
-            }
+            }}
         ''')
         
         self.new_version_label.setText(f"最新版本: v{self.update_info.version}")
@@ -253,11 +254,11 @@ class UpdateDialog(QDialog):
     
     def show_no_update(self):
         self.title_label.setText("已是最新版本")
-        self.status_indicator.setStyleSheet('''
-            QFrame#status_indicator {
-                background-color: #52c41a;
+        self.status_indicator.setStyleSheet(f'''
+            QFrame#status_indicator {{
+                background-color: {AppColors.SUCCESS};
                 border-radius: 24px;
-            }
+            }}
         ''')
         
         self.content_frame.setVisible(False)
@@ -271,11 +272,11 @@ class UpdateDialog(QDialog):
     
     def show_error(self, error_msg: str):
         self.title_label.setText("检查更新失败")
-        self.status_indicator.setStyleSheet('''
-            QFrame#status_indicator {
-                background-color: #ff4d4f;
+        self.status_indicator.setStyleSheet(f'''
+            QFrame#status_indicator {{
+                background-color: {AppColors.DANGER};
                 border-radius: 24px;
-            }
+            }}
         ''')
         
         self.content_frame.setVisible(False)

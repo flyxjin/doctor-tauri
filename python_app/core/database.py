@@ -6,6 +6,7 @@ import sqlite3
 import os
 import sys
 import shutil
+import threading
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
 from datetime import datetime
@@ -44,24 +45,28 @@ class DatabaseError(Exception):
 class Database:
     _instance = None
     _initialized = False
-    
+    _lock = threading.Lock()
+
     def __new__(cls, db_path: str = None):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+            return cls._instance
+
     def __init__(self, db_path: str = None):
-        if Database._initialized:
-            return
-        
-        if db_path is None:
-            db_path = get_db_path()
-        self.db_path = db_path
-        self.conn: Optional[sqlite3.Connection] = None
-        self.cursor: Optional[sqlite3.Cursor] = None
-        self._connect()
-        self._create_tables()
-        Database._initialized = True
+        with Database._lock:
+            if Database._initialized:
+                return
+
+            if db_path is None:
+                db_path = get_db_path()
+            self.db_path = db_path
+            self.conn: Optional[sqlite3.Connection] = None
+            self.cursor: Optional[sqlite3.Cursor] = None
+            self._auto_commit = True
+            self._connect()
+            self._create_tables()
+            Database._initialized = True
     
     def _connect(self):
         try:
@@ -189,10 +194,12 @@ class Database:
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         try:
             self.cursor.execute(query, params)
-            self.conn.commit()
+            if self._auto_commit:
+                self.conn.commit()
             return self.cursor
         except sqlite3.Error as e:
-            self.conn.rollback()
+            if self._auto_commit:
+                self.conn.rollback()
             raise DatabaseError(f"执行SQL失败: {e}")
     
     def fetchall(self, query: str, params: tuple = ()) -> List[Dict]:
@@ -212,13 +219,16 @@ class Database:
             raise DatabaseError(f"查询失败: {e}")
     
     def begin_transaction(self):
+        self._auto_commit = False
         self.cursor.execute('BEGIN TRANSACTION')
 
     def commit(self):
         self.conn.commit()
+        self._auto_commit = True
 
     def rollback(self):
         self.conn.rollback()
+        self._auto_commit = True
 
     @contextmanager
     def transaction(self):
@@ -242,13 +252,27 @@ class Database:
             self.cursor.close()
         if self.conn:
             self.conn.close()
-        Database._instance = None
-        Database._initialized = False
-    
+        with Database._lock:
+            Database._instance = None
+            Database._initialized = False
+
+    def _close_connection(self):
+        """Close DB connection without touching singleton state (used by reset_instance)."""
+        if self.cursor:
+            self.cursor.close()
+        if self.conn:
+            self.conn.close()
+
     @classmethod
     def reset_instance(cls):
-        cls._instance = None
-        cls._initialized = False
+        with cls._lock:
+            if cls._instance is not None:
+                try:
+                    cls._instance._close_connection()
+                except Exception:
+                    pass
+                cls._instance = None
+                cls._initialized = False
 
     @classmethod
     def create_worker_connection(cls, db_path: str = None) -> 'Database':
@@ -259,5 +283,6 @@ class Database:
         instance.db_path = db_path
         instance.conn = None
         instance.cursor = None
+        instance._auto_commit = True
         instance._connect()
         return instance

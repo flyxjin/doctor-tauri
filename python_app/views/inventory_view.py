@@ -6,6 +6,7 @@ from PyQt5.QtGui import QColor, QBrush, QFont
 from PyQt5.QtCore import Qt
 from utils.responsive_font import ResponsiveWidget, get_font_manager
 from core import InventoryService
+from core.theme import AppColors, get_button_style, get_dialog_style, get_table_style
 import csv
 
 
@@ -24,6 +25,7 @@ class StockDialog(QDialog):
 
     def init_ui(self):
         layout = QFormLayout(self)
+        self.setStyleSheet(get_dialog_style())
 
         self.quantity_spin = QDoubleSpinBox()
         self.quantity_spin.setRange(0.01, 10000)
@@ -51,14 +53,15 @@ class StockDialog(QDialog):
 
         if self.operation == "出库":
             info_label = QLabel(f'当前库存: {self.current_qty} g')
-            info_label.setStyleSheet('color: #666; font-size: 12px;')
+            info_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; font-size: 12px;')
             layout.addRow('', info_label)
 
         btn_box = QHBoxLayout()
         ok_btn = QPushButton('确认')
-        ok_btn.setStyleSheet('background-color: #409eff; color: white;')
+        ok_btn.setStyleSheet(get_button_style(AppColors.PRIMARY))
         ok_btn.clicked.connect(self.accept)
         cancel_btn = QPushButton('取消')
+        cancel_btn.setStyleSheet(get_button_style(AppColors.INFO))
         cancel_btn.clicked.connect(self.reject)
         btn_box.addWidget(ok_btn)
         btn_box.addWidget(cancel_btn)
@@ -84,32 +87,29 @@ class InventoryView(QWidget, ResponsiveWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
 
-        # 顶部统计卡片
         stats_group = QGroupBox('库存统计')
         stats_layout = QHBoxLayout(stats_group)
         
         self.total_meds_label = QLabel('药材种类: 0')
-        self.total_meds_label.setStyleSheet('font-size: 14px; font-weight: bold; color: #409eff;')
-        
+        self.total_meds_label.setStyleSheet(f'font-size: 14px; font-weight: bold; color: {AppColors.PRIMARY};')
+
         self.total_value_label = QLabel('库存总值: ¥0.00')
-        self.total_value_label.setStyleSheet('font-size: 14px; font-weight: bold; color: #67c23a;')
-        
+        self.total_value_label.setStyleSheet(f'font-size: 14px; font-weight: bold; color: {AppColors.SUCCESS};')
+
         self.low_stock_label = QLabel('低库存: 0')
-        self.low_stock_label.setStyleSheet('font-size: 14px; font-weight: bold; color: #f56c6c;')
+        self.low_stock_label.setStyleSheet(f'font-size: 14px; font-weight: bold; color: {AppColors.DANGER};')
         
         stats_layout.addWidget(self.total_meds_label)
         stats_layout.addWidget(self.total_value_label)
         stats_layout.addWidget(self.low_stock_label)
         stats_layout.addStretch()
 
-        # 预警提示区
         self.warning_group = QGroupBox('库存预警')
         warning_layout = QHBoxLayout(self.warning_group)
         self.warning_label = QLabel('库存状态正常')
-        self.warning_label.setStyleSheet("color: #67c23a; font-weight: bold;")
+        self.warning_label.setStyleSheet(f"color: {AppColors.SUCCESS}; font-weight: bold;")
         warning_layout.addWidget(self.warning_label)
 
-        # 搜索和筛选
         search_group = QGroupBox('搜索筛选')
         search_layout = QHBoxLayout(search_group)
         
@@ -132,17 +132,16 @@ class InventoryView(QWidget, ResponsiveWidget):
         search_layout.addWidget(self.refresh_btn)
         search_layout.addStretch()
 
-        # 操作按钮
         btn_bar = QHBoxLayout()
         self.stock_in_btn = QPushButton('药材入库')
         self.stock_out_btn = QPushButton('药材出库')
         self.adjust_btn = QPushButton('库存调整')
         self.export_btn = QPushButton('导出库存')
         
-        self.stock_in_btn.setStyleSheet('background-color: #67c23a; color: white;')
-        self.stock_out_btn.setStyleSheet('background-color: #e6a23c; color: white;')
-        self.adjust_btn.setStyleSheet('background-color: #409eff; color: white;')
-        self.export_btn.setStyleSheet('background-color: #909399; color: white;')
+        self.stock_in_btn.setStyleSheet(get_button_style(AppColors.SUCCESS))
+        self.stock_out_btn.setStyleSheet(get_button_style(AppColors.WARNING))
+        self.adjust_btn.setStyleSheet(get_button_style(AppColors.PRIMARY))
+        self.export_btn.setStyleSheet(get_button_style(AppColors.INFO))
         
         self.stock_in_btn.clicked.connect(self.stock_in)
         self.stock_out_btn.clicked.connect(self.stock_out)
@@ -155,7 +154,6 @@ class InventoryView(QWidget, ResponsiveWidget):
         btn_bar.addWidget(self.export_btn)
         btn_bar.addStretch()
 
-        # 库存表格
         self.table = QTableWidget()
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
@@ -210,13 +208,13 @@ class InventoryView(QWidget, ResponsiveWidget):
             stock_value = qty * price
             total_value += stock_value
             
-            if stock_filter == '库存充足' and qty >= min_stock:
-                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
-            elif stock_filter == '低库存' and 0 < qty < min_stock:
-                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
-            elif stock_filter == '缺货' and qty == 0:
-                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
-            elif stock_filter == '全部':
+            include = (
+                stock_filter == '全部'
+                or (stock_filter == '库存充足' and qty >= min_stock)
+                or (stock_filter == '低库存' and 0 < qty < min_stock)
+                or (stock_filter == '缺货' and qty == 0)
+            )
+            if include:
                 filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
             
             if qty < min_stock:
@@ -249,9 +247,9 @@ class InventoryView(QWidget, ResponsiveWidget):
                 
                 if col_idx == 3:
                     if qty == 0:
-                        item.setBackground(QBrush(QColor(255, 150, 150)))
+                        item.setBackground(QBrush(QColor(AppColors.STOCK_ZERO_BG)))
                     elif qty < min_stock:
-                        item.setBackground(QBrush(QColor(255, 220, 150)))
+                        item.setBackground(QBrush(QColor(AppColors.STOCK_LOW_BG)))
                 
                 self.table.setItem(row_idx, col_idx, item)
         
@@ -261,10 +259,10 @@ class InventoryView(QWidget, ResponsiveWidget):
         
         if low_stock_list:
             self.warning_label.setText(f"库存预警：{', '.join(low_stock_list[:5])}{'...' if len(low_stock_list) > 5 else ''} 库存不足！")
-            self.warning_label.setStyleSheet("color: #ff4d4f; font-weight: bold;")
+            self.warning_label.setStyleSheet(f"color: {AppColors.DANGER}; font-weight: bold;")
         else:
             self.warning_label.setText("库存状态正常")
-            self.warning_label.setStyleSheet("color: #67c23a; font-weight: bold;")
+            self.warning_label.setStyleSheet(f"color: {AppColors.SUCCESS}; font-weight: bold;")
 
     def stock_in(self):
         selected = self.table.selectedItems()
@@ -330,6 +328,7 @@ class InventoryView(QWidget, ResponsiveWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle(f'库存调整 - {med_name}')
         dialog.setFixedWidth(350)
+        dialog.setStyleSheet(get_dialog_style())
         layout = QFormLayout(dialog)
 
         qty_spin = QDoubleSpinBox()
@@ -359,9 +358,10 @@ class InventoryView(QWidget, ResponsiveWidget):
 
         btn_box = QHBoxLayout()
         ok_btn = QPushButton('确认')
-        ok_btn.setStyleSheet('background-color: #409eff; color: white;')
+        ok_btn.setStyleSheet(get_button_style(AppColors.PRIMARY))
         ok_btn.clicked.connect(dialog.accept)
         cancel_btn = QPushButton('取消')
+        cancel_btn.setStyleSheet(get_button_style(AppColors.INFO))
         cancel_btn.clicked.connect(dialog.reject)
         btn_box.addWidget(ok_btn)
         btn_box.addWidget(cancel_btn)
@@ -432,31 +432,15 @@ class InventoryView(QWidget, ResponsiveWidget):
         header_font = self._font_manager.get_font('table_header')
         header.setFont(header_font)
         
-        self.table.setStyleSheet(f'''
-            QTableWidget {{
-                gridline-color: #e0e0e0;
-                font-size: {config['font_size']}px;
-            }}
-            QTableWidget::item {{
-                padding: {config['cell_padding']}px;
-            }}
-            QHeaderView::section {{
-                font-size: {config['header_font_size']}px;
-                font-weight: bold;
-                padding: {config['cell_padding']}px;
-                background-color: #f5f7fa;
-                border: none;
-                border-bottom: 2px solid #e0e0e0;
-            }}
-        ''')
+        self.table.setStyleSheet(get_table_style(config['font_size'], config['header_font_size'], config['cell_padding']))
         
         font_size = self._font_manager.get_font_size('body')
         if hasattr(self, 'total_meds_label'):
-            self.total_meds_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: #409eff;')
+            self.total_meds_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: {AppColors.PRIMARY};')
         if hasattr(self, 'total_value_label'):
-            self.total_value_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: #67c23a;')
+            self.total_value_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: {AppColors.SUCCESS};')
         if hasattr(self, 'low_stock_label'):
-            self.low_stock_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: #f56c6c;')
+            self.low_stock_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: {AppColors.DANGER};')
     
     def update_fonts(self):
         self._apply_responsive_table()

@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QIcon
 
 from core import Database, BuiltinDataLoader, get_app_logger
-from core.theme import get_main_window_style
+from core.theme import AppColors, get_button_style, get_main_window_style
 from views.medicine_view import MedicineView
 from views.prescription_view import PrescriptionView
 from views.inventory_view import InventoryView
@@ -145,7 +145,7 @@ class ImportDialog(QDialog):
         
         info_label = QLabel('将导入常用中药材数据到系统中')
         info_label.setAlignment(Qt.AlignCenter)
-        info_label.setStyleSheet('color: #606266; padding: 15px;')
+        info_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; padding: 15px;')
         info_label.setFont(self.font_manager.get_font('body'))
         
         self.progress_bar = QProgressBar()
@@ -155,16 +155,16 @@ class ImportDialog(QDialog):
         self.status_label = QLabel('点击"开始"执行导入')
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setFont(self.font_manager.get_font('small'))
-        self.status_label.setStyleSheet('color: #909399;')
-        
+        self.status_label.setStyleSheet(f'color: {AppColors.INFO};')
+
         btn_layout = QHBoxLayout()
         self.start_btn = QPushButton('开始')
-        self.start_btn.setStyleSheet('background-color: #409eff; color: white; padding: 10px 30px;')
+        self.start_btn.setStyleSheet(get_button_style(AppColors.PRIMARY, padding='10px 30px'))
         self.start_btn.setFont(self.font_manager.get_font('button'))
         self.start_btn.clicked.connect(self.start_import)
         self.close_btn = QPushButton('关闭')
         self.close_btn.setFont(self.font_manager.get_font('button'))
-        self.close_btn.setStyleSheet('background-color: #f4f4f5; color: #606266; padding: 10px 30px;')
+        self.close_btn.setStyleSheet(get_button_style(AppColors.BG_SECONDARY, text_color=AppColors.TEXT_REGULAR, padding='10px 30px'))
         self.close_btn.clicked.connect(self.accept)
         self.close_btn.setEnabled(False)
         
@@ -248,31 +248,6 @@ class MainWindow(QMainWindow):
     
     def _create_menu_bar(self):
         menubar = self.menuBar()
-        menubar.setStyleSheet("""
-            QMenuBar {
-                background-color: #2c3e50;
-                color: white;
-                padding: 5px 10px;
-            }
-            QMenuBar::item {
-                padding: 8px 15px;
-                background-color: transparent;
-            }
-            QMenuBar::item:selected {
-                background-color: #34495e;
-            }
-            QMenu {
-                background-color: white;
-                border: 1px solid #dcdfe6;
-            }
-            QMenu::item {
-                padding: 8px 30px;
-                color: #303133;
-            }
-            QMenu::item:selected {
-                background-color: #f5f7fa;
-            }
-        """)
         
         file_menu = menubar.addMenu('文件')
         
@@ -315,13 +290,6 @@ class MainWindow(QMainWindow):
     def _create_status_bar(self):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.setStyleSheet("""
-            QStatusBar {
-                background-color: #f5f7fa;
-                color: #606266;
-                border-top: 1px solid #e4e7ed;
-            }
-        """)
         self.status_bar.showMessage('就绪')
     
     def _create_sidebar(self, main_layout):
@@ -470,23 +438,7 @@ class MainWindow(QMainWindow):
         self.killTimer(self._resize_timer)
         self._resize_timer = None
         
-        new_width = self.width()
-        old_base_size = self.font_manager.current_base_size
-        
-        self.font_manager.update_for_window_size(new_width)
-        
-        if self.font_manager.current_base_size != old_base_size:
-            self._apply_responsive_styles()
-            self._update_sidebar_width(new_width)
-            
-            QApplication.processEvents()
-            
-            for view in [self.medicine_view, self.inventory_view, 
-                        self.prescription_view, self.history_view]:
-                if hasattr(view, 'update'):
-                    view.update()
-                if hasattr(view, 'viewport'):
-                    view.viewport().update()
+        self.font_manager.update_for_window_size(self.width())
     
     def _check_update_on_startup(self):
         if self.version_manager.should_check_update():
@@ -543,7 +495,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(import_widget)
         
         close_btn = QPushButton('关闭')
-        close_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 30px;')
+        close_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='10px 30px'))
         close_btn.clicked.connect(dialog.accept)
         
         btn_layout = QHBoxLayout()
@@ -572,11 +524,13 @@ class MainWindow(QMainWindow):
     def _do_export(self, file_path):
         import csv
         medicines = self.db.fetchall("SELECT * FROM medicines")
+        cols = ['name', 'alias', 'category', 'nature', 'taste', 'meridian',
+                'efficacy', 'indications', 'usage', 'dosage', 'contraindication', 'notes']
         with open(file_path, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
             writer.writerow(['名称', '别名', '分类', '药性', '药味', '归经', '功效', '主治', '用法', '用量', '禁忌', '备注'])
             for m in medicines:
-                writer.writerow(m[1:])
+                writer.writerow([m.get(c, '') for c in cols])
     
     def _backup_data(self):
         try:

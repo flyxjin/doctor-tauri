@@ -151,11 +151,20 @@ pip install 模块名
 
 ## 版本信息
 
-- 当前版本: 2.4.2
+- 当前版本: 3.0.0
 - 开发语言: Python 3.9+
 - 界面框架: PyQt5
 
 ## 更新日志
+
+### v3.0.0 (2026-05-14)
+- 修复数据导出崩溃问题（dict切片TypeError）
+- 修复处方删除快速双击竞态问题
+- 修复数据库事务原子性（execute自动commit破坏显式事务）
+- 修复Database单例线程安全（添加threading.Lock保护）
+- 修复自动更新SSL证书验证（移除不安全的CERT_NONE）
+- 统一Service层验证器调用（使用MedicineValidator替代宽松验证）
+- 声明openpyxl依赖
 
 ### v2.4.2 (2026-02-25)
 - 修复处方开具模块闪退问题

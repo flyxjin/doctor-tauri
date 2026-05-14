@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from threading import RLock
 import time
-import hashlib
 
 T = TypeVar('T')
 
@@ -229,8 +228,7 @@ class MedicineCache:
         return result
     
     def _make_cache_key(self, keyword: str, category: str, nature: str) -> str:
-        key_data = f"k:{keyword}|c:{category}|n:{nature}"
-        return hashlib.md5(key_data.encode()).hexdigest()
+        return f"k:{keyword}|c:{category}|n:{nature}"
     
     def add_medicine(self, medicine: Dict[str, Any]) -> None:
         with self._lock:

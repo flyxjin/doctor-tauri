@@ -1,49 +1,93 @@
 # -*- coding: utf-8 -*-
 """
 主题模块 - 集中管理样式常量和工具函数
+配色标准：Ant Design
 """
 
 
 class AppColors:
+    # --- 主色 ---
     PRIMARY = '#1890ff'
     PRIMARY_HOVER = '#40a9ff'
     PRIMARY_ACTIVE = '#096dd9'
 
-    SUCCESS = '#67c23a'
-    SUCCESS_HOVER = '#85ce61'
-    WARNING = '#e6a23c'
-    DANGER = '#f56c6c'
-    DANGER_HOVER = '#f78989'
-    INFO = '#909399'
+    # --- 语义色 ---
+    SUCCESS = '#52c41a'
+    SUCCESS_HOVER = '#73d13d'
+    SUCCESS_ACTIVE = '#389e0d'
+    WARNING = '#faad14'
+    WARNING_HOVER = '#ffc53d'
+    WARNING_ACTIVE = '#d48806'
+    DANGER = '#ff4d4f'
+    DANGER_HOVER = '#ff7875'
+    DANGER_ACTIVE = '#cf1322'
+    INFO = '#8c8c8c'
+    INFO_HOVER = '#a6a6a6'
 
+    # --- 文本 ---
     TEXT_PRIMARY = '#303133'
     TEXT_REGULAR = '#606266'
     TEXT_SECONDARY = '#909399'
     TEXT_PLACEHOLDER = '#c0c4cc'
+    TEXT_HEADING = '#262626'
+    TEXT_CAPTION = '#595959'
 
+    # --- 背景 ---
     BG_PAGE = '#f0f2f5'
     BG_CARD = '#ffffff'
     BG_SIDEBAR = '#001529'
+    BG_MENUBAR = '#001529'
     BG_HEADER = '#fafafa'
     BG_ROW_HOVER = '#f5f7fa'
     BG_ROW_SELECTED = '#e6f7ff'
+    BG_SECONDARY = '#f5f7fa'
+    BG_PROGRESS = '#f5f5f5'
+    BG_SUCCESS_LIGHT = '#f6ffed'
+    BG_DANGER_LIGHT = '#fff2f0'
+    BG_WARNING_LIGHT = '#fffbe6'
+    BG_PRIMARY_LIGHT = '#e6f7ff'
 
+    # --- 边框 ---
     BORDER = '#dcdfe6'
     BORDER_LIGHT = '#e4e7ed'
     BORDER_LIGHTER = '#ebeef5'
+    BORDER_DARK = '#d9d9d9'
 
-    STOCK_ZERO = '#f56c6c'
-    STOCK_LOW = '#e6a23c'
+    # --- 禁用 ---
+    DISABLED_BG = '#d9d9d9'
+    DISABLED_TEXT = '#8c8c8c'
+
+    # --- 侧栏 ---
+    SIDEBAR_SEPARATOR = '#1f3a5f'
+    SIDEBAR_TEXT = 'rgba(255, 255, 255, 0.65)'
+    SIDEBAR_TEXT_ACTIVE = '#ffffff'
+    SIDEBAR_HOVER_BG = 'rgba(255, 255, 255, 0.08)'
+
+    # --- 库存预警 ---
+    STOCK_ZERO = '#ff4d4f'
+    STOCK_ZERO_BG = '#fff2f0'
+    STOCK_LOW = '#faad14'
+    STOCK_LOW_BG = '#fffbe6'
 
 
-def get_button_style(bg_color=AppColors.PRIMARY, text_color='white', padding='10px 20px'):
+def get_button_style(bg_color=AppColors.PRIMARY, text_color='white',
+                     padding='10px 20px', border_radius='4px',
+                     font_size=None, min_width=None, min_height=None):
+    parts = [f'font-size: {font_size}px'] if font_size else []
+    if min_width:
+        parts.append(f'min-width: {min_width}px')
+    if min_height:
+        parts.append(f'min-height: {min_height}px')
+    extra = '; '.join(parts)
+    if extra:
+        extra = '; ' + extra
     return f"""
         QPushButton {{
             background-color: {bg_color};
             color: {text_color};
             border: none;
             padding: {padding};
-            border-radius: 4px;
+            border-radius: {border_radius}{extra};
         }}
         QPushButton:hover {{
             background-color: {bg_color}dd;
@@ -52,8 +96,42 @@ def get_button_style(bg_color=AppColors.PRIMARY, text_color='white', padding='10
             background-color: {bg_color}bb;
         }}
         QPushButton:disabled {{
-            background-color: #d9d9d9;
-            color: #8c8c8c;
+            background-color: {AppColors.DISABLED_BG};
+            color: {AppColors.DISABLED_TEXT};
+        }}
+    """
+
+
+def get_secondary_button_style(padding='10px 20px', border_radius='4px',
+                               font_size=None, min_width=None, min_height=None):
+    parts = [f'font-size: {font_size}px'] if font_size else []
+    if min_width:
+        parts.append(f'min-width: {min_width}px')
+    if min_height:
+        parts.append(f'min-height: {min_height}px')
+    extra = '; '.join(parts)
+    if extra:
+        extra = '; ' + extra
+    return f"""
+        QPushButton {{
+            background-color: {AppColors.BG_CARD};
+            color: {AppColors.TEXT_CAPTION};
+            border: 1px solid {AppColors.BORDER_DARK};
+            padding: {padding};
+            border-radius: {border_radius}{extra};
+        }}
+        QPushButton:hover {{
+            border-color: {AppColors.PRIMARY};
+            color: {AppColors.PRIMARY};
+        }}
+        QPushButton:pressed {{
+            border-color: {AppColors.PRIMARY_ACTIVE};
+            color: {AppColors.PRIMARY_ACTIVE};
+        }}
+        QPushButton:disabled {{
+            background-color: {AppColors.DISABLED_BG};
+            color: {AppColors.DISABLED_TEXT};
+            border-color: {AppColors.BORDER_DARK};
         }}
     """
 
@@ -111,6 +189,17 @@ def get_input_style(font_size=14):
     """
 
 
+def get_dialog_style():
+    return f"""
+        QDialog {{
+            background-color: {AppColors.BG_CARD};
+        }}
+        QDialog QLabel {{
+            color: {AppColors.TEXT_PRIMARY};
+        }}
+    """
+
+
 def get_main_window_style(base_size=14):
     title_size = int(base_size * 1.6)
     subtitle_size = int(base_size * 1.3)
@@ -145,8 +234,8 @@ def get_main_window_style(base_size=14):
             font-weight: bold;
         }}
         QPushButton:disabled {{
-            background-color: #d9d9d9;
-            color: #8c8c8c;
+            background-color: {AppColors.DISABLED_BG};
+            color: {AppColors.DISABLED_TEXT};
         }}
         QLabel {{
             font-size: {body_size}px;
@@ -162,17 +251,17 @@ def get_main_window_style(base_size=14):
         }}
         QWidget#brand_container {{
             background-color: transparent;
-            border-bottom: 1px solid #1f3a5f;
+            border-bottom: 1px solid {AppColors.SIDEBAR_SEPARATOR};
             margin-bottom: 8px;
         }}
         QLabel#brand_title {{
-            color: #ffffff;
+            color: {AppColors.SIDEBAR_TEXT_ACTIVE};
             font-size: {int(base_size * 1.35)}px;
             font-weight: bold;
             letter-spacing: 1px;
         }}
         QLabel#brand_subtitle {{
-            color: #8c8c8c;
+            color: {AppColors.INFO};
             font-size: {int(base_size * 0.8)}px;
             margin-top: 2px;
         }}
@@ -182,7 +271,7 @@ def get_main_window_style(base_size=14):
         }}
         QPushButton#nav_btn {{
             background-color: transparent;
-            color: rgba(255, 255, 255, 0.65);
+            color: {AppColors.SIDEBAR_TEXT};
             text-align: left;
             padding: 12px 20px;
             border-radius: 4px;
@@ -193,16 +282,16 @@ def get_main_window_style(base_size=14):
             border-left: 3px solid transparent;
         }}
         QPushButton#nav_btn:hover {{
-            background-color: rgba(255, 255, 255, 0.08);
-            color: #ffffff;
+            background-color: {AppColors.SIDEBAR_HOVER_BG};
+            color: {AppColors.SIDEBAR_TEXT_ACTIVE};
         }}
         QPushButton#nav_btn:checked {{
             background-color: {AppColors.PRIMARY};
-            color: #ffffff;
+            color: {AppColors.SIDEBAR_TEXT_ACTIVE};
             border-left: 3px solid {AppColors.PRIMARY};
         }}
         QPushButton#import_btn {{
-            background-color: #52c41a;
+            background-color: {AppColors.SUCCESS};
             color: white;
             text-align: center;
             padding: 12px 20px;
@@ -213,10 +302,10 @@ def get_main_window_style(base_size=14):
             margin: 8px;
         }}
         QPushButton#import_btn:hover {{
-            background-color: #73d13d;
+            background-color: {AppColors.SUCCESS_HOVER};
         }}
         QLabel#version_label {{
-            color: #595959;
+            color: {AppColors.TEXT_CAPTION};
             font-size: {tiny_size}px;
             padding: 8px;
         }}
@@ -306,12 +395,12 @@ def get_main_window_style(base_size=14):
             margin: 0;
         }}
         QScrollBar::handle:vertical {{
-            background-color: #d9d9d9;
+            background-color: {AppColors.DISABLED_BG};
             border-radius: 4px;
             min-height: 30px;
         }}
         QScrollBar::handle:vertical:hover {{
-            background-color: #8c8c8c;
+            background-color: {AppColors.DISABLED_TEXT};
         }}
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
             height: 0;
@@ -321,12 +410,12 @@ def get_main_window_style(base_size=14):
             background-color: transparent;
         }}
         QScrollBar::handle:horizontal {{
-            background-color: #d9d9d9;
+            background-color: {AppColors.DISABLED_BG};
             border-radius: 4px;
             min-width: 30px;
         }}
         QScrollBar::handle:horizontal:hover {{
-            background-color: #8c8c8c;
+            background-color: {AppColors.DISABLED_TEXT};
         }}
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
             width: 0;
@@ -352,10 +441,10 @@ def get_main_window_style(base_size=14):
             color: {AppColors.PRIMARY};
         }}
         QMenuBar {{
-            background-color: {AppColors.BG_SIDEBAR};
+            background-color: {AppColors.BG_MENUBAR};
             color: rgba(255, 255, 255, 0.85);
             padding: 0 10px;
-            border-bottom: 1px solid #1f3a5f;
+            border-bottom: 1px solid {AppColors.SIDEBAR_SEPARATOR};
         }}
         QMenuBar::item {{
             padding: 10px 16px;
@@ -363,13 +452,24 @@ def get_main_window_style(base_size=14):
             border-radius: 0;
         }}
         QMenuBar::item:selected {{
-            background-color: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
+            background-color: {AppColors.SIDEBAR_HOVER_BG};
+            color: {AppColors.SIDEBAR_TEXT_ACTIVE};
         }}
         QStatusBar {{
             background-color: {AppColors.BG_PAGE};
-            color: #595959;
+            color: {AppColors.TEXT_CAPTION};
             border-top: 1px solid {AppColors.BORDER};
             padding: 4px 12px;
+        }}
+        QProgressBar {{
+            border: 1px solid {AppColors.BORDER_DARK};
+            border-radius: 4px;
+            height: 20px;
+            background-color: {AppColors.BG_PROGRESS};
+            text-align: center;
+        }}
+        QProgressBar::chunk {{
+            background-color: {AppColors.PRIMARY};
+            border-radius: 3px;
         }}
     '''

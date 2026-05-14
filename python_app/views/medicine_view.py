@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 from utils.responsive_font import ResponsiveWidget, get_font_manager
 from core import get_medicine_cache, measure, Timer, Medicine, MedicineService
+from core.theme import AppColors, get_button_style, get_dialog_style, get_table_style
 
 
 class MedicineDialog(QDialog):
@@ -22,6 +23,7 @@ class MedicineDialog(QDialog):
 
     def init_ui(self):
         layout = QFormLayout(self)
+        self.setStyleSheet(get_dialog_style())
 
         self.name_edit = QLineEdit()
         self.alias_edit = QLineEdit()
@@ -181,11 +183,11 @@ class MedicineView(QWidget, ResponsiveWidget):
         self.view_detail_btn = QPushButton('查看详情')
         self.export_btn = QPushButton('导出数据')
         
-        self.add_btn.setStyleSheet('background-color: #67c23a; color: white;')
-        self.edit_btn.setStyleSheet('background-color: #e6a23c; color: white;')
-        self.del_btn.setStyleSheet('background-color: #f56c6c; color: white;')
-        self.view_detail_btn.setStyleSheet('background-color: #409eff; color: white;')
-        self.export_btn.setStyleSheet('background-color: #909399; color: white;')
+        self.add_btn.setStyleSheet(get_button_style(AppColors.SUCCESS))
+        self.edit_btn.setStyleSheet(get_button_style(AppColors.WARNING))
+        self.del_btn.setStyleSheet(get_button_style(AppColors.DANGER))
+        self.view_detail_btn.setStyleSheet(get_button_style(AppColors.PRIMARY))
+        self.export_btn.setStyleSheet(get_button_style(AppColors.INFO))
         
         self.add_btn.clicked.connect(self.add_medicine)
         self.edit_btn.clicked.connect(self.edit_medicine)
@@ -217,7 +219,7 @@ class MedicineView(QWidget, ResponsiveWidget):
         self._apply_responsive_table()
 
         self.stats_label = QLabel('共 0 味药材')
-        self.stats_label.setStyleSheet('color: #666; font-size: 12px;')
+        self.stats_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; font-size: 12px;')
 
         layout.addWidget(search_group)
         layout.addLayout(btn_bar)
@@ -256,7 +258,6 @@ class MedicineView(QWidget, ResponsiveWidget):
         self._populate_table()
         self.stats_label.setText(f'共 {len(self._full_data)} 味药材')
 
-    @measure('MedicineView.populate_table')
     def _populate_table(self):
         self.table.setUpdatesEnabled(False)
         try:
@@ -371,25 +372,25 @@ class MedicineView(QWidget, ResponsiveWidget):
             return html.escape(str(medicine_data.get(key) or fallback))
 
         detail_text = f'''
-        <h2 style="color: #409eff;">{e('name')}</h2>
+        <h2 style="color: {AppColors.PRIMARY};">{e('name')}</h2>
         <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>别名</b></td><td style="padding: 8px;">{e('alias', '无')}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>分类</b></td><td style="padding: 8px;">{e('category', '未分类')}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药性</b></td><td style="padding: 8px;">{e('nature', '未知')}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>药味</b></td><td style="padding: 8px;">{e('taste', '未知')}</td></tr>
-            <tr><td style="padding: 8px; background: #f5f7fa;"><b>归经</b></td><td style="padding: 8px;">{e('meridian', '未知')}</td></tr>
+            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>别名</b></td><td style="padding: 8px;">{e('alias', '无')}</td></tr>
+            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>分类</b></td><td style="padding: 8px;">{e('category', '未分类')}</td></tr>
+            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>药性</b></td><td style="padding: 8px;">{e('nature', '未知')}</td></tr>
+            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>药味</b></td><td style="padding: 8px;">{e('taste', '未知')}</td></tr>
+            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>归经</b></td><td style="padding: 8px;">{e('meridian', '未知')}</td></tr>
         </table>
         <hr style="margin: 15px 0;">
-        <h3 style="color: #67c23a;">功效</h3>
-        <p style="padding: 10px; background: #f0f9eb; border-radius: 5px;">{e('efficacy', '暂无')}</p>
-        <h3 style="color: #409eff;">主治</h3>
-        <p style="padding: 10px; background: #ecf5ff; border-radius: 5px;">{e('indications', '暂无')}</p>
-        <h3 style="color: #e6a23c;">用法用量</h3>
-        <p style="padding: 10px; background: #fdf6ec; border-radius: 5px;">{e('usage', '暂无')} | {e('dosage', '暂无')}</p>
-        <h3 style="color: #f56c6c;">禁忌</h3>
-        <p style="padding: 10px; background: #fef0f0; border-radius: 5px;">{e('contraindication', '暂无')}</p>
-        <h3 style="color: #909399;">备注</h3>
-        <p style="padding: 10px; background: #f4f4f5; border-radius: 5px;">{e('notes', '无')}</p>
+        <h3 style="color: {AppColors.SUCCESS};">功效</h3>
+        <p style="padding: 10px; background: {AppColors.BG_SUCCESS_LIGHT}; border-radius: 5px;">{e('efficacy', '暂无')}</p>
+        <h3 style="color: {AppColors.PRIMARY};">主治</h3>
+        <p style="padding: 10px; background: {AppColors.BG_PRIMARY_LIGHT}; border-radius: 5px;">{e('indications', '暂无')}</p>
+        <h3 style="color: {AppColors.WARNING};">用法用量</h3>
+        <p style="padding: 10px; background: {AppColors.BG_WARNING_LIGHT}; border-radius: 5px;">{e('usage', '暂无')} | {e('dosage', '暂无')}</p>
+        <h3 style="color: {AppColors.DANGER};">禁忌</h3>
+        <p style="padding: 10px; background: {AppColors.BG_DANGER_LIGHT}; border-radius: 5px;">{e('contraindication', '暂无')}</p>
+        <h3 style="color: {AppColors.INFO};">备注</h3>
+        <p style="padding: 10px; background: {AppColors.BG_ROW_HOVER}; border-radius: 5px;">{e('notes', '无')}</p>
         '''
         
         msg_box = QMessageBox(self)
@@ -450,26 +451,10 @@ class MedicineView(QWidget, ResponsiveWidget):
         header_font = self._font_manager.get_font('table_header')
         header.setFont(header_font)
         
-        self.table.setStyleSheet(f'''
-            QTableWidget {{
-                gridline-color: #e0e0e0;
-                font-size: {config['font_size']}px;
-            }}
-            QTableWidget::item {{
-                padding: {config['cell_padding']}px;
-            }}
-            QHeaderView::section {{
-                font-size: {config['header_font_size']}px;
-                font-weight: bold;
-                padding: {config['cell_padding']}px;
-                background-color: #f5f7fa;
-                border: none;
-                border-bottom: 2px solid #e0e0e0;
-            }}
-        ''')
+        self.table.setStyleSheet(get_table_style(config['font_size'], config['header_font_size'], config['cell_padding']))
         
         if hasattr(self, 'stats_label'):
-            self.stats_label.setStyleSheet(f'color: #666; font-size: {self._font_manager.get_font_size("small")}px;')
+            self.stats_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; font-size: {self._font_manager.get_font_size("small")}px;')
     
     def update_fonts(self):
         self._apply_responsive_table()

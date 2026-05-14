@@ -6,6 +6,7 @@ from PyQt5.QtGui import QFont
 import csv
 import os
 import logging
+from core.theme import AppColors, get_button_style
 
 logger = logging.getLogger('MedicineSystem')
 
@@ -182,21 +183,21 @@ class BatchImportView(QWidget):
         layout.setSpacing(15)
         
         title = QLabel('批量导入药材数据')
-        title.setStyleSheet('font-size: 20px; font-weight: bold; color: #409eff;')
+        title.setStyleSheet(f'font-size: 20px; font-weight: bold; color: {AppColors.PRIMARY};')
         layout.addWidget(title)
         
         file_group = QGroupBox('选择文件')
         file_layout = QHBoxLayout(file_group)
         
         self.file_label = QLabel('未选择文件')
-        self.file_label.setStyleSheet('color: #909399;')
-        
+        self.file_label.setStyleSheet(f'color: {AppColors.INFO};')
+
         self.select_btn = QPushButton('选择文件')
-        self.select_btn.setStyleSheet('background-color: #409eff; color: white; padding: 8px 20px;')
+        self.select_btn.setStyleSheet(get_button_style(AppColors.PRIMARY, padding='8px 20px'))
         self.select_btn.clicked.connect(self.select_file)
-        
+
         self.template_btn = QPushButton('下载模板')
-        self.template_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 8px 20px;')
+        self.template_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='8px 20px'))
         self.template_btn.clicked.connect(self.download_template)
         
         file_layout.addWidget(self.file_label, 1)
@@ -213,7 +214,7 @@ class BatchImportView(QWidget):
         preview_layout.addWidget(self.preview_table)
         
         self.preview_info = QLabel()
-        self.preview_info.setStyleSheet('color: #666;')
+        self.preview_info.setStyleSheet(f'color: {AppColors.TEXT_REGULAR};')
         preview_layout.addWidget(self.preview_info)
         
         self.preview_group.setVisible(False)
@@ -226,16 +227,16 @@ class BatchImportView(QWidget):
         self.progress_bar.setVisible(False)
         
         self.status_label = QLabel('请选择要导入的文件')
-        self.status_label.setStyleSheet('color: #666;')
-        
+        self.status_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR};')
+
         btn_layout = QHBoxLayout()
         self.import_btn = QPushButton('开始导入')
-        self.import_btn.setStyleSheet('background-color: #67c23a; color: white; padding: 10px 30px;')
+        self.import_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='10px 30px'))
         self.import_btn.clicked.connect(self.start_import)
         self.import_btn.setEnabled(False)
-        
+
         self.cancel_btn = QPushButton('取消')
-        self.cancel_btn.setStyleSheet('background-color: #909399; color: white; padding: 10px 30px;')
+        self.cancel_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='10px 30px'))
         self.cancel_btn.clicked.connect(self.cancel_import)
         self.cancel_btn.setVisible(False)
         
@@ -274,7 +275,7 @@ class BatchImportView(QWidget):
 2. CSV文件请使用UTF-8编码
 3. 数值字段(库存、价格等)请填写数字
         ''')
-        help_text.setStyleSheet('color: #666; line-height: 1.6;')
+        help_text.setStyleSheet(f'color: {AppColors.TEXT_REGULAR};')
         help_layout.addWidget(help_text)
         layout.addWidget(help_group)
         
@@ -291,7 +292,7 @@ class BatchImportView(QWidget):
             return
             
         self.file_label.setText(filename)
-        self.file_label.setStyleSheet('color: #333;')
+        self.file_label.setStyleSheet(f'color: {AppColors.TEXT_PRIMARY};')
         
         try:
             if filename.endswith('.csv'):

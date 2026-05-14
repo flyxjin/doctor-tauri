@@ -68,9 +68,7 @@ class CheckUpdateThread(QThread):
     
     def _check_gitee(self) -> Optional[UpdateInfo]:
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        
+
         request = urllib.request.Request(
             GITEE_RELEASES_URL,
             headers={'Accept': 'application/json'}
@@ -120,9 +118,7 @@ class DownloadThread(QThread):
                 downloaded = os.path.getsize(temp_path)
             
             ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            
+
             request = urllib.request.Request(self.url)
             if downloaded > 0:
                 request.add_header('Range', f'bytes={downloaded}-')

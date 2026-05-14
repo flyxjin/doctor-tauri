@@ -2,11 +2,20 @@
 """
 基础视图模块 - 提取各 View 的公共逻辑
 """
-from PyQt5.QtWidgets import QWidget, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+from PyQt5.QtWidgets import QWidget, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
 from PyQt5.QtCore import Qt, QTimer
 from typing import Optional, Callable
 from utils.responsive_font import ResponsiveWidget, get_font_manager
-from core.theme import get_table_style
+from core.theme import AppColors, get_button_style, get_secondary_button_style, get_table_style
+
+_BUTTON_ROLE_MAP = {
+    'primary': (AppColors.PRIMARY, 'white'),
+    'success': (AppColors.SUCCESS, 'white'),
+    'warning': (AppColors.WARNING, 'white'),
+    'danger': (AppColors.DANGER, 'white'),
+    'info': (AppColors.INFO, 'white'),
+    'secondary': None,
+}
 
 
 class BaseDataView(QWidget, ResponsiveWidget):
@@ -16,6 +25,25 @@ class BaseDataView(QWidget, ResponsiveWidget):
         super().__init__(parent)
         self.db = db
         self.font_manager = get_font_manager()
+
+    def create_button(self, text: str, role: str = 'primary',
+                      padding: str = '10px 20px') -> QPushButton:
+        btn = QPushButton(text)
+        if role == 'secondary':
+            btn.setStyleSheet(get_secondary_button_style(padding=padding))
+        else:
+            bg, fg = _BUTTON_ROLE_MAP.get(role, (AppColors.PRIMARY, 'white'))
+            btn.setStyleSheet(get_button_style(bg_color=bg, text_color=fg, padding=padding))
+        return btn
+
+    def apply_responsive_label(self, label, font_type: str = 'body',
+                               color: str = None, bold: bool = False):
+        font = self.font_manager.get_font(font_type)
+        if bold:
+            font.setBold(True)
+        label.setFont(font)
+        if color:
+            label.setStyleSheet(f'color: {color};')
 
     def create_table(self, columns: int, headers: list, stretch: bool = True) -> QTableWidget:
         table = QTableWidget()
@@ -28,6 +56,7 @@ class BaseDataView(QWidget, ResponsiveWidget):
         table.setAlternatingRowColors(True)
         if stretch:
             table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.apply_responsive_table(table)
         return table
 
     def apply_responsive_table(self, table: QTableWidget):
