@@ -222,7 +222,7 @@ class BackupManager:
                     shutil.copy2(src, config_path)
             
             return True
-        except:
+        except Exception:
             return False
     
     def list_backups(self) -> list:
@@ -244,7 +244,7 @@ class BackupManager:
                             'created_at': manifest.get('created_at', ''),
                             'file_count': len(manifest.get('files', []))
                         })
-                    except:
+                    except Exception:
                         pass
         
         return sorted(backups, key=lambda x: x['timestamp'], reverse=True)
@@ -254,7 +254,7 @@ class BackupManager:
         for backup in backups[keep_count:]:
             try:
                 shutil.rmtree(backup['path'])
-            except:
+            except Exception:
                 pass
     
     def _calc_md5(self, filepath: str) -> str:

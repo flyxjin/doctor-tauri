@@ -2,7 +2,7 @@
 """
 基础视图模块 - 提取各 View 的公共逻辑
 """
-from PyQt5.QtWidgets import QWidget, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+from PyQt5.QtWidgets import QWidget, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QLabel
 from PyQt5.QtCore import Qt, QTimer
 from typing import Optional, Callable
 from utils.responsive_font import ResponsiveWidget, get_font_manager
@@ -23,6 +23,8 @@ class BaseDataView(QWidget, ResponsiveWidget):
 
     def __init__(self, db, parent=None):
         super().__init__(parent)
+        # 显式初始化 ResponsiveWidget，建立 font_changed/size_changed 信号连接
+        ResponsiveWidget.__init__(self)
         self.db = db
         self.font_manager = get_font_manager()
 
@@ -59,11 +61,37 @@ class BaseDataView(QWidget, ResponsiveWidget):
         self.apply_responsive_table(table)
         return table
 
-    def apply_responsive_table(self, table: QTableWidget):
-        base_size = self.font_manager.current_base_size
-        header_size = int(base_size * 1.1)
-        padding = max(4, int(base_size * 0.5))
-        table.setStyleSheet(get_table_style(base_size, header_size, padding))
+    def apply_responsive_table(self, table: QTableWidget, 
+                               base_column_widths: list = None,
+                               stats_label: QLabel = None):
+        config = self.font_manager.get_table_config()
+        scale = config['scale']
+        
+        table.verticalHeader().setDefaultSectionSize(config['row_height'])
+        table.verticalHeader().setMinimumSectionSize(config['row_height'])
+        
+        header = table.horizontalHeader()
+        header.setMinimumSectionSize(config['cell_padding'] * 2)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        
+        if base_column_widths:
+            for col in range(len(base_column_widths)):
+                if col == 0:
+                    continue
+                base_width = base_column_widths[col]
+                scaled_width = int(base_width * scale)
+                table.setColumnWidth(col, scaled_width)
+        
+        font = self.font_manager.get_font('table_cell')
+        table.setFont(font)
+        
+        header_font = self.font_manager.get_font('table_header')
+        header.setFont(header_font)
+        
+        table.setStyleSheet(get_table_style(config['font_size'], config['header_font_size'], config['cell_padding']))
+        
+        if stats_label:
+            stats_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY}; font-size: {self.font_manager.get_font_size("small")}px;')
 
     def get_selected_row(self, table: QTableWidget) -> Optional[int]:
         selected = table.selectedItems()

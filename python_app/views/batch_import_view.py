@@ -214,7 +214,7 @@ class BatchImportView(QWidget):
         preview_layout.addWidget(self.preview_table)
         
         self.preview_info = QLabel()
-        self.preview_info.setStyleSheet(f'color: {AppColors.TEXT_REGULAR};')
+        self.preview_info.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY};')
         preview_layout.addWidget(self.preview_info)
         
         self.preview_group.setVisible(False)
@@ -227,7 +227,7 @@ class BatchImportView(QWidget):
         self.progress_bar.setVisible(False)
         
         self.status_label = QLabel('请选择要导入的文件')
-        self.status_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR};')
+        self.status_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY};')
 
         btn_layout = QHBoxLayout()
         self.import_btn = QPushButton('开始导入')
@@ -275,7 +275,7 @@ class BatchImportView(QWidget):
 2. CSV文件请使用UTF-8编码
 3. 数值字段(库存、价格等)请填写数字
         ''')
-        help_text.setStyleSheet(f'color: {AppColors.TEXT_REGULAR};')
+        help_text.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY};')
         help_layout.addWidget(help_text)
         layout.addWidget(help_group)
         

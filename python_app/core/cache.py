@@ -288,6 +288,4 @@ def get_medicine_cache() -> MedicineCache:
 
 def invalidate_medicine_cache() -> None:
     global _medicine_cache
-    if _medicine_cache:
-        _medicine_cache.clear()
-        _medicine_cache = None
+    _medicine_cache = None

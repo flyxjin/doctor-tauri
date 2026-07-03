@@ -188,8 +188,94 @@ class Database:
         
         for index_sql in indexes:
             self.cursor.execute(index_sql)
-        
+
+        # Schema 迁移：检测并补全旧数据库缺失的列
+        self._migrate_schema()
+
         self.conn.commit()
+
+    def _migrate_schema(self):
+        """检测并添加旧数据库中缺失的列，保证 schema 与当前代码一致"""
+        # 注意：SQLite ALTER TABLE ADD COLUMN 不支持非常量默认值（如 CURRENT_TIMESTAMP）
+        # 时间戳列迁移时不带 DEFAULT，由代码在 INSERT/UPDATE 时设置
+        migrations = {
+            'medicines': {
+                'alias': "TEXT",
+                'category': "TEXT",
+                'nature': "TEXT",
+                'taste': "TEXT",
+                'meridian': "TEXT",
+                'efficacy': "TEXT",
+                'indications': "TEXT",
+                'usage': "TEXT",
+                'dosage': "TEXT",
+                'contraindication': "TEXT",
+                'notes': "TEXT",
+                'created_at': "TIMESTAMP",
+                'updated_at': "TIMESTAMP",
+            },
+            'inventory': {
+                'quantity': "REAL DEFAULT 0",
+                'unit': "TEXT DEFAULT 'g'",
+                'price': "REAL DEFAULT 0",
+                'min_stock': "REAL DEFAULT 0",
+                'notes': "TEXT",
+                'created_at': "TIMESTAMP",
+                'updated_at': "TIMESTAMP",
+            },
+            'prescriptions': {
+                'patient_name': "TEXT",
+                'patient_age': "INTEGER",
+                'patient_gender': "TEXT",
+                'diagnosis': "TEXT",
+                'total_amount': "REAL DEFAULT 0",
+                'created_by': "TEXT",
+                'created_at': "TIMESTAMP",
+            },
+            'prescription_items': {
+                'prescription_id': "INTEGER",
+                'medicine_id': "INTEGER",
+                'medicine_name': "TEXT",
+                'quantity': "REAL DEFAULT 0",
+                'unit': "TEXT DEFAULT 'g'",
+                'price': "REAL DEFAULT 0",
+                'amount': "REAL DEFAULT 0",
+            },
+            'inventory_history': {
+                'medicine_id': "INTEGER",
+                'medicine_name': "TEXT",
+                'type': "TEXT",
+                'quantity': "REAL DEFAULT 0",
+                'price': "REAL",
+                'total_amount': "REAL",
+                'operator': "TEXT",
+                'notes': "TEXT",
+                'created_at': "TIMESTAMP",
+            },
+            'operation_logs': {
+                'operation_type': "TEXT",
+                'target_type': "TEXT",
+                'target_id': "INTEGER",
+                'operator': "TEXT",
+                'details': "TEXT",
+                'created_at': "TIMESTAMP",
+            },
+        }
+
+        for table, columns in migrations.items():
+            try:
+                self.cursor.execute(f"PRAGMA table_info({table})")
+                existing_cols = {row[1] for row in self.cursor.fetchall()}
+                for col_name, col_def in columns.items():
+                    if col_name not in existing_cols:
+                        try:
+                            self.cursor.execute(
+                                f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"
+                            )
+                        except sqlite3.Error:
+                            pass
+            except sqlite3.Error:
+                pass
     
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         try:

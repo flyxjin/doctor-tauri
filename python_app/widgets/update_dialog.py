@@ -135,74 +135,75 @@ class UpdateDialog(QDialog):
                 border-radius: 24px;
             }}
             QFrame#content_frame {{
-                background-color: {AppColors.BG_HEADER};
-                border: 1px solid {AppColors.BORDER_DARK};
-                border-radius: 4px;
+                background-color: {AppColors.BG_PAGE};
+                border: 1px solid {AppColors.BORDER};
+                border-radius: 6px;
                 padding: 12px;
             }}
             QLabel#dialog_title {{
                 font-size: 18px;
-                font-weight: 500;
+                font-weight: 600;
                 color: {AppColors.TEXT_HEADING};
             }}
             QLabel#dialog_subtitle {{
                 font-size: 13px;
-                color: {AppColors.INFO};
+                color: {AppColors.TEXT_MUTED};
             }}
             QLabel#new_version_label {{
                 font-size: 15px;
                 font-weight: 500;
-                color: {AppColors.PRIMARY};
+                color: {AppColors.ACCENT};
             }}
             QLabel#size_label {{
                 font-size: 13px;
-                color: {AppColors.TEXT_CAPTION};
+                color: {AppColors.TEXT_SECONDARY};
             }}
             QGroupBox#changelog_group {{
-                font-weight: 500;
-                color: {AppColors.TEXT_HEADING};
-                border: 1px solid {AppColors.BORDER_DARK};
-                border-radius: 4px;
+                font-weight: 600;
+                color: {AppColors.TEXT_PRIMARY};
+                border: 1px solid {AppColors.BORDER};
+                border-radius: 6px;
                 margin-top: 12px;
-                padding-top: 8px;
+                padding-top: 12px;
             }}
             QGroupBox#changelog_group::title {{
                 subcontrol-origin: margin;
-                left: 12px;
+                left: 16px;
                 padding: 0 8px;
             }}
             QTextEdit#changelog_text {{
                 background-color: {AppColors.BG_CARD};
                 border: none;
                 font-size: 13px;
-                color: {AppColors.TEXT_CAPTION};
+                color: {AppColors.TEXT_SECONDARY};
             }}
             QProgressBar#download_progress {{
-                border: 1px solid {AppColors.BORDER_DARK};
+                border: 1px solid {AppColors.BORDER};
                 border-radius: 4px;
                 text-align: center;
-                height: 20px;
-                background-color: {AppColors.BG_PROGRESS};
+                height: 8px;
+                background-color: {AppColors.BORDER_LIGHT};
             }}
             QProgressBar#download_progress::chunk {{
-                background-color: {AppColors.PRIMARY};
-                border-radius: 3px;
+                background-color: {AppColors.ACCENT};
+                border-radius: 4px;
             }}
             QLabel#progress_label {{
                 font-size: 12px;
-                color: {AppColors.INFO};
+                color: {AppColors.TEXT_MUTED};
             }}
             QCheckBox#skip_checkbox {{
                 font-size: 13px;
-                color: {AppColors.TEXT_CAPTION};
+                color: {AppColors.TEXT_SECONDARY};
             }}
             QPushButton#primary_btn {{
                 background-color: {AppColors.PRIMARY};
-                color: {AppColors.BG_CARD};
+                color: {AppColors.TEXT_WHITE};
                 border: none;
-                padding: 8px 24px;
-                border-radius: 4px;
+                padding: 10px 24px;
+                border-radius: 6px;
                 font-size: 14px;
+                font-weight: 500;
                 min-width: 90px;
             }}
             QPushButton#primary_btn:hover {{
@@ -214,16 +215,17 @@ class UpdateDialog(QDialog):
             }}
             QPushButton#secondary_btn {{
                 background-color: {AppColors.BG_CARD};
-                color: {AppColors.TEXT_CAPTION};
-                border: 1px solid {AppColors.BORDER_DARK};
-                padding: 8px 24px;
-                border-radius: 4px;
+                color: {AppColors.TEXT_SECONDARY};
+                border: 1px solid {AppColors.BORDER};
+                padding: 10px 24px;
+                border-radius: 6px;
                 font-size: 14px;
+                font-weight: 500;
                 min-width: 90px;
             }}
             QPushButton#secondary_btn:hover {{
-                border-color: {AppColors.PRIMARY};
-                color: {AppColors.PRIMARY};
+                border-color: {AppColors.ACCENT};
+                color: {AppColors.ACCENT};
             }}
         ''')
     
@@ -350,7 +352,7 @@ class UpdateDialog(QDialog):
                 backup_manager = BackupManager()
                 backup_path = backup_manager.create_backup(db_path)
                 backup_manager.cleanup_old_backups(3)
-            except:
+            except Exception:
                 pass
         
         reply = QMessageBox.question(

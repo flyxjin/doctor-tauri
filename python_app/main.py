@@ -13,6 +13,8 @@ from views.prescription_view import PrescriptionView
 from views.inventory_view import InventoryView
 from views.history_view import HistoryView
 from views.batch_import_view import BatchImportView
+from views.statistics_view import StatisticsView
+from views.dashboard_view import DashboardView
 from widgets.page_header import PageHeader
 from widgets.update_dialog import UpdateDialog
 from utils.responsive_font import get_font_manager
@@ -26,28 +28,35 @@ class ImportThread(QThread):
 
     def __init__(self, db):
         super().__init__()
-        self.db = db
+        # 保留主线程 db 引用仅用于获取数据库路径，不直接使用其 cursor
+        # 主线程的 Database 单例 cursor 不是线程安全的
+        self._main_db = db
 
     def run(self):
+        # 创建独立的工作线程数据库连接，避免与主线程共享 cursor
+        worker_db = None
         try:
             from medicines_data_300 import medicines_300
-            
+
+            worker_db = Database.create_worker_connection(self._main_db.db_path)
+
             total = len(medicines_300)
             added = 0
             updated = 0
-            
+
             for i, medicine in enumerate(medicines_300):
                 try:
-                    existing = self.db.fetchone(
-                        "SELECT id FROM medicines WHERE name = ?", 
+                    existing = worker_db.fetchone(
+                        "SELECT id FROM medicines WHERE name = ?",
                         (medicine['name'],)
                     )
-                    
+
                     if existing:
-                        self.db.execute('''
-                            UPDATE medicines 
+                        existing_id = existing['id']
+                        worker_db.execute('''
+                            UPDATE medicines
                             SET alias=?, category=?, nature=?, taste=?, meridian=?,
-                                efficacy=?, indications=?, usage=?, dosage=?, 
+                                efficacy=?, indications=?, usage=?, dosage=?,
                                 contraindication=?, notes=?
                             WHERE id=?
                         ''', (
@@ -62,11 +71,11 @@ class ImportThread(QThread):
                             medicine.get('dosage', ''),
                             medicine.get('contraindication', ''),
                             medicine.get('notes', ''),
-                            existing[0]
+                            existing_id
                         ))
-                        
-                        self.db.execute('''
-                            UPDATE inventory 
+
+                        worker_db.execute('''
+                            UPDATE inventory
                             SET quantity=?, unit=?, price=?, min_stock=?, notes=?
                             WHERE medicine_id=?
                         ''', (
@@ -75,13 +84,13 @@ class ImportThread(QThread):
                             medicine.get('price', 0),
                             medicine.get('min_stock', 10),
                             medicine.get('notes', ''),
-                            existing[0]
+                            existing_id
                         ))
                         updated += 1
                     else:
-                        self.db.execute('''
-                            INSERT INTO medicines 
-                            (name, alias, category, nature, taste, meridian, 
+                        worker_db.execute('''
+                            INSERT INTO medicines
+                            (name, alias, category, nature, taste, meridian,
                              efficacy, indications, usage, dosage, contraindication, notes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
@@ -98,14 +107,14 @@ class ImportThread(QThread):
                             medicine.get('contraindication', ''),
                             medicine.get('notes', '')
                         ))
-                        
-                        med_id = self.db.fetchone(
-                            "SELECT id FROM medicines WHERE name = ?", 
+
+                        med_id = worker_db.fetchone(
+                            "SELECT id FROM medicines WHERE name = ?",
                             (medicine['name'],)
-                        )[0]
-                        
-                        self.db.execute('''
-                            INSERT INTO inventory 
+                        )['id']
+
+                        worker_db.execute('''
+                            INSERT INTO inventory
                             (medicine_id, quantity, unit, price, min_stock, notes)
                             VALUES (?, ?, ?, ?, ?, ?)
                         ''', (
@@ -117,17 +126,24 @@ class ImportThread(QThread):
                             medicine.get('notes', '')
                         ))
                         added += 1
-                    
+
                     self.progress.emit(int((i + 1) / total * 100))
-                    
+
                 except Exception as e:
                     print(f"导入 {medicine['name']} 时出错: {e}")
                     continue
-            
+
             self.finished.emit(True, f"导入完成！新增 {added} 味，更新 {updated} 味", added, updated)
-            
+
         except Exception as e:
             self.finished.emit(False, f"导入失败: {str(e)}", 0, 0)
+        finally:
+            # 确保工作线程连接被关闭
+            if worker_db is not None:
+                try:
+                    worker_db.close()
+                except Exception:
+                    pass
 
 
 class ImportDialog(QDialog):
@@ -145,7 +161,7 @@ class ImportDialog(QDialog):
         
         info_label = QLabel('将导入常用中药材数据到系统中')
         info_label.setAlignment(Qt.AlignCenter)
-        info_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; padding: 15px;')
+        info_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY}; padding: 15px;')
         info_label.setFont(self.font_manager.get_font('body'))
         
         self.progress_bar = QProgressBar()
@@ -164,7 +180,7 @@ class ImportDialog(QDialog):
         self.start_btn.clicked.connect(self.start_import)
         self.close_btn = QPushButton('关闭')
         self.close_btn.setFont(self.font_manager.get_font('button'))
-        self.close_btn.setStyleSheet(get_button_style(AppColors.BG_SECONDARY, text_color=AppColors.TEXT_REGULAR, padding='10px 30px'))
+        self.close_btn.setStyleSheet(get_button_style(AppColors.BG_SECONDARY, text_color=AppColors.TEXT_SECONDARY, padding='10px 30px'))
         self.close_btn.clicked.connect(self.accept)
         self.close_btn.setEnabled(False)
         
@@ -327,10 +343,12 @@ class MainWindow(QMainWindow):
         
         self.nav_buttons = []
         nav_items = [
+            ('首页概览', 'dashboard'),
             ('药材管理', 'medicine'),
             ('开处方', 'prescription'),
             ('库存管理', 'inventory'),
-            ('处方历史', 'history')
+            ('处方历史', 'history'),
+            ('销售统计', 'statistics')
         ]
         
         for text, name in nav_items:
@@ -362,20 +380,24 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(15)
         
-        self.page_header = PageHeader('medicine')
+        self.page_header = PageHeader('dashboard')
         content_layout.addWidget(self.page_header)
         
         self.stacked_widget = QStackedWidget()
         
+        self.dashboard_view = DashboardView(self.db)
         self.medicine_view = MedicineView(self.db)
         self.prescription_view = PrescriptionView(self.db)
         self.inventory_view = InventoryView(self.db)
         self.history_view = HistoryView(self.db)
-        
+        self.statistics_view = StatisticsView(self.db)
+
+        self.stacked_widget.addWidget(self.dashboard_view)
         self.stacked_widget.addWidget(self.medicine_view)
         self.stacked_widget.addWidget(self.prescription_view)
         self.stacked_widget.addWidget(self.inventory_view)
         self.stacked_widget.addWidget(self.history_view)
+        self.stacked_widget.addWidget(self.statistics_view)
         
         content_layout.addWidget(self.stacked_widget)
         
@@ -403,7 +425,9 @@ class MainWindow(QMainWindow):
         
         if hasattr(self.page_header, 'update_fonts'):
             self.page_header.update_fonts()
-        
+
+        if hasattr(self.dashboard_view, 'update_fonts'):
+            self.dashboard_view.update_fonts()
         if hasattr(self.medicine_view, 'update_fonts'):
             self.medicine_view.update_fonts()
         if hasattr(self.inventory_view, 'update_fonts'):
@@ -412,6 +436,8 @@ class MainWindow(QMainWindow):
             self.prescription_view.update_fonts()
         if hasattr(self.history_view, 'update_fonts'):
             self.history_view.update_fonts()
+        if hasattr(self.statistics_view, 'update_fonts'):
+            self.statistics_view.update_fonts()
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -504,6 +530,11 @@ class MainWindow(QMainWindow):
         layout.addLayout(btn_layout)
         
         dialog.exec_()
+        # 批量导入绕过 Service 层直接写数据库，需手动失效并重建缓存
+        from core.cache import invalidate_medicine_cache
+        invalidate_medicine_cache()
+        if hasattr(self.medicine_view, '_init_cache'):
+            self.medicine_view._init_cache()
         self.medicine_view.load_data()
         self.inventory_view.refresh_data()
     
@@ -553,10 +584,12 @@ class MainWindow(QMainWindow):
     
     def switch_view(self, view_name):
         view_map = {
-            'medicine': 0,
-            'prescription': 1,
-            'inventory': 2,
-            'history': 3
+            'dashboard': 0,
+            'medicine': 1,
+            'prescription': 2,
+            'inventory': 3,
+            'history': 4,
+            'statistics': 5
         }
         
         index = view_map.get(view_name, 0)
@@ -567,16 +600,22 @@ class MainWindow(QMainWindow):
         for i, btn in enumerate(self.nav_buttons):
             btn.setChecked(i == index)
         
-        if view_name == 'inventory':
+        if view_name == 'dashboard':
+            self.dashboard_view.refresh_data()
+        elif view_name == 'inventory':
             self.inventory_view.refresh_data()
         elif view_name == 'history':
             self.history_view.refresh_data()
-        
+        elif view_name == 'statistics':
+            self.statistics_view.refresh_data()
+
         view_names = {
+            'dashboard': '首页概览',
             'medicine': '药材管理',
             'prescription': '开处方',
             'inventory': '库存管理',
-            'history': '处方历史'
+            'history': '处方历史',
+            'statistics': '销售统计'
         }
         self.status_bar.showMessage(view_names.get(view_name, ''))
     

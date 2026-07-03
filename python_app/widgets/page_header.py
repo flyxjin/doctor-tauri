@@ -1,12 +1,16 @@
+# -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
 from utils.responsive_font import get_font_manager
 from core.theme import AppColors
 
 
 class PageHeader(QWidget):
     PAGE_CONFIG = {
+        'dashboard': {
+            'title': '首页概览',
+            'subtitle': '经营数据一览'
+        },
         'medicine': {
             'title': '药材管理',
             'subtitle': '中药材信息管理与查询'
@@ -22,6 +26,10 @@ class PageHeader(QWidget):
         'history': {
             'title': '处方历史',
             'subtitle': '历史处方查询与统计'
+        },
+        'statistics': {
+            'title': '销售统计',
+            'subtitle': '营收汇总与数据分析'
         }
     }
     
@@ -33,18 +41,14 @@ class PageHeader(QWidget):
     
     def init_ui(self):
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(12)
-        
-        self.indicator = QFrame()
-        self.indicator.setObjectName('page_indicator')
-        self.indicator.setFixedWidth(4)
+        main_layout.setContentsMargins(0, 0, 0, 16)
+        main_layout.setSpacing(0)
         
         text_container = QWidget()
         text_container.setObjectName('header_text_container')
         text_layout = QVBoxLayout(text_container)
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(2)
+        text_layout.setSpacing(4)
         
         self.title_label = QLabel()
         self.title_label.setObjectName('header_title')
@@ -55,7 +59,6 @@ class PageHeader(QWidget):
         text_layout.addWidget(self.title_label)
         text_layout.addWidget(self.subtitle_label)
         
-        main_layout.addWidget(self.indicator)
         main_layout.addWidget(text_container)
         main_layout.addStretch()
         
@@ -64,17 +67,13 @@ class PageHeader(QWidget):
     
     def _apply_styles(self):
         base_size = self.font_manager.current_base_size
-        title_size = int(base_size * 1.4)
+        title_size = int(base_size * 1.6)
         subtitle_size = int(base_size * 0.85)
 
         self.setStyleSheet(f'''
             PageHeader {{
                 background-color: transparent;
-                padding: 8px 0;
-            }}
-            QFrame#page_indicator {{
-                background-color: {AppColors.PRIMARY};
-                border-radius: 2px;
+                padding: 0;
             }}
             QWidget#header_text_container {{
                 background-color: transparent;
@@ -82,11 +81,13 @@ class PageHeader(QWidget):
             QLabel#header_title {{
                 color: {AppColors.TEXT_HEADING};
                 font-size: {title_size}px;
-                font-weight: 500;
+                font-weight: 700;
+                letter-spacing: -0.5px;
             }}
             QLabel#header_subtitle {{
-                color: {AppColors.INFO};
+                color: {AppColors.TEXT_MUTED};
                 font-size: {subtitle_size}px;
+                font-weight: 400;
             }}
         ''')
     
@@ -116,8 +117,8 @@ class CompactHeader(QFrame):
         self.setObjectName('compact_header')
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(12)
         
         self.indicator = QFrame()
         self.indicator.setObjectName('header_indicator')
@@ -126,7 +127,7 @@ class CompactHeader(QFrame):
         text_container = QWidget()
         text_layout = QVBoxLayout(text_container)
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(1)
+        text_layout.setSpacing(2)
         
         self.title_label = QLabel(self._title)
         self.title_label.setObjectName('compact_title')
@@ -146,26 +147,26 @@ class CompactHeader(QFrame):
     
     def _apply_styles(self):
         base_size = self.font_manager.current_base_size
-        title_size = int(base_size * 1.2)
-        subtitle_size = int(base_size * 0.85)
+        title_size = int(base_size * 1.1)
+        subtitle_size = int(base_size * 0.8)
 
         self.setStyleSheet(f'''
             QFrame#compact_header {{
-                background-color: {AppColors.BG_HEADER};
-                border: 1px solid {AppColors.BORDER_DARK};
-                border-radius: 4px;
+                background-color: {AppColors.BG_CARD};
+                border: 1px solid {AppColors.BORDER};
+                border-radius: {AppColors.RADIUS_MD};
             }}
             QFrame#header_indicator {{
-                background-color: {AppColors.PRIMARY};
+                background-color: {AppColors.ACCENT};
                 border-radius: 1px;
             }}
             QLabel#compact_title {{
                 color: {AppColors.TEXT_HEADING};
                 font-size: {title_size}px;
-                font-weight: 500;
+                font-weight: 600;
             }}
             QLabel#compact_subtitle {{
-                color: {AppColors.INFO};
+                color: {AppColors.TEXT_MUTED};
                 font-size: {subtitle_size}px;
             }}
         ''')

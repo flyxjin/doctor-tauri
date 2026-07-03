@@ -79,9 +79,10 @@ class Inventory:
     notes: str = ""
     id: Optional[int] = None
     medicine_name: str = ""
+    category: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     def to_dict(self) -> dict:
         return {
             'id': self.id,
@@ -92,7 +93,7 @@ class Inventory:
             'min_stock': self.min_stock,
             'notes': self.notes
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Inventory':
         return cls(
@@ -104,6 +105,7 @@ class Inventory:
             min_stock=data.get('min_stock', 0.0),
             notes=data.get('notes', ''),
             medicine_name=data.get('medicine_name', ''),
+            category=data.get('category', ''),
             created_at=data.get('created_at'),
             updated_at=data.get('updated_at')
         )

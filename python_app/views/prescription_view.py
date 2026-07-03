@@ -10,27 +10,30 @@ import logging
 import re
 import html as html_mod
 from core import Prescription, PrescriptionItem, PrescriptionService
-from core.theme import AppColors, get_button_style, get_table_style
-from utils.responsive_font import ResponsiveWidget, get_font_manager
+from core.theme import AppColors, get_button_style, get_secondary_button_style
+from views.base_view import BaseDataView
 
 logger = logging.getLogger('MedicineSystem')
 
 
-class PrescriptionView(QWidget, ResponsiveWidget):
+class PrescriptionView(BaseDataView):
     def __init__(self, db):
-        QWidget.__init__(self)
-        ResponsiveWidget.__init__(self)
-        self.db = db
+        super().__init__(db)
         self._prescription_service = PrescriptionService(db)
-        self._font_manager = get_font_manager()
         self.cart = []
         self.init_ui()
 
     def init_ui(self):
         main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(24)
 
         left_panel = QVBoxLayout()
+        left_panel.setSpacing(16)
+        
         form_layout = QFormLayout()
+        form_layout.setSpacing(12)
+        
         self.patient_name = QLineEdit()
         self.patient_age = QSpinBox()
         self.patient_age.setRange(0, 150)
@@ -44,7 +47,7 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         form_layout.addRow('诊断:', self.diagnosis)
 
         self.med_search = QLineEdit()
-        self.med_search.setPlaceholderText('输入药材名称')
+        self.med_search.setPlaceholderText('输入药材名称搜索...')
         self._search_timer = QTimer()
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(200)
@@ -59,43 +62,47 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         self.med_list.setSelectionBehavior(QTableWidget.SelectRows)
         self.med_list.verticalHeader().setVisible(False)
         self.med_list.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.med_list.verticalHeader().setDefaultSectionSize(40)
 
-        add_btn = QPushButton('添加到处方')
-        add_btn.setStyleSheet(get_button_style(AppColors.SUCCESS))
+        add_btn = QPushButton('+ 添加到处方')
+        add_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='10px 20px'))
         add_btn.clicked.connect(self.add_to_prescription)
 
         left_panel.addLayout(form_layout)
-        left_panel.addWidget(QLabel('药材库:'))
         left_panel.addWidget(self.med_search)
         left_panel.addWidget(self.med_list)
         left_panel.addWidget(add_btn)
 
         right_panel = QVBoxLayout()
+        right_panel.setSpacing(16)
+        
         self.prescription_table = QTableWidget()
         self.prescription_table.setColumnCount(5)
         self.prescription_table.setHorizontalHeaderLabels(['药材', '数量', '单价', '小计', '操作'])
         self.prescription_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.prescription_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.prescription_table.verticalHeader().setDefaultSectionSize(44)
 
         self.total_label = QLabel('总计: ¥ 0.00')
-        self.total_label.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {AppColors.DANGER};")
+        self.total_label.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {AppColors.TEXT_HEADING};")
 
         save_btn = QPushButton('保存处方')
-        save_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='10px 20px'))
+        save_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='12px 24px'))
         save_btn.clicked.connect(self.save_prescription)
         print_btn = QPushButton('打印处方')
-        print_btn.setStyleSheet(get_button_style(AppColors.PRIMARY, padding='10px 20px'))
+        print_btn.setStyleSheet(get_secondary_button_style(padding='12px 24px'))
         print_btn.clicked.connect(self.print_prescription)
         clear_btn = QPushButton('清空')
-        clear_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='10px 20px'))
+        clear_btn.setStyleSheet(get_secondary_button_style(padding='12px 24px'))
         clear_btn.clicked.connect(self.clear_form)
 
         btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
         btn_row.addWidget(save_btn)
         btn_row.addWidget(print_btn)
         btn_row.addWidget(clear_btn)
+        btn_row.addStretch()
 
-        right_panel.addWidget(QLabel('当前处方:'))
         right_panel.addWidget(self.prescription_table)
         right_panel.addWidget(self.total_label)
         right_panel.addLayout(btn_row)
@@ -113,15 +120,18 @@ class PrescriptionView(QWidget, ResponsiveWidget):
 
     def search_medicine(self, text):
         try:
-            rows = self.db.fetchall(
-                "SELECT m.name, i.price, i.quantity FROM medicines m JOIN inventory i ON m.id = i.medicine_id WHERE m.name LIKE ?",
-                (f'%{text}%',))
-            self.med_list.setRowCount(len(rows))
-            for i, row in enumerate(rows):
-                name = row.get('name', '') if isinstance(row, dict) else row[0]
-                price = row.get('price', 0) if isinstance(row, dict) else row[1]
-                qty = row.get('quantity', 0) if isinstance(row, dict) else row[2]
-                self.med_list.setItem(i, 0, QTableWidgetItem(str(name)))
+            from core import MedicineService, InventoryService
+            med_service = MedicineService(self.db)
+            inv_service = InventoryService(self.db)
+            
+            medicines = med_service.get_all(keyword=text)
+            
+            self.med_list.setRowCount(len(medicines))
+            for i, med in enumerate(medicines):
+                inv = inv_service.get_by_medicine_id(med.id)
+                price = inv.price if inv else 0
+                qty = inv.quantity if inv else 0
+                self.med_list.setItem(i, 0, QTableWidgetItem(str(med.name)))
                 self.med_list.setItem(i, 1, QTableWidgetItem(f'¥{price}'))
                 self.med_list.setItem(i, 2, QTableWidgetItem(f'{qty}g'))
         except Exception as e:
@@ -155,13 +165,14 @@ class PrescriptionView(QWidget, ResponsiveWidget):
                 stock = stock or 0
                 contraindication = contraindication or ''
 
-            if contraindication:
-                contraindication_set = set(re.split(r'[、,，\s；;]+', str(contraindication).strip()))
-                contraindication_set.discard('')
-                for item in self.cart:
-                    if item['name'] in contraindication_set:
-                        QMessageBox.warning(self, '配伍禁忌提醒',
-                                            f'警告："{name}" 与 "{item["name"]}" 可能存在配伍禁忌！\n禁忌说明：{contraindication}')
+            # 十八反、十九畏配伍禁忌检查
+            from core.compatibility import check_against_existing
+            existing_names = [item['name'] for item in self.cart]
+            compat_conflicts = check_against_existing(name, existing_names)
+            if compat_conflicts:
+                conflict_msgs = '\n'.join(c['description'] for c in compat_conflicts)
+                QMessageBox.warning(self, '配伍禁忌预警',
+                                    f'检测到配伍禁忌：\n{conflict_msgs}\n\n请确认是否继续添加。')
 
             if stock <= 0:
                 QMessageBox.warning(self, '库存不足', f'药材 "{name}" 库存不足，无法添加')
@@ -239,6 +250,20 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         if not self.cart:
             QMessageBox.warning(self, '提示', '请添加药材到处方')
             return
+
+        # 保存前最终配伍禁忌检查
+        from core.compatibility import check_compatibility
+        all_names = [item['name'] for item in self.cart]
+        final_conflicts = check_compatibility(all_names)
+        if final_conflicts:
+            conflict_msgs = '\n'.join(c['description'] for c in final_conflicts)
+            reply = QMessageBox.warning(
+                self, '配伍禁忌确认',
+                f'处方中存在 {len(final_conflicts)} 处配伍禁忌：\n{conflict_msgs}\n\n是否仍要保存？',
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
 
         try:
             patient_name = self.patient_name.text().strip()
@@ -323,16 +348,8 @@ class PrescriptionView(QWidget, ResponsiveWidget):
         self.refresh_prescription_table()
 
     def _apply_responsive_table(self):
-        config = self._font_manager.get_table_config()
-        base_size = self._font_manager.current_base_size
-        table_style = get_table_style(config['font_size'], int(base_size * 1.1), config['cell_padding'])
         for table in [self.med_list, self.prescription_table]:
-            table.verticalHeader().setDefaultSectionSize(config['row_height'])
-            font = self._font_manager.get_font('table_cell')
-            table.setFont(font)
-            header_font = self._font_manager.get_font('table_header')
-            table.horizontalHeader().setFont(header_font)
-            table.setStyleSheet(table_style)
+            self.apply_responsive_table(table)
 
     def update_fonts(self):
         self._apply_responsive_table()

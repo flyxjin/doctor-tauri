@@ -16,6 +16,9 @@ from .exceptions import (
     AppException, DatabaseException, ValidationException, ServiceException,
     InventoryException, CacheException, Result, ErrorCode, handle_exception, safe_execute
 )
+from .compatibility import (
+    INCOMPATIBLE_PAIRS, check_pair, check_compatibility, check_against_existing
+)
 
 __all__ = [
     'Database', 'get_db_path', 'get_app_data_dir', 'get_backup_dir', 'DatabaseError',
@@ -28,4 +31,5 @@ __all__ = [
     'PerformanceMonitor', 'get_performance_monitor', 'measure', 'Timer', 'performance_report', 'print_performance_report',
     'AppException', 'DatabaseException', 'ValidationException', 'ServiceException',
     'InventoryException', 'CacheException', 'Result', 'ErrorCode', 'handle_exception', 'safe_execute',
+    'INCOMPATIBLE_PAIRS', 'check_pair', 'check_compatibility', 'check_against_existing',
 ]

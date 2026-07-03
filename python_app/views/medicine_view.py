@@ -6,9 +6,8 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QTextEdit, QSplitter, QGroupBox, QLabel, QHeaderView)
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
-from utils.responsive_font import ResponsiveWidget, get_font_manager
 from core import get_medicine_cache, measure, Timer, Medicine, MedicineService
-from core.theme import AppColors, get_button_style, get_dialog_style, get_table_style
+from core.theme import AppColors, get_button_style, get_secondary_button_style, get_dialog_style
 
 
 class MedicineDialog(QDialog):
@@ -105,13 +104,13 @@ class MedicineDialog(QDialog):
         )
 
 
-class MedicineView(QWidget, ResponsiveWidget):
+from views.base_view import BaseDataView
+
+
+class MedicineView(BaseDataView):
     def __init__(self, db):
-        QWidget.__init__(self)
-        ResponsiveWidget.__init__(self)
-        self.db = db
+        super().__init__(db)
         self._medicine_service = MedicineService(db)
-        self._font_manager = get_font_manager()
         self._base_column_widths = [0, 120, 100, 100, 80, 100, 150]
         self._cache = get_medicine_cache()
         self._search_timer = QTimer()
@@ -124,38 +123,20 @@ class MedicineView(QWidget, ResponsiveWidget):
     def _init_cache(self):
         if not self._cache.is_initialized():
             with Timer('cache_initialization'):
-                medicines = self.db.fetchall("SELECT * FROM medicines")
-                med_list = []
-                for row in medicines:
-                    med_dict = {
-                        'id': row['id'],
-                        'name': row['name'] or '',
-                        'alias': row['alias'] or '',
-                        'category': row['category'] or '',
-                        'nature': row['nature'] or '',
-                        'taste': row['taste'] or '',
-                        'meridian': row['meridian'] or '',
-                        'efficacy': row['efficacy'] or '',
-                        'indications': row['indications'] or '',
-                        'usage': row['usage'] or '',
-                        'dosage': row['dosage'] or '',
-                        'contraindication': row['contraindication'] or '',
-                        'notes': row['notes'] or ''
-                    }
-                    med_list.append(med_dict)
+                med_list = self._medicine_service.get_all_as_dicts()
                 self._cache.initialize(med_list)
         self.load_data()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(20)
 
-        search_group = QGroupBox('搜索与筛选')
-        search_layout = QHBoxLayout(search_group)
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(12)
         
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText('输入药材名称、别名或功效搜索...')
+        self.search_input.setPlaceholderText('搜索药材名称、别名或功效...')
         self.search_input.setMinimumWidth(300)
         self.search_input.textChanged.connect(self._on_search_text_changed)
         
@@ -168,6 +149,7 @@ class MedicineView(QWidget, ResponsiveWidget):
         self.nature_filter.currentIndexChanged.connect(self._on_filter_changed)
         
         self.reset_btn = QPushButton('重置')
+        self.reset_btn.setStyleSheet(get_secondary_button_style(padding='10px 16px'))
         self.reset_btn.clicked.connect(self.reset_search)
         
         search_layout.addWidget(self.search_input)
@@ -177,17 +159,19 @@ class MedicineView(QWidget, ResponsiveWidget):
         search_layout.addStretch()
 
         btn_bar = QHBoxLayout()
-        self.add_btn = QPushButton('添加药材')
-        self.edit_btn = QPushButton('修改信息')
-        self.del_btn = QPushButton('删除药材')
-        self.view_detail_btn = QPushButton('查看详情')
-        self.export_btn = QPushButton('导出数据')
+        btn_bar.setSpacing(12)
         
-        self.add_btn.setStyleSheet(get_button_style(AppColors.SUCCESS))
-        self.edit_btn.setStyleSheet(get_button_style(AppColors.WARNING))
-        self.del_btn.setStyleSheet(get_button_style(AppColors.DANGER))
-        self.view_detail_btn.setStyleSheet(get_button_style(AppColors.PRIMARY))
-        self.export_btn.setStyleSheet(get_button_style(AppColors.INFO))
+        self.add_btn = QPushButton('+ 添加药材')
+        self.edit_btn = QPushButton('编辑')
+        self.del_btn = QPushButton('删除')
+        self.view_detail_btn = QPushButton('详情')
+        self.export_btn = QPushButton('导出')
+        
+        self.add_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='10px 20px'))
+        self.edit_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
+        self.del_btn.setStyleSheet(get_button_style(AppColors.DANGER, padding='10px 20px'))
+        self.view_detail_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
+        self.export_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
         
         self.add_btn.clicked.connect(self.add_medicine)
         self.edit_btn.clicked.connect(self.edit_medicine)
@@ -214,14 +198,14 @@ class MedicineView(QWidget, ResponsiveWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setWordWrap(True)
-        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         
         self._apply_responsive_table()
 
         self.stats_label = QLabel('共 0 味药材')
-        self.stats_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; font-size: 12px;')
+        self.stats_label.setStyleSheet(f'color: {AppColors.TEXT_MUTED}; font-size: 12px;')
 
-        layout.addWidget(search_group)
+        layout.addLayout(search_layout)
         layout.addLayout(btn_bar)
         layout.addWidget(self.table)
         layout.addWidget(self.stats_label)
@@ -282,20 +266,23 @@ class MedicineView(QWidget, ResponsiveWidget):
             if not data[0]:
                 QMessageBox.warning(self, '提示', '请输入药材名称！')
                 return
+            
+            from core import MedicineValidator
+            medicine_dict = {
+                'name': data[0], 'alias': data[1], 'category': data[2], 'nature': data[3],
+                'taste': data[4], 'meridian': data[5], 'efficacy': data[6], 'indications': data[7],
+                'usage': data[8], 'dosage': data[9], 'contraindication': data[10], 'notes': data[11]
+            }
+            is_valid, errors = MedicineValidator.validate(medicine_dict)
+            if not is_valid:
+                QMessageBox.warning(self, '验证失败', '\n'.join(errors))
+                return
+            
             try:
-                medicine = Medicine(
-                    name=data[0], alias=data[1], category=data[2], nature=data[3],
-                    taste=data[4], meridian=data[5], efficacy=data[6], indications=data[7],
-                    usage=data[8], dosage=data[9], contraindication=data[10], notes=data[11]
-                )
+                medicine = Medicine(**medicine_dict)
                 med_id = self._medicine_service.create(medicine)
 
-                new_med = {
-                    'id': med_id,
-                    'name': data[0], 'alias': data[1], 'category': data[2], 'nature': data[3],
-                    'taste': data[4], 'meridian': data[5], 'efficacy': data[6], 'indications': data[7],
-                    'usage': data[8], 'dosage': data[9], 'contraindication': data[10], 'notes': data[11]
-                }
+                new_med = {'id': med_id, **medicine_dict}
                 self._cache.add_medicine(new_med)
 
                 QMessageBox.information(self, '成功', '药材添加成功！')
@@ -318,21 +305,23 @@ class MedicineView(QWidget, ResponsiveWidget):
             if not data[0]:
                 QMessageBox.warning(self, '提示', '请输入药材名称！')
                 return
-            med_id = medicine_data['id']
-            medicine = Medicine(
-                id=med_id,
-                name=data[0], alias=data[1], category=data[2], nature=data[3],
-                taste=data[4], meridian=data[5], efficacy=data[6], indications=data[7],
-                usage=data[8], dosage=data[9], contraindication=data[10], notes=data[11]
-            )
-            self._medicine_service.update(medicine)
-
-            updated_med = {
-                'id': med_id,
+            
+            from core import MedicineValidator
+            medicine_dict = {
                 'name': data[0], 'alias': data[1], 'category': data[2], 'nature': data[3],
                 'taste': data[4], 'meridian': data[5], 'efficacy': data[6], 'indications': data[7],
                 'usage': data[8], 'dosage': data[9], 'contraindication': data[10], 'notes': data[11]
             }
+            is_valid, errors = MedicineValidator.validate(medicine_dict)
+            if not is_valid:
+                QMessageBox.warning(self, '验证失败', '\n'.join(errors))
+                return
+            
+            med_id = medicine_data['id']
+            medicine = Medicine(id=med_id, **medicine_dict)
+            self._medicine_service.update(medicine)
+
+            updated_med = {'id': med_id, **medicine_dict}
             self._cache.update_medicine(updated_med)
 
             QMessageBox.information(self, '成功', '修改成功！')
@@ -372,25 +361,53 @@ class MedicineView(QWidget, ResponsiveWidget):
             return html.escape(str(medicine_data.get(key) or fallback))
 
         detail_text = f'''
-        <h2 style="color: {AppColors.PRIMARY};">{e('name')}</h2>
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>别名</b></td><td style="padding: 8px;">{e('alias', '无')}</td></tr>
-            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>分类</b></td><td style="padding: 8px;">{e('category', '未分类')}</td></tr>
-            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>药性</b></td><td style="padding: 8px;">{e('nature', '未知')}</td></tr>
-            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>药味</b></td><td style="padding: 8px;">{e('taste', '未知')}</td></tr>
-            <tr><td style="padding: 8px; background: {AppColors.BG_ROW_HOVER};"><b>归经</b></td><td style="padding: 8px;">{e('meridian', '未知')}</td></tr>
-        </table>
-        <hr style="margin: 15px 0;">
-        <h3 style="color: {AppColors.SUCCESS};">功效</h3>
-        <p style="padding: 10px; background: {AppColors.BG_SUCCESS_LIGHT}; border-radius: 5px;">{e('efficacy', '暂无')}</p>
-        <h3 style="color: {AppColors.PRIMARY};">主治</h3>
-        <p style="padding: 10px; background: {AppColors.BG_PRIMARY_LIGHT}; border-radius: 5px;">{e('indications', '暂无')}</p>
-        <h3 style="color: {AppColors.WARNING};">用法用量</h3>
-        <p style="padding: 10px; background: {AppColors.BG_WARNING_LIGHT}; border-radius: 5px;">{e('usage', '暂无')} | {e('dosage', '暂无')}</p>
-        <h3 style="color: {AppColors.DANGER};">禁忌</h3>
-        <p style="padding: 10px; background: {AppColors.BG_DANGER_LIGHT}; border-radius: 5px;">{e('contraindication', '暂无')}</p>
-        <h3 style="color: {AppColors.INFO};">备注</h3>
-        <p style="padding: 10px; background: {AppColors.BG_ROW_HOVER}; border-radius: 5px;">{e('notes', '无')}</p>
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; color: {AppColors.TEXT_PRIMARY};">
+            <h2 style="margin: 0 0 16px 0; font-weight: 700; color: {AppColors.TEXT_HEADING};">{e('name')}</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                <div style="padding: 12px; background: {AppColors.BG_PAGE}; border-radius: 6px;">
+                    <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">分类</div>
+                    <div style="font-weight: 500;">{e('category', '未分类')}</div>
+                </div>
+                <div style="padding: 12px; background: {AppColors.BG_PAGE}; border-radius: 6px;">
+                    <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">药性</div>
+                    <div style="font-weight: 500;">{e('nature', '未知')}</div>
+                </div>
+                <div style="padding: 12px; background: {AppColors.BG_PAGE}; border-radius: 6px;">
+                    <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">药味</div>
+                    <div style="font-weight: 500;">{e('taste', '未知')}</div>
+                </div>
+                <div style="padding: 12px; background: {AppColors.BG_PAGE}; border-radius: 6px;">
+                    <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">归经</div>
+                    <div style="font-weight: 500;">{e('meridian', '未知')}</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">功效</div>
+                <div style="padding: 12px; background: {AppColors.SUCCESS_BG}; border-radius: 6px; border-left: 3px solid {AppColors.SUCCESS};">{e('efficacy', '暂无')}</div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">主治</div>
+                <div style="padding: 12px; background: {AppColors.ACCENT_LIGHT}; border-radius: 6px; border-left: 3px solid {AppColors.ACCENT};">{e('indications', '暂无')}</div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">用法用量</div>
+                <div style="padding: 12px; background: {AppColors.WARNING_BG}; border-radius: 6px; border-left: 3px solid {AppColors.WARNING};">{e('usage', '暂无')} | {e('dosage', '暂无')}</div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">禁忌</div>
+                <div style="padding: 12px; background: {AppColors.DANGER_BG}; border-radius: 6px; border-left: 3px solid {AppColors.DANGER};">{e('contraindication', '暂无')}</div>
+            </div>
+
+            <div>
+                <div style="font-size: 11px; color: {AppColors.TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">备注</div>
+                <div style="padding: 12px; background: {AppColors.BG_PAGE}; border-radius: 6px;">{e('notes', '无')}</div>
+            </div>
+        </div>
         '''
         
         msg_box = QMessageBox(self)
@@ -398,7 +415,7 @@ class MedicineView(QWidget, ResponsiveWidget):
         msg_box.setTextFormat(Qt.RichText)
         msg_box.setText(detail_text)
         msg_box.setStandardButtons(QMessageBox.Ok)
-        msg_box.setMinimumWidth(500)
+        msg_box.setMinimumWidth(560)
         msg_box.exec_()
 
     def export_data(self):
@@ -425,36 +442,9 @@ class MedicineView(QWidget, ResponsiveWidget):
             QMessageBox.warning(self, '错误', f'导出失败: {str(e)}')
     
     def _apply_responsive_table(self):
-        if not hasattr(self, 'table'):
-            return
-            
-        config = self._font_manager.get_table_config()
-        scale = config['scale']
-        
-        self.table.verticalHeader().setDefaultSectionSize(config['row_height'])
-        self.table.verticalHeader().setMinimumSectionSize(config['row_height'])
-        
-        header = self.table.horizontalHeader()
-        header.setMinimumSectionSize(config['cell_padding'] * 2)
-        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        
-        for col in range(len(self._base_column_widths)):
-            if col == 0:
-                continue
-            base_width = self._base_column_widths[col]
-            scaled_width = int(base_width * scale)
-            self.table.setColumnWidth(col, scaled_width)
-        
-        font = self._font_manager.get_font('table_cell')
-        self.table.setFont(font)
-        
-        header_font = self._font_manager.get_font('table_header')
-        header.setFont(header_font)
-        
-        self.table.setStyleSheet(get_table_style(config['font_size'], config['header_font_size'], config['cell_padding']))
-        
-        if hasattr(self, 'stats_label'):
-            self.stats_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; font-size: {self._font_manager.get_font_size("small")}px;')
+        if hasattr(self, 'table'):
+            self.apply_responsive_table(self.table, self._base_column_widths, 
+                                        getattr(self, 'stats_label', None))
     
     def update_fonts(self):
         self._apply_responsive_table()

@@ -9,6 +9,53 @@ import hashlib
 from .database import Database, DatabaseError
 from .models import Medicine, Inventory, Prescription, PrescriptionItem, InventoryHistory, OperationLog
 from .validators import MedicineValidator
+from .cache import get_medicine_cache
+
+
+def _sync_cache_add(medicine: Medicine, medicine_id: int) -> None:
+    """创建药材后同步添加到缓存（缓存未初始化时跳过）"""
+    cache = get_medicine_cache()
+    if not cache.is_initialized():
+        return
+    try:
+        medicine.id = medicine_id
+        medicine_dict = medicine.to_dict()
+        medicine_dict.update({
+            'quantity': 0, 'unit': 'g', 'price': 0, 'min_stock': 0, 'notes': ''
+        })
+        cache.add_medicine(medicine_dict)
+    except Exception:
+        pass
+
+
+def _sync_cache_update(medicine: Medicine) -> None:
+    """更新药材后同步刷新缓存（缓存未初始化时跳过）"""
+    cache = get_medicine_cache()
+    if not cache.is_initialized():
+        return
+    try:
+        # 重新查询带库存的完整数据
+        row = Database().fetchone(
+            '''SELECT m.*, i.quantity, i.unit, i.price, i.min_stock
+               FROM medicines m LEFT JOIN inventory i ON m.id = i.medicine_id
+               WHERE m.id = ?''',
+            (medicine.id,)
+        )
+        if row:
+            cache.update_medicine(dict(row))
+    except Exception:
+        pass
+
+
+def _sync_cache_delete(medicine_id: int) -> None:
+    """删除药材后同步从缓存移除（缓存未初始化时跳过）"""
+    cache = get_medicine_cache()
+    if not cache.is_initialized():
+        return
+    try:
+        cache.delete_medicine(medicine_id)
+    except Exception:
+        pass
 
 
 class ServiceError(Exception):
@@ -101,6 +148,8 @@ class MedicineService:
         
         _log_operation(self.db, 'CREATE', 'medicine', medicine_id, f"创建药材: {medicine.name}")
 
+        _sync_cache_add(medicine, medicine_id)
+
         return medicine_id
 
     def update(self, medicine: Medicine) -> bool:
@@ -131,6 +180,8 @@ class MedicineService:
         self.db.execute(query, params)
         _log_operation(self.db, 'UPDATE', 'medicine', medicine.id, f"更新药材: {medicine.name}")
 
+        _sync_cache_update(medicine)
+
         return True
 
     def delete(self, medicine_id: int) -> bool:
@@ -138,12 +189,21 @@ class MedicineService:
         if not medicine:
             raise ServiceError("药材不存在")
 
-        query = 'DELETE FROM medicines WHERE id = ?'
-        self.db.execute(query, (medicine_id,))
+        self.db.begin_transaction()
+        try:
+            self.db.execute('DELETE FROM inventory_history WHERE medicine_id = ?', (medicine_id,))
+            self.db.execute('DELETE FROM prescription_items WHERE medicine_id = ?', (medicine_id,))
+            self.db.execute('DELETE FROM inventory WHERE medicine_id = ?', (medicine_id,))
+            self.db.execute('DELETE FROM medicines WHERE id = ?', (medicine_id,))
 
-        _log_operation(self.db, 'DELETE', 'medicine', medicine_id, f"删除药材: {medicine.name}")
+            _log_operation(self.db, 'DELETE', 'medicine', medicine_id, f"删除药材: {medicine.name}")
 
-        return True
+            self.db.commit()
+            _sync_cache_delete(medicine_id)
+            return True
+        except Exception as e:
+            self.db.rollback()
+            raise ServiceError(f"删除药材失败: {e}")
     
     def get_categories(self) -> List[str]:
         query = 'SELECT DISTINCT category FROM medicines WHERE category IS NOT NULL ORDER BY category'
@@ -178,23 +238,59 @@ class MedicineService:
         rows = self.db.fetchall(query, tuple(params))
         return [Medicine.from_dict(row) for row in rows]
     
+    def get_all_as_dicts(self) -> List[Dict[str, Any]]:
+        query = 'SELECT * FROM medicines'
+        rows = self.db.fetchall(query)
+        return [
+            {
+                'id': row['id'],
+                'name': row['name'] or '',
+                'alias': row['alias'] or '',
+                'category': row['category'] or '',
+                'nature': row['nature'] or '',
+                'taste': row['taste'] or '',
+                'meridian': row['meridian'] or '',
+                'efficacy': row['efficacy'] or '',
+                'indications': row['indications'] or '',
+                'usage': row['usage'] or '',
+                'dosage': row['dosage'] or '',
+                'contraindication': row['contraindication'] or '',
+                'notes': row['notes'] or ''
+            }
+            for row in rows
+        ]
+    
 class InventoryService:
     def __init__(self, db: Database = None):
         self.db = db or Database()
     
-    def get_all(self, low_stock_only: bool = False) -> List[Inventory]:
+    def get_all(self, low_stock_only: bool = False, keyword: str = None,
+                stock_status: str = None) -> List[Inventory]:
         query = '''
-            SELECT i.*, m.name as medicine_name 
+            SELECT i.*, m.name as medicine_name, m.category
             FROM inventory i 
             JOIN medicines m ON i.medicine_id = m.id
+            WHERE 1=1
         '''
+        params = []
+        
+        if keyword:
+            query += ' AND m.name LIKE ?'
+            params.append(f'%{keyword}%')
         
         if low_stock_only:
-            query += ' WHERE i.quantity <= i.min_stock'
+            query += ' AND i.quantity <= i.min_stock'
+        elif stock_status:
+            if stock_status == '库存充足':
+                query += ' AND i.quantity >= i.min_stock'
+            elif stock_status == '低库存':
+                query += ' AND i.quantity > 0 AND i.quantity < i.min_stock'
+            elif stock_status == '缺货':
+                query += ' AND i.quantity = 0'
         
         query += ' ORDER BY m.name'
         
-        rows = self.db.fetchall(query)
+        rows = self.db.fetchall(query, tuple(params))
         return [Inventory.from_dict(row) for row in rows]
     
     def get_by_medicine_id(self, medicine_id: int) -> Optional[Inventory]:
@@ -375,7 +471,8 @@ class PrescriptionService:
         return prescription
     
     def get_all(self, start_date: str = None, end_date: str = None, 
-                patient_name: str = None, limit: int = 100) -> List[Prescription]:
+                patient_name: str = None, limit: int = 100,
+                load_items: bool = False) -> List[Prescription]:
         query = 'SELECT * FROM prescriptions WHERE 1=1'
         params = []
         
@@ -395,7 +492,15 @@ class PrescriptionService:
         params.append(limit)
         
         rows = self.db.fetchall(query, tuple(params))
-        return [Prescription.from_dict(row) for row in rows]
+        prescriptions = [Prescription.from_dict(row) for row in rows]
+        
+        if load_items:
+            for pres in prescriptions:
+                items_query = 'SELECT * FROM prescription_items WHERE prescription_id = ?'
+                items_rows = self.db.fetchall(items_query, (pres.id,))
+                pres.items = [PrescriptionItem.from_dict(item) for item in items_rows]
+        
+        return prescriptions
     
     def delete(self, prescription_id: int, operator: str = '') -> bool:
         prescription = self.get_by_id(prescription_id)

@@ -7,8 +7,9 @@ from PyQt5.QtGui import QFont
 from datetime import datetime
 import logging
 from core import PrescriptionService
-from core.theme import AppColors, get_button_style, get_secondary_button_style, get_table_style, get_dialog_style
-from utils.responsive_font import ResponsiveWidget, get_font_manager
+from core.theme import AppColors, get_button_style, get_secondary_button_style, get_dialog_style, get_table_style
+from utils.responsive_font import get_font_manager
+from views.base_view import BaseDataView
 
 logger = logging.getLogger('MedicineSystem')
 
@@ -64,33 +65,27 @@ class OperationLogDialog(QDialog):
                 self.log_table.setItem(i, j, QTableWidgetItem(str(data) if data else ''))
 
 
-class HistoryView(QWidget, ResponsiveWidget):
+class HistoryView(BaseDataView):
     def __init__(self, db):
-        QWidget.__init__(self)
-        ResponsiveWidget.__init__(self)
-        self.db = db
+        super().__init__(db)
         self._prescription_service = PrescriptionService(db)
-        self._font_manager = get_font_manager()
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(20)
         
         header_layout = QHBoxLayout()
-        header_label = QLabel('历史处方列表')
-        header_label.setStyleSheet(f'font-size: 16px; font-weight: bold; color: {AppColors.TEXT_HEADING};')
-        header_layout.addWidget(header_label)
-        header_layout.addStretch()
-
         self.record_count_label = QLabel('共 0 条记录')
-        self.record_count_label.setStyleSheet(f'color: {AppColors.INFO};')
+        self.record_count_label.setStyleSheet(f'color: {AppColors.TEXT_MUTED}; font-size: 13px;')
+        header_layout.addStretch()
         header_layout.addWidget(self.record_count_label)
         
         layout.addLayout(header_layout)
 
         search_layout = QHBoxLayout()
-        search_layout.setSpacing(10)
+        search_layout.setSpacing(12)
 
         self.name_search = QLineEdit()
         self.name_search.setPlaceholderText('患者姓名')
@@ -109,11 +104,11 @@ class HistoryView(QWidget, ResponsiveWidget):
         self.date_to.setFixedWidth(120)
 
         search_btn = QPushButton('搜索')
-        search_btn.setStyleSheet(get_button_style(AppColors.PRIMARY, padding='6px 16px'))
+        search_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
         search_btn.clicked.connect(self.refresh_data)
 
         reset_btn = QPushButton('重置')
-        reset_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='6px 16px'))
+        reset_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
         reset_btn.clicked.connect(self._reset_filters)
 
         search_layout.addWidget(QLabel('患者:'))
@@ -185,35 +180,38 @@ class HistoryView(QWidget, ResponsiveWidget):
                 color: white;
                 border: none;
                 padding: 8px 16px;
-                border-radius: 4px;
+                border-radius: 6px;
                 min-width: 80px;
+                font-weight: 500;
             }}
             QPushButton#refresh_btn:hover {{
                 background-color: {AppColors.PRIMARY_HOVER};
             }}
             QPushButton#view_log_btn {{
                 background-color: {AppColors.BG_CARD};
-                color: {AppColors.TEXT_CAPTION};
-                border: 1px solid {AppColors.BORDER_DARK};
+                color: {AppColors.TEXT_SECONDARY};
+                border: 1px solid {AppColors.BORDER};
                 padding: 8px 16px;
-                border-radius: 4px;
+                border-radius: 6px;
                 min-width: 100px;
+                font-weight: 500;
             }}
             QPushButton#view_log_btn:hover {{
-                border-color: {AppColors.PRIMARY};
-                color: {AppColors.PRIMARY};
+                border-color: {AppColors.TEXT_MUTED};
+                color: {AppColors.TEXT_PRIMARY};
             }}
             QGroupBox {{
-                font-weight: 500;
-                color: {AppColors.TEXT_HEADING};
-                border: 1px solid {AppColors.BORDER_DARK};
-                border-radius: 4px;
+                font-weight: 600;
+                color: {AppColors.TEXT_PRIMARY};
+                border: 1px solid {AppColors.BORDER};
+                border-radius: 6px;
                 margin-top: 12px;
-                padding-top: 8px;
+                padding-top: 12px;
+                background-color: {AppColors.BG_CARD};
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
-                left: 12px;
+                left: 16px;
                 padding: 0 8px;
             }}
         ''')
@@ -233,33 +231,23 @@ class HistoryView(QWidget, ResponsiveWidget):
 
     def refresh_data(self):
         try:
-            query = "SELECT id, patient_name, patient_age, diagnosis, total_amount, created_at FROM prescriptions WHERE 1=1"
-            params = []
-
-            name = self.name_search.text().strip()
-            if name:
-                query += " AND patient_name LIKE ?"
-                params.append(f'%{name}%')
-
+            name = self.name_search.text().strip() or None
             date_from = self.date_from.date().toString('yyyy-MM-dd')
             date_to = self.date_to.date().toString('yyyy-MM-dd')
-            query += " AND DATE(created_at) >= ? AND DATE(created_at) <= ?"
-            params.extend([date_from, date_to])
-
-            query += " ORDER BY created_at DESC"
-
-            rows = self.db.fetchall(query, tuple(params))
             
-            self.list_table.setRowCount(len(rows))
-            for i, row in enumerate(rows):
-                pres_id = self._get_row_value(row, 'id', 0)
-                patient_name = self._get_row_value(row, 'patient_name', 1)
-                patient_age = self._get_row_value(row, 'patient_age', 2)
-                diagnosis = self._get_row_value(row, 'diagnosis', 3)
-                total_amount = self._get_row_value(row, 'total_amount', 4)
-                created_at = self._get_row_value(row, 'created_at', 5)
-                
-                data_list = [pres_id, patient_name, patient_age, diagnosis, total_amount, created_at]
+            prescriptions = self._prescription_service.get_all(
+                start_date=date_from,
+                end_date=date_to,
+                patient_name=name
+            )
+            
+            self.list_table.setRowCount(len(prescriptions))
+            for i, pres in enumerate(prescriptions):
+                data_list = [
+                    pres.id, pres.patient_name, pres.patient_age,
+                    pres.diagnosis, pres.total_amount,
+                    str(pres.created_at) if pres.created_at else ''
+                ]
                 
                 for j, data in enumerate(data_list):
                     item = QTableWidgetItem(str(data) if data else '')
@@ -267,14 +255,14 @@ class HistoryView(QWidget, ResponsiveWidget):
                     self.list_table.setItem(i, j, item)
                 
                 delete_btn = QPushButton('删除')
-                delete_btn.setProperty('prescription_id', pres_id)
+                delete_btn.setProperty('prescription_id', pres.id)
                 delete_btn.setProperty('row_index', i)
                 delete_btn.clicked.connect(self._on_delete_clicked)
                 delete_btn.setStyleSheet(get_button_style(AppColors.DANGER, padding='4px 12px'))
                 
                 self.list_table.setCellWidget(i, 6, delete_btn)
             
-            self.record_count_label.setText(f'共 {len(rows)} 条记录')
+            self.record_count_label.setText(f'共 {len(prescriptions)} 条记录')
         except Exception as e:
             logger.error(f"刷新历史记录失败: {e}")
             QMessageBox.critical(self, '错误', f'刷新数据失败：{str(e)}')
@@ -320,7 +308,7 @@ class HistoryView(QWidget, ResponsiveWidget):
             if not selected:
                 return
 
-            pres_id = selected[0].text()
+            pres_id = int(self.list_table.item(selected[0].row(), 0).text())
             rows = self.db.fetchall(
                 "SELECT medicine_name, quantity, price, amount FROM prescription_items WHERE prescription_id = ?",
                 (pres_id,))
@@ -345,16 +333,8 @@ class HistoryView(QWidget, ResponsiveWidget):
             logger.error(f"显示处方详情失败: {e}")
 
     def _apply_responsive_table(self):
-        config = self._font_manager.get_table_config()
-        base_size = self._font_manager.current_base_size
-        table_style = get_table_style(config['font_size'], int(base_size * 1.1), config['cell_padding'])
         for table in [self.list_table, self.detail_table]:
-            table.verticalHeader().setDefaultSectionSize(config['row_height'])
-            font = self._font_manager.get_font('table_cell')
-            table.setFont(font)
-            header_font = self._font_manager.get_font('table_header')
-            table.horizontalHeader().setFont(header_font)
-            table.setStyleSheet(table_style)
+            self.apply_responsive_table(table)
 
     def update_fonts(self):
         self._apply_responsive_table()

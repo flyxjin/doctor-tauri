@@ -4,10 +4,26 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                              QComboBox, QFileDialog, QHeaderView)
 from PyQt5.QtGui import QColor, QBrush, QFont
 from PyQt5.QtCore import Qt
-from utils.responsive_font import ResponsiveWidget, get_font_manager
 from core import InventoryService
-from core.theme import AppColors, get_button_style, get_dialog_style, get_table_style
+from core.theme import AppColors, get_button_style, get_secondary_button_style, get_dialog_style
+from views.base_view import BaseDataView
 import csv
+
+
+def _safe_float(text, default=0.0):
+    """安全转换为 float，空值或异常时返回 default"""
+    try:
+        return float(str(text).replace('¥', '').strip() or default)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(text, default=0):
+    """安全转换为 int，空值或异常时返回 default"""
+    try:
+        return int(str(text).strip() or default)
+    except (ValueError, TypeError):
+        return default
 
 
 class StockDialog(QDialog):
@@ -53,7 +69,7 @@ class StockDialog(QDialog):
 
         if self.operation == "出库":
             info_label = QLabel(f'当前库存: {self.current_qty} g')
-            info_label.setStyleSheet(f'color: {AppColors.TEXT_REGULAR}; font-size: 12px;')
+            info_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY}; font-size: 12px;')
             layout.addRow('', info_label)
 
         btn_box = QHBoxLayout()
@@ -71,57 +87,54 @@ class StockDialog(QDialog):
         return self.quantity_spin.value(), self.price_spin.value(), self.unit_combo.currentText(), self.notes_edit.text()
 
 
-class InventoryView(QWidget, ResponsiveWidget):
+class InventoryView(BaseDataView):
     def __init__(self, db):
-        QWidget.__init__(self)
-        ResponsiveWidget.__init__(self)
-        self.db = db
+        super().__init__(db)
         self._inventory_service = InventoryService(db)
-        self._font_manager = get_font_manager()
         self._base_column_widths = [0, 150, 80, 100, 60, 90, 110, 80, 120]
         self.init_ui()
         self.refresh_data()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(20)
 
-        stats_group = QGroupBox('库存统计')
-        stats_layout = QHBoxLayout(stats_group)
+        stats_layout = QHBoxLayout()
+        stats_layout.setSpacing(16)
         
         self.total_meds_label = QLabel('药材种类: 0')
-        self.total_meds_label.setStyleSheet(f'font-size: 14px; font-weight: bold; color: {AppColors.PRIMARY};')
+        self.total_meds_label.setStyleSheet(f'font-size: 14px; font-weight: 600; color: {AppColors.TEXT_PRIMARY};')
 
         self.total_value_label = QLabel('库存总值: ¥0.00')
-        self.total_value_label.setStyleSheet(f'font-size: 14px; font-weight: bold; color: {AppColors.SUCCESS};')
+        self.total_value_label.setStyleSheet(f'font-size: 14px; font-weight: 600; color: {AppColors.SUCCESS};')
 
         self.low_stock_label = QLabel('低库存: 0')
-        self.low_stock_label.setStyleSheet(f'font-size: 14px; font-weight: bold; color: {AppColors.DANGER};')
+        self.low_stock_label.setStyleSheet(f'font-size: 14px; font-weight: 600; color: {AppColors.DANGER};')
         
         stats_layout.addWidget(self.total_meds_label)
         stats_layout.addWidget(self.total_value_label)
         stats_layout.addWidget(self.low_stock_label)
         stats_layout.addStretch()
 
-        self.warning_group = QGroupBox('库存预警')
-        warning_layout = QHBoxLayout(self.warning_group)
         self.warning_label = QLabel('库存状态正常')
-        self.warning_label.setStyleSheet(f"color: {AppColors.SUCCESS}; font-weight: bold;")
-        warning_layout.addWidget(self.warning_label)
+        self.warning_label.setStyleSheet(f"color: {AppColors.SUCCESS}; font-weight: 500; font-size: 13px;")
+        stats_layout.addWidget(self.warning_label)
 
-        search_group = QGroupBox('搜索筛选')
-        search_layout = QHBoxLayout(search_group)
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(12)
         
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText('输入药材名称搜索...')
+        self.search_input.setPlaceholderText('搜索药材名称...')
         self.search_input.setMinimumWidth(200)
         
         self.stock_filter = QComboBox()
         self.stock_filter.addItems(['全部', '库存充足', '低库存', '缺货'])
         
         self.search_btn = QPushButton('搜索')
+        self.search_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
         self.refresh_btn = QPushButton('刷新')
+        self.refresh_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
         
         self.search_btn.clicked.connect(self.refresh_data)
         self.refresh_btn.clicked.connect(self.refresh_data)
@@ -133,15 +146,17 @@ class InventoryView(QWidget, ResponsiveWidget):
         search_layout.addStretch()
 
         btn_bar = QHBoxLayout()
-        self.stock_in_btn = QPushButton('药材入库')
-        self.stock_out_btn = QPushButton('药材出库')
-        self.adjust_btn = QPushButton('库存调整')
-        self.export_btn = QPushButton('导出库存')
+        btn_bar.setSpacing(12)
         
-        self.stock_in_btn.setStyleSheet(get_button_style(AppColors.SUCCESS))
-        self.stock_out_btn.setStyleSheet(get_button_style(AppColors.WARNING))
-        self.adjust_btn.setStyleSheet(get_button_style(AppColors.PRIMARY))
-        self.export_btn.setStyleSheet(get_button_style(AppColors.INFO))
+        self.stock_in_btn = QPushButton('+ 入库')
+        self.stock_out_btn = QPushButton('出库')
+        self.adjust_btn = QPushButton('调整')
+        self.export_btn = QPushButton('导出')
+        
+        self.stock_in_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='10px 20px'))
+        self.stock_out_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
+        self.adjust_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
+        self.export_btn.setStyleSheet(get_secondary_button_style(padding='10px 20px'))
         
         self.stock_in_btn.clicked.connect(self.stock_in)
         self.stock_out_btn.clicked.connect(self.stock_out)
@@ -165,12 +180,12 @@ class InventoryView(QWidget, ResponsiveWidget):
         self.table.setColumnHidden(0, True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         
         self._apply_responsive_table()
 
-        layout.addWidget(stats_group)
-        layout.addWidget(self.warning_group)
-        layout.addWidget(search_group)
+        layout.addLayout(stats_layout)
+        layout.addLayout(search_layout)
         layout.addLayout(btn_bar)
         layout.addWidget(self.table)
 
@@ -178,59 +193,34 @@ class InventoryView(QWidget, ResponsiveWidget):
         keyword = self.search_input.text()
         stock_filter = self.stock_filter.currentText()
         
-        query = '''
-            SELECT i.medicine_id, m.name, m.category, i.quantity, i.unit, i.price, i.min_stock, i.notes 
-            FROM inventory i 
-            JOIN medicines m ON i.medicine_id = m.id
-            WHERE 1=1
-        '''
-        params = []
+        inventories = self._inventory_service.get_all(
+            keyword=keyword if keyword else None,
+            stock_status=stock_filter if stock_filter != '全部' else None
+        )
         
-        if keyword:
-            query += " AND m.name LIKE ?"
-            params.append(f'%{keyword}%')
-        
-        rows = self.db.fetchall(query, params)
-        
-        filtered_rows = []
         low_stock_list = []
         total_value = 0
         
-        for row in rows:
-            med_id = row['medicine_id']
-            name = row['name']
-            category = row['category']
-            qty = row['quantity'] or 0
-            unit = row['unit']
-            price = row['price'] or 0
-            min_stock = row['min_stock'] or 0
-            notes = row['notes']
+        for inv in inventories:
+            qty = inv.quantity or 0
+            price = inv.price or 0
             stock_value = qty * price
             total_value += stock_value
-            
-            include = (
-                stock_filter == '全部'
-                or (stock_filter == '库存充足' and qty >= min_stock)
-                or (stock_filter == '低库存' and 0 < qty < min_stock)
-                or (stock_filter == '缺货' and qty == 0)
-            )
-            if include:
-                filtered_rows.append((med_id, name, category, qty, unit, price, min_stock, notes, stock_value))
-            
-            if qty < min_stock:
-                low_stock_list.append(name)
+            if qty < (inv.min_stock or 0):
+                low_stock_list.append(inv.medicine_name)
         
-        display_rows = filtered_rows
+        self.table.setRowCount(len(inventories))
         
-        self.table.setRowCount(len(display_rows))
-        
-        for row_idx, row_data in enumerate(display_rows):
-            med_id, name, category, qty, unit, price, min_stock, notes, stock_value = row_data
-            qty = qty or 0
-            price = price or 0
-            min_stock = min_stock or 0
+        for row_idx, inv in enumerate(inventories):
+            qty = inv.quantity or 0
+            price = inv.price or 0
+            min_stock = inv.min_stock or 0
+            stock_value = qty * price
             
-            values = [med_id, name, category, qty, unit, price, stock_value, min_stock, notes]
+            values = [
+                inv.medicine_id, inv.medicine_name, getattr(inv, 'category', ''),
+                qty, inv.unit, price, stock_value, min_stock, inv.notes
+            ]
             
             for col_idx, col_data in enumerate(values):
                 if col_idx in [3, 5, 6, 7]:
@@ -253,9 +243,13 @@ class InventoryView(QWidget, ResponsiveWidget):
                 
                 self.table.setItem(row_idx, col_idx, item)
         
-        self.total_meds_label.setText(f'药材种类: {len(rows)}')
+        all_inventories = self._inventory_service.get_all()
+        total_count = len(all_inventories)
+        all_low_stock = sum(1 for inv in all_inventories if (inv.quantity or 0) < (inv.min_stock or 0))
+        
+        self.total_meds_label.setText(f'药材种类: {total_count}')
         self.total_value_label.setText(f'库存总值: ¥{total_value:.2f}')
-        self.low_stock_label.setText(f'低库存: {len(low_stock_list)}')
+        self.low_stock_label.setText(f'低库存: {all_low_stock}')
         
         if low_stock_list:
             self.warning_label.setText(f"库存预警：{', '.join(low_stock_list[:5])}{'...' if len(low_stock_list) > 5 else ''} 库存不足！")
@@ -271,9 +265,9 @@ class InventoryView(QWidget, ResponsiveWidget):
             return
 
         row = selected[0].row()
-        med_id = self.table.item(row, 0).text()
+        med_id = _safe_int(self.table.item(row, 0).text())
         med_name = self.table.item(row, 1).text()
-        current_price = float(self.table.item(row, 5).text().replace('¥', ''))
+        current_price = _safe_float(self.table.item(row, 5).text())
 
         dialog = StockDialog(self, med_name, med_id, "入库", current_price=current_price)
         if dialog.exec_():
@@ -292,10 +286,10 @@ class InventoryView(QWidget, ResponsiveWidget):
             return
 
         row = selected[0].row()
-        med_id = self.table.item(row, 0).text()
+        med_id = _safe_int(self.table.item(row, 0).text())
         med_name = self.table.item(row, 1).text()
-        current_qty = float(self.table.item(row, 3).text())
-        current_price = float(self.table.item(row, 5).text().replace('¥', ''))
+        current_qty = _safe_float(self.table.item(row, 3).text())
+        current_price = _safe_float(self.table.item(row, 5).text())
 
         dialog = StockDialog(self, med_name, med_id, "出库", current_qty=current_qty, current_price=current_price)
         if dialog.exec_():
@@ -319,11 +313,11 @@ class InventoryView(QWidget, ResponsiveWidget):
             return
 
         row = selected[0].row()
-        med_id = self.table.item(row, 0).text()
+        med_id = _safe_int(self.table.item(row, 0).text())
         med_name = self.table.item(row, 1).text()
-        current_qty = float(self.table.item(row, 3).text())
-        current_price = float(self.table.item(row, 5).text().replace('¥', ''))
-        min_stock = float(self.table.item(row, 7).text())
+        current_qty = _safe_float(self.table.item(row, 3).text())
+        current_price = _safe_float(self.table.item(row, 5).text())
+        min_stock = _safe_float(self.table.item(row, 7).text())
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f'库存调整 - {med_name}')
@@ -406,35 +400,10 @@ class InventoryView(QWidget, ResponsiveWidget):
             QMessageBox.warning(self, '错误', f'导出失败: {str(e)}')
     
     def _apply_responsive_table(self):
-        if not hasattr(self, 'table'):
-            return
-            
-        config = self._font_manager.get_table_config()
-        scale = config['scale']
+        if hasattr(self, 'table'):
+            self.apply_responsive_table(self.table, self._base_column_widths)
         
-        self.table.verticalHeader().setDefaultSectionSize(config['row_height'])
-        self.table.verticalHeader().setMinimumSectionSize(config['row_height'])
-        
-        header = self.table.horizontalHeader()
-        header.setMinimumSectionSize(config['cell_padding'] * 2)
-        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        
-        for col in range(len(self._base_column_widths)):
-            if col == 0:
-                continue
-            base_width = self._base_column_widths[col]
-            scaled_width = int(base_width * scale)
-            self.table.setColumnWidth(col, scaled_width)
-        
-        font = self._font_manager.get_font('table_cell')
-        self.table.setFont(font)
-        
-        header_font = self._font_manager.get_font('table_header')
-        header.setFont(header_font)
-        
-        self.table.setStyleSheet(get_table_style(config['font_size'], config['header_font_size'], config['cell_padding']))
-        
-        font_size = self._font_manager.get_font_size('body')
+        font_size = self.font_manager.get_font_size('body')
         if hasattr(self, 'total_meds_label'):
             self.total_meds_label.setStyleSheet(f'font-size: {font_size}px; font-weight: bold; color: {AppColors.PRIMARY};')
         if hasattr(self, 'total_value_label'):

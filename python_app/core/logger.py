@@ -5,6 +5,7 @@
 import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from typing import Optional
 import json
@@ -41,8 +42,12 @@ def get_logger(name: str = 'MedicineSystem', level: int = logging.INFO) -> loggi
     
     log_dir = get_log_dir()
     log_file = os.path.join(log_dir, f'{name}.log')
-    
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+
+    # 使用 RotatingFileHandler 防止日志文件无限增长
+    # 单文件最大 10MB，保留 5 个备份
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8'
+    )
     file_handler.setLevel(level)
     
     console_handler = logging.StreamHandler()
