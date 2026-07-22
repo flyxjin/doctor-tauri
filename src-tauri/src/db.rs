@@ -39,8 +39,18 @@ impl DbState {
     /// 传入 `Path::new(":memory:")` 可创建内存数据库（用于单元测试）。
     pub fn new(path: &Path) -> Result<Self, String> {
         let conn = Connection::open(path).map_err(|e| format!("打开数据库失败: {e}"))?;
-        conn.execute_batch("PRAGMA foreign_keys = ON;")
-            .map_err(|e| format!("设置数据库 PRAGMA 失败: {e}"))?;
+        // 启用外键约束 + WAL 模式 + 性能与并发调优
+        // WAL：写入不阻塞读，显著提升并发性能
+        // synchronous=NORMAL：配合 WAL，兼顾安全与性能（断电仍可能丢最后一个事务）
+        // busy_timeout=5000ms：锁争用时等待 5 秒而非立即报错
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;\
+             PRAGMA journal_mode = WAL;\
+             PRAGMA synchronous = NORMAL;\
+             PRAGMA busy_timeout = 5000;\
+             PRAGMA cache_size = -8000;",
+        )
+        .map_err(|e| format!("设置数据库 PRAGMA 失败: {e}"))?;
         Ok(Self {
             conn: Mutex::new(conn),
         })

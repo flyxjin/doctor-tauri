@@ -11,8 +11,10 @@ import type {
   DashboardData,
   DownloadProgress,
   Inventory,
+  InventoryHistory,
   Medicine,
   MedicineImportRecord,
+  OperationLog,
   Patient,
   PatientStatistics,
   Prescription,
@@ -71,12 +73,36 @@ export async function updateStock(
   });
 }
 
-/** 处方历史列表（含明细） */
+/** 库存变更历史（支持按药材、类型、日期范围筛选） */
+export async function listInventoryHistory(
+  medicineId?: number,
+  historyType?: string,
+  startDate?: string,
+  endDate?: string,
+  limit?: number,
+): Promise<InventoryHistory[]> {
+  return invoke<InventoryHistory[]>('list_inventory_history', {
+    medicineId,
+    historyType,
+    startDate,
+    endDate,
+    limit,
+  });
+}
+
+/** 处方历史列表（含明细，支持关键字与日期范围筛选） */
 export async function listPrescriptions(
   keyword?: string,
+  startDate?: string,
+  endDate?: string,
   limit?: number,
 ): Promise<PrescriptionWithItems[]> {
-  return invoke<PrescriptionWithItems[]>('list_prescriptions', { keyword, limit });
+  return invoke<PrescriptionWithItems[]>('list_prescriptions', {
+    keyword,
+    startDate,
+    endDate,
+    limit,
+  });
 }
 
 /** 创建处方，返回新处方 ID */
@@ -141,6 +167,23 @@ export async function saveTextToDownloads(
   content: string,
 ): Promise<string> {
   return invoke<string>('save_text_to_downloads', { filename, content });
+}
+
+/** 操作日志查询（支持按操作类型、目标类型、日期范围筛选） */
+export async function listOperationLogs(
+  operationType?: string,
+  targetType?: string,
+  startDate?: string,
+  endDate?: string,
+  limit?: number,
+): Promise<OperationLog[]> {
+  return invoke<OperationLog[]>('list_operation_logs', {
+    operationType,
+    targetType,
+    startDate,
+    endDate,
+    limit,
+  });
 }
 
 // ==================== 打印处方 ====================
