@@ -354,4 +354,6 @@ A: 检查网络、确认 Gitee Release 已发布且包含 `.exe` 安装包，或
 
 ## License
 
-MIT License - 详见 [LICENSE](LICENSE)。
+[MIT License](../LICENSE) — Copyright (c) 2026 东方本草
+
+本项目继承根仓库的 MIT 协议，允许商用、闭源衍生，仅需保留版权声明。
