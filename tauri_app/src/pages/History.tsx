@@ -19,7 +19,6 @@ import { DeleteOutlined, ExportOutlined, PrinterOutlined } from '@ant-design/ico
 import dayjs, { type Dayjs } from 'dayjs';
 import { deletePrescription, generatePrescriptionHtml, listPrescriptions } from '@/api/tauri';
 import { printHtmlInIframe } from '@/utils/print';
-import { parseCsvLine } from '@/utils/csv';
 import type { PrescriptionItem, PrescriptionWithItems } from '@/types';
 import EmptyState from '@/components/EmptyState';
 
@@ -34,29 +33,22 @@ export default function HistoryPage() {
   const [detail, setDetail] = useState<PrescriptionWithItems | null>(null);
   const [printingId, setPrintingId] = useState<number | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['prescriptions', keyword],
-    queryFn: () => listPrescriptions(keyword || undefined, 200),
-  });
+  // 后端日期筛选：将日期范围传入 SQL 查询，避免拉取全量再前端过滤
+  const startDate = dateRange?.[0]?.format('YYYY-MM-DD');
+  const endDate = dateRange?.[1]?.format('YYYY-MM-DD');
 
-  // 按日期范围筛选（前端过滤，因为后端未提供日期参数）
-  const filteredData = useMemo(() => {
-    if (!dateRange) return data;
-    const [start, end] = dateRange;
-    return data?.filter((p) => {
-      if (!p.created_at) return false;
-      const d = dayjs(p.created_at);
-      return d.isAfter(start.startOf('day')) && d.isBefore(end.endOf('day'));
-    });
-  }, [data, dateRange]);
+  const { data, isLoading } = useQuery({
+    queryKey: ['prescriptions', keyword, startDate, endDate],
+    queryFn: () => listPrescriptions(keyword || undefined, startDate, endDate, 500),
+  });
 
   // 汇总统计
   const summary = useMemo(() => {
-    const list = filteredData ?? [];
+    const list = data ?? [];
     const totalAmount = list.reduce((s, p) => s + p.total_amount, 0);
     const totalItems = list.reduce((s, p) => s + p.items.length, 0);
     return { count: list.length, totalAmount, totalItems };
-  }, [filteredData]);
+  }, [data]);
 
   const deleteMutation = useMutation({
     mutationFn: deletePrescription,
@@ -72,7 +64,7 @@ export default function HistoryPage() {
 
   // 导出当前筛选结果为 CSV 并触发下载
   const handleExportCsv = () => {
-    const list = filteredData ?? [];
+    const list = data ?? [];
     if (list.length === 0) {
       message.warning('没有可导出的数据');
       return;
@@ -111,9 +103,7 @@ export default function HistoryPage() {
       });
       lines.push(escaped.join(','));
     }
-    // 测试工具验证：parseCsvLine 能正确解析第一行表头
-    const _verify = parseCsvLine(lines[0]);
-    void _verify;
+    // UTF-8 BOM，便于 Excel 正确识别中文
     const csv = '\uFEFF' + lines.join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -285,7 +275,7 @@ export default function HistoryPage() {
           <Button
             icon={<ExportOutlined />}
             onClick={handleExportCsv}
-            disabled={!filteredData || filteredData.length === 0}
+            disabled={!data || data.length === 0}
           >
             导出 CSV
           </Button>
@@ -294,7 +284,7 @@ export default function HistoryPage() {
           rowKey="id"
           loading={isLoading}
           columns={columns}
-          dataSource={filteredData}
+          dataSource={data}
           scroll={{ x: 1100 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           locale={{

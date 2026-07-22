@@ -121,7 +121,6 @@ pub struct PrescriptionWithItems {
 }
 
 /// 库存变更历史
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InventoryHistory {
     pub id: Option<i64>,
@@ -144,7 +143,6 @@ pub struct InventoryHistory {
 }
 
 /// 操作日志
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationLog {
     pub id: Option<i64>,

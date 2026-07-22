@@ -98,7 +98,8 @@ pub fn create_medicine(
         return Err("药材名称不能为空".to_string());
     }
     let conn = state.lock()?;
-    let exists: Option<i64> = conn
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let exists: Option<i64> = tx
         .query_row(
             "SELECT id FROM medicines WHERE name = ?1",
             params![&medicine.name],
@@ -109,7 +110,7 @@ pub fn create_medicine(
     if exists.is_some() {
         return Err(format!("药材 '{}' 已存在", medicine.name));
     }
-    conn.execute(
+    tx.execute(
         "INSERT INTO medicines (name, alias, category, nature, taste, meridian, efficacy, indications, usage, dosage, contraindication, notes) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         params![
             &medicine.name,
@@ -127,8 +128,9 @@ pub fn create_medicine(
         ],
     )
     .map_err(|e| format!("创建药材失败: {e}"))?;
-    let id = conn.last_insert_rowid();
-    log_operation(&conn, "CREATE", "medicine", id, &format!("创建药材: {}", medicine.name))?;
+    let id = tx.last_insert_rowid();
+    log_operation(&tx, "CREATE", "medicine", id, &format!("创建药材: {}", medicine.name))?;
+    tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(id)
 }
 
@@ -143,7 +145,8 @@ pub fn update_medicine(
         return Err("药材名称不能为空".to_string());
     }
     let conn = state.lock()?;
-    let dup: Option<i64> = conn
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let dup: Option<i64> = tx
         .query_row(
             "SELECT id FROM medicines WHERE name = ?1 AND id != ?2",
             params![&medicine.name, id],
@@ -154,7 +157,7 @@ pub fn update_medicine(
     if dup.is_some() {
         return Err(format!("药材 '{}' 已存在", medicine.name));
     }
-    conn.execute(
+    tx.execute(
         "UPDATE medicines SET name=?1, alias=?2, category=?3, nature=?4, taste=?5, meridian=?6, efficacy=?7, indications=?8, usage=?9, dosage=?10, contraindication=?11, notes=?12, updated_at=CURRENT_TIMESTAMP WHERE id=?13",
         params![
             &medicine.name,
@@ -173,15 +176,32 @@ pub fn update_medicine(
         ],
     )
     .map_err(|e| format!("更新药材失败: {e}"))?;
-    log_operation(&conn, "UPDATE", "medicine", id, &format!("更新药材: {}", medicine.name))?;
+    log_operation(&tx, "UPDATE", "medicine", id, &format!("更新药材: {}", medicine.name))?;
+    tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
 
 /// 删除药材（级联删除库存记录）
+///
+/// 安全检查：若药材已被处方引用，禁止删除（保留审计轨迹）
 #[tauri::command]
 pub fn delete_medicine(id: i64, state: State<'_, DbState>) -> Result<(), String> {
     let conn = state.lock()?;
-    let name: Option<String> = conn
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    // 检查是否被处方明细引用
+    let ref_count: i64 = tx
+        .query_row(
+            "SELECT COUNT(*) FROM prescription_items WHERE medicine_id=?1",
+            params![id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if ref_count > 0 {
+        return Err(format!(
+            "该药材已被 {ref_count} 张处方引用，无法删除。建议禁用或清零库存而非删除"
+        ));
+    }
+    let name: Option<String> = tx
         .query_row(
             "SELECT name FROM medicines WHERE id=?1",
             params![id],
@@ -189,15 +209,16 @@ pub fn delete_medicine(id: i64, state: State<'_, DbState>) -> Result<(), String>
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM medicines WHERE id=?1", params![id])
+    tx.execute("DELETE FROM medicines WHERE id=?1", params![id])
         .map_err(|e| format!("删除药材失败: {e}"))?;
     log_operation(
-        &conn,
+        &tx,
         "DELETE",
         "medicine",
         id,
         &format!("删除药材: {}", name.unwrap_or_default()),
     )?;
+    tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
 
@@ -335,12 +356,83 @@ pub fn update_stock(
     Ok(())
 }
 
+/// 库存变更历史查询（支持按药材、类型、日期范围筛选）
+#[tauri::command]
+pub fn list_inventory_history(
+    medicine_id: Option<i64>,
+    history_type: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    limit: Option<i64>,
+    state: State<'_, DbState>,
+) -> Result<Vec<InventoryHistory>, String> {
+    let conn = state.lock()?;
+    let limit = limit.unwrap_or(200).clamp(1, 2000);
+
+    let mut sql = String::from(
+        "SELECT id, medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, created_at FROM inventory_history WHERE 1=1",
+    );
+    let mut pv: Vec<SqlValue> = Vec::new();
+    if let Some(mid) = medicine_id {
+        sql.push_str(" AND medicine_id = ?");
+        pv.push(SqlValue::Integer(mid));
+    }
+    if let Some(ht) = &history_type {
+        if !ht.is_empty() {
+            sql.push_str(" AND type = ?");
+            pv.push(SqlValue::Text(ht.clone()));
+        }
+    }
+    if let Some(sd) = &start_date {
+        if !sd.is_empty() {
+            sql.push_str(" AND date(created_at) >= date(?)");
+            pv.push(SqlValue::Text(sd.clone()));
+        }
+    }
+    if let Some(ed) = &end_date {
+        if !ed.is_empty() {
+            sql.push_str(" AND date(created_at) <= date(?)");
+            pv.push(SqlValue::Text(ed.clone()));
+        }
+    }
+    sql.push_str(" ORDER BY id DESC LIMIT ?");
+    pv.push(SqlValue::Integer(limit));
+
+    let list: Vec<InventoryHistory> = {
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params_from_iter(pv.iter()), |row| {
+                Ok(InventoryHistory {
+                    id: row.get(0)?,
+                    medicine_id: row.get(1)?,
+                    medicine_name: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                    history_type: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                    quantity: row.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
+                    price: row.get(5)?,
+                    total_amount: row.get(6)?,
+                    operator: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                    notes: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
+                    created_at: row.get(9)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r.map_err(|e| e.to_string())?);
+        }
+        out
+    };
+    Ok(list)
+}
+
 // ==================== 处方管理 ====================
 
-/// 处方列表（含明细，支持按患者/诊断搜索）
+/// 处方列表（含明细，支持按患者/诊断搜索 + 日期范围筛选）
 #[tauri::command]
 pub fn list_prescriptions(
     keyword: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
     limit: Option<i64>,
     state: State<'_, DbState>,
 ) -> Result<Vec<PrescriptionWithItems>, String> {
@@ -348,15 +440,27 @@ pub fn list_prescriptions(
     let limit = limit.unwrap_or(100).clamp(1, 1000);
 
     let mut sql = String::from(
-        "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at FROM prescriptions",
+        "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at FROM prescriptions WHERE 1=1",
     );
     let mut pv: Vec<SqlValue> = Vec::new();
     if let Some(kw) = &keyword {
         if !kw.is_empty() {
-            sql.push_str(" WHERE patient_name LIKE ? OR diagnosis LIKE ?");
+            sql.push_str(" AND (patient_name LIKE ? OR diagnosis LIKE ?)");
             let pat = format!("%{kw}%");
             pv.push(SqlValue::Text(pat.clone()));
             pv.push(SqlValue::Text(pat));
+        }
+    }
+    if let Some(sd) = &start_date {
+        if !sd.is_empty() {
+            sql.push_str(" AND date(created_at) >= date(?)");
+            pv.push(SqlValue::Text(sd.clone()));
+        }
+    }
+    if let Some(ed) = &end_date {
+        if !ed.is_empty() {
+            sql.push_str(" AND date(created_at) <= date(?)");
+            pv.push(SqlValue::Text(ed.clone()));
         }
     }
     sql.push_str(" ORDER BY id DESC LIMIT ?");
@@ -435,24 +539,39 @@ pub fn create_prescription(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let p = input.prescription;
 
-    let total = if p.total_amount > 0.0 {
-        p.total_amount
-    } else {
-        input.items.iter().map(|i| i.amount).sum()
-    };
+    // 服务端强制重新计算总金额，防止前端传入不一致数据
+    let total: f64 = input.items.iter().map(|i| i.amount).sum();
+    // 用户选择的开方日期（为空则用数据库默认 CURRENT_TIMESTAMP）
+    let created_at = p.created_at.as_deref().filter(|s| !s.is_empty());
 
-    tx.execute(
-        "INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by) VALUES (?1,?2,?3,?4,?5,?6)",
-        params![
-            &p.patient_name,
-            p.patient_age,
-            &p.patient_gender,
-            &p.diagnosis,
-            total,
-            &p.created_by,
-        ],
-    )
-    .map_err(|e| format!("创建处方失败: {e}"))?;
+    if created_at.is_some() {
+        tx.execute(
+            "INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![
+                &p.patient_name,
+                p.patient_age,
+                &p.patient_gender,
+                &p.diagnosis,
+                total,
+                &p.created_by,
+                created_at,
+            ],
+        )
+        .map_err(|e| format!("创建处方失败: {e}"))?;
+    } else {
+        tx.execute(
+            "INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by) VALUES (?1,?2,?3,?4,?5,?6)",
+            params![
+                &p.patient_name,
+                p.patient_age,
+                &p.patient_gender,
+                &p.diagnosis,
+                total,
+                &p.created_by,
+            ],
+        )
+        .map_err(|e| format!("创建处方失败: {e}"))?;
+    }
     let prescription_id = tx.last_insert_rowid();
 
     for item in &input.items {
@@ -620,7 +739,8 @@ pub fn create_patient(patient: Patient, state: State<'_, DbState>) -> Result<i64
         return Err("患者姓名不能为空".to_string());
     }
     let conn = state.lock()?;
-    conn.execute(
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
         "INSERT INTO patients (name, gender, age, phone, address, allergy, medical_history, notes) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
         params![
             &patient.name,
@@ -634,8 +754,9 @@ pub fn create_patient(patient: Patient, state: State<'_, DbState>) -> Result<i64
         ],
     )
     .map_err(|e| format!("创建患者失败: {e}"))?;
-    let id = conn.last_insert_rowid();
-    log_operation(&conn, "CREATE", "patient", id, &format!("创建患者: {}", patient.name))?;
+    let id = tx.last_insert_rowid();
+    log_operation(&tx, "CREATE", "patient", id, &format!("创建患者: {}", patient.name))?;
+    tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(id)
 }
 
@@ -647,8 +768,9 @@ pub fn update_patient(patient: Patient, state: State<'_, DbState>) -> Result<(),
         return Err("患者姓名不能为空".to_string());
     }
     let conn = state.lock()?;
-    conn.execute(
-        "UPDATE patients SET name=?1, gender=?2, age=?3, phone=?4, address=?5, allergy=?6, medical_history=?7, notes=?8, updated_at=datetime('now','localtime') WHERE id=?9",
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "UPDATE patients SET name=?1, gender=?2, age=?3, phone=?4, address=?5, allergy=?6, medical_history=?7, notes=?8, updated_at=CURRENT_TIMESTAMP WHERE id=?9",
         params![
             &patient.name,
             &patient.gender,
@@ -662,7 +784,8 @@ pub fn update_patient(patient: Patient, state: State<'_, DbState>) -> Result<(),
         ],
     )
     .map_err(|e| format!("更新患者失败: {e}"))?;
-    log_operation(&conn, "UPDATE", "patient", id, &format!("更新患者: {}", patient.name))?;
+    log_operation(&tx, "UPDATE", "patient", id, &format!("更新患者: {}", patient.name))?;
+    tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
 
@@ -670,7 +793,8 @@ pub fn update_patient(patient: Patient, state: State<'_, DbState>) -> Result<(),
 #[tauri::command]
 pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> {
     let conn = state.lock()?;
-    let name: Option<String> = conn
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let name: Option<String> = tx
         .query_row(
             "SELECT name FROM patients WHERE id=?1",
             params![id],
@@ -678,15 +802,16 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM patients WHERE id=?1", params![id])
+    tx.execute("DELETE FROM patients WHERE id=?1", params![id])
         .map_err(|e| format!("删除患者失败: {e}"))?;
     log_operation(
-        &conn,
+        &tx,
         "DELETE",
         "patient",
         id,
         &format!("删除患者: {}", name.unwrap_or_default()),
     )?;
+    tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
 
@@ -966,6 +1091,29 @@ pub fn batch_import_medicines(
     let mut updated: u32 = 0;
     let mut errors: Vec<String> = Vec::new();
 
+    // 批量预查：一次性获取所有已存在的同名药材 ID，消除 N+1 查询
+    let names: Vec<String> = records
+        .iter()
+        .map(|r| r.name.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .collect();
+    let mut existing_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    if !names.is_empty() {
+        let placeholders = names.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!("SELECT id, name FROM medicines WHERE name IN ({placeholders})");
+        let name_params: Vec<SqlValue> = names.iter().map(|n| SqlValue::Text(n.clone())).collect();
+        let mut stmt = tx.prepare(&sql).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params_from_iter(name_params.iter()), |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?;
+        for r in rows {
+            let (id, name) = r.map_err(|e| e.to_string())?;
+            existing_map.insert(name, id);
+        }
+    }
+
     for (idx, rec) in records.iter().enumerate() {
         let row_no = idx + 1;
         let name = rec.name.trim().to_string();
@@ -1002,15 +1150,8 @@ pub fn batch_import_medicines(
             rec.unit.trim().to_string()
         };
 
-        // 查询是否已存在同名药材
-        let existing_id: Option<i64> = tx
-            .query_row(
-                "SELECT id FROM medicines WHERE name = ?1",
-                params![&name],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|e| format!("查询药材失败: {e}"))?;
+        // 从预查 HashMap 中查找（消除 N+1 查询）
+        let existing_id: Option<i64> = existing_map.get(&name).copied();
 
         let result = if let Some(id) = existing_id {
             // UPSERT：更新药材
@@ -1054,6 +1195,8 @@ pub fn batch_import_medicines(
                     "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock) VALUES (?1,?2,?3,?4,?5)",
                     params![new_id, quantity, &unit, price, min_stock],
                 ).map_err(|e| format!("创建库存失败: {e}"))?;
+                // 更新 HashMap，使同批次内重复名称走 UPDATE 而非重复 INSERT
+                existing_map.insert(name.clone(), new_id);
                 Ok(())
             })
         };
@@ -1183,12 +1326,23 @@ pub fn download_import_template() -> Result<String, String> {
 }
 
 /// 把字符串内容写入下载目录并返回绝对路径（用于 CSV 模板/导出等）
+///
+/// 安全：filename 经过路径遍历校验，禁止包含 `/`、`\`、`..` 等危险字符
 #[tauri::command]
 pub fn save_text_to_downloads(
     filename: String,
     content: String,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
+    // 路径遍历防护：禁止目录分隔符与父目录引用
+    if filename.is_empty()
+        || filename.contains('/')
+        || filename.contains('\\')
+        || filename.contains("..")
+        || filename.contains('\0')
+    {
+        return Err("文件名非法：不能为空或包含路径分隔符".to_string());
+    }
     let dir = app_handle
         .path()
         .download_dir()
@@ -1198,6 +1352,76 @@ pub fn save_text_to_downloads(
     std::fs::write(&path, content.as_bytes())
         .map_err(|e| format!("写入文件失败: {e}"))?;
     Ok(path.to_string_lossy().to_string())
+}
+
+// ==================== 操作日志 ====================
+
+/// 操作日志查询（支持按操作类型、目标类型、日期范围筛选）
+#[tauri::command]
+pub fn list_operation_logs(
+    operation_type: Option<String>,
+    target_type: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    limit: Option<i64>,
+    state: State<'_, DbState>,
+) -> Result<Vec<OperationLog>, String> {
+    let conn = state.lock()?;
+    let limit = limit.unwrap_or(200).clamp(1, 2000);
+
+    let mut sql = String::from(
+        "SELECT id, operation_type, target_type, target_id, operator, details, created_at FROM operation_logs WHERE 1=1",
+    );
+    let mut pv: Vec<SqlValue> = Vec::new();
+    if let Some(ot) = &operation_type {
+        if !ot.is_empty() {
+            sql.push_str(" AND operation_type = ?");
+            pv.push(SqlValue::Text(ot.clone()));
+        }
+    }
+    if let Some(tt) = &target_type {
+        if !tt.is_empty() {
+            sql.push_str(" AND target_type = ?");
+            pv.push(SqlValue::Text(tt.clone()));
+        }
+    }
+    if let Some(sd) = &start_date {
+        if !sd.is_empty() {
+            sql.push_str(" AND date(created_at) >= date(?)");
+            pv.push(SqlValue::Text(sd.clone()));
+        }
+    }
+    if let Some(ed) = &end_date {
+        if !ed.is_empty() {
+            sql.push_str(" AND date(created_at) <= date(?)");
+            pv.push(SqlValue::Text(ed.clone()));
+        }
+    }
+    sql.push_str(" ORDER BY id DESC LIMIT ?");
+    pv.push(SqlValue::Integer(limit));
+
+    let list: Vec<OperationLog> = {
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params_from_iter(pv.iter()), |row| {
+                Ok(OperationLog {
+                    id: row.get(0)?,
+                    operation_type: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    target_type: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                    target_id: row.get(3)?,
+                    operator: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                    details: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                    created_at: row.get(6)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r.map_err(|e| e.to_string())?);
+        }
+        out
+    };
+    Ok(list)
 }
 
 // ==================== 打印处方 ====================
@@ -2028,6 +2252,239 @@ mod tests {
         let collected: Vec<i64> = rows.map(|r| r.unwrap()).collect();
         // 5 个处方各 1 条明细，共 5 条
         assert_eq!(collected.len(), 5);
+    }
+
+    // ---------- 库存变更历史查询测试 ----------
+    // 验证 list_inventory_history 的动态 SQL 筛选逻辑
+
+    /// 辅助：插入一条 inventory_history 记录
+    fn insert_history(
+        conn: &Connection,
+        medicine_id: i64,
+        name: &str,
+        htype: &str,
+        qty: f64,
+        price: f64,
+    ) {
+        conn.execute(
+            "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes) VALUES (?1,?2,?3,?4,?5,?6,'测试员','')",
+            params![medicine_id, name, htype, qty, price, qty * price],
+        )
+        .expect("插入库存历史失败");
+    }
+
+    #[test]
+    fn test_list_inventory_history_filter_by_medicine() {
+        // 按 medicine_id 筛选应只返回该药材的历史记录
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid1 = insert_test_medicine(&conn, "历史药材A");
+        let mid2 = insert_test_medicine(&conn, "历史药材B");
+        insert_history(&conn, mid1, "历史药材A", "入库", 100.0, 10.0);
+        insert_history(&conn, mid1, "历史药材A", "出库", 30.0, 10.0);
+        insert_history(&conn, mid2, "历史药材B", "入库", 50.0, 20.0);
+
+        // 模拟 list_inventory_history 的 medicine_id 筛选
+        let mut sql = String::from(
+            "SELECT id, medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, created_at FROM inventory_history WHERE 1=1",
+        );
+        let mut pv: Vec<SqlValue> = Vec::new();
+        sql.push_str(" AND medicine_id = ?");
+        pv.push(SqlValue::Integer(mid1));
+        sql.push_str(" ORDER BY id DESC");
+        let mut stmt = conn.prepare(&sql).unwrap();
+        let rows = stmt
+            .query_map(params_from_iter(pv.iter()), |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .unwrap();
+        let results: Vec<(i64, i64, String, String)> = rows.map(|r| r.unwrap()).collect();
+        assert_eq!(results.len(), 2, "药材A 应有 2 条历史");
+        assert!(results.iter().all(|r| r.1 == mid1));
+    }
+
+    #[test]
+    fn test_list_inventory_history_filter_by_type() {
+        // 按 type 筛选应只返回匹配类型的记录
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "类型筛选药材");
+        insert_history(&conn, mid, "类型筛选药材", "入库", 100.0, 10.0);
+        insert_history(&conn, mid, "类型筛选药材", "出库", 30.0, 10.0);
+        insert_history(&conn, mid, "类型筛选药材", "入库", 50.0, 10.0);
+
+        // 模拟 list_inventory_history 的 type 筛选
+        let sql = String::from(
+            "SELECT id, type FROM inventory_history WHERE 1=1 AND medicine_id = ? AND type = ? ORDER BY id DESC",
+        );
+        let pv: Vec<SqlValue> = vec![SqlValue::Integer(mid), SqlValue::Text("入库".to_string())];
+        let mut stmt = conn.prepare(&sql).unwrap();
+        let rows = stmt
+            .query_map(params_from_iter(pv.iter()), |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap();
+        let results: Vec<(i64, String)> = rows.map(|r| r.unwrap()).collect();
+        assert_eq!(results.len(), 2, "应有 2 条入库记录");
+        assert!(results.iter().all(|r| r.1 == "入库"));
+    }
+
+    // ---------- 操作日志查询测试 ----------
+    // 验证 list_operation_logs 的动态 SQL 筛选逻辑
+
+    /// 辅助：插入一条 operation_log 记录
+    fn insert_log(conn: &Connection, op_type: &str, target: &str, target_id: i64, details: &str) {
+        conn.execute(
+            "INSERT INTO operation_logs (operation_type, target_type, target_id, operator, details) VALUES (?1,?2,?3,'系统',?4)",
+            params![op_type, target, target_id, details],
+        )
+        .expect("插入操作日志失败");
+    }
+
+    #[test]
+    fn test_list_operation_logs_filter_by_type() {
+        // 按 operation_type 筛选应只返回匹配类型的日志
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        insert_log(&conn, "CREATE", "medicine", 1, "创建药材: 人参");
+        insert_log(&conn, "UPDATE", "medicine", 1, "更新药材: 人参");
+        insert_log(&conn, "DELETE", "medicine", 2, "删除药材: 甘草");
+        insert_log(&conn, "CREATE", "patient", 1, "创建患者: 张三");
+
+        // 模拟 list_operation_logs 的 operation_type 筛选
+        let sql = String::from(
+            "SELECT id, operation_type, target_type, target_id, details FROM operation_logs WHERE 1=1 AND operation_type = ? ORDER BY id DESC",
+        );
+        let pv: Vec<SqlValue> = vec![SqlValue::Text("CREATE".to_string())];
+        let mut stmt = conn.prepare(&sql).unwrap();
+        let rows = stmt
+            .query_map(params_from_iter(pv.iter()), |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })
+            .unwrap();
+        let results: Vec<(i64, String, String, i64, String)> = rows.map(|r| r.unwrap()).collect();
+        assert_eq!(results.len(), 2, "应有 2 条 CREATE 日志");
+        assert!(results.iter().all(|r| r.1 == "CREATE"));
+    }
+
+    #[test]
+    fn test_list_operation_logs_filter_by_target_type() {
+        // 按 target_type 筛选应只返回匹配目标的日志
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        insert_log(&conn, "CREATE", "medicine", 1, "创建药材");
+        insert_log(&conn, "CREATE", "patient", 1, "创建患者");
+        insert_log(&conn, "UPDATE", "patient", 1, "更新患者");
+
+        let sql = "SELECT id, target_type FROM operation_logs WHERE target_type = ? ORDER BY id";
+        let mut stmt = conn.prepare(sql).unwrap();
+        let rows = stmt
+            .query_map(["patient"], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap();
+        let results: Vec<(i64, String)> = rows.map(|r| r.unwrap()).collect();
+        assert_eq!(results.len(), 2, "应有 2 条 patient 日志");
+        assert!(results.iter().all(|r| r.1 == "patient"));
+    }
+
+    // ---------- batch_import N+1 优化验证测试 ----------
+    // 验证批量预查 IN + HashMap 模式正确识别已存在药材
+
+    #[test]
+    fn test_batch_import_pre_query_hashmap_pattern() {
+        // 模拟 batch_import 的批量预查逻辑：IN 查询 + HashMap 查找
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        // 预置 2 味已存在药材
+        let id1 = insert_test_medicine(&conn, "已存在药材A");
+        let id2 = insert_test_medicine(&conn, "已存在药材B");
+
+        // 模拟导入记录：3 条（2 条已存在 + 1 条新建）
+        let names: Vec<String> = vec![
+            "已存在药材A".to_string(),
+            "已存在药材B".to_string(),
+            "新药材C".to_string(),
+        ];
+
+        // 批量预查：IN + HashMap（与 batch_import_medicines 逻辑一致）
+        let placeholders = names.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!("SELECT id, name FROM medicines WHERE name IN ({placeholders})");
+        let name_params: Vec<SqlValue> = names.iter().map(|n| SqlValue::Text(n.clone())).collect();
+        let mut existing_map: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
+        {
+            let mut stmt = conn.prepare(&sql).unwrap();
+            let rows = stmt
+                .query_map(params_from_iter(name_params.iter()), |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })
+                .unwrap();
+            for r in rows {
+                let (id, name) = r.unwrap();
+                existing_map.insert(name, id);
+            }
+        }
+
+        // 验证：已存在的 2 味应被识别，新药材不在 HashMap 中
+        assert_eq!(existing_map.get("已存在药材A"), Some(&id1));
+        assert_eq!(existing_map.get("已存在药材B"), Some(&id2));
+        assert!(existing_map.get("新药材C").is_none());
+
+        // 模拟新建后更新 HashMap（处理同批次重复名称）
+        let new_id = id2 + 1; // 模拟 last_insert_rowid
+        existing_map.insert("新药材C".to_string(), new_id);
+        assert_eq!(existing_map.get("新药材C"), Some(&new_id));
+    }
+
+    #[test]
+    fn test_batch_import_duplicate_name_in_same_batch_uses_update() {
+        // 同批次内重复名称：第一条 INSERT 后更新 HashMap，第二条应走 UPDATE
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+
+        // 模拟两条同名记录导入
+        let names = vec!["重复药材".to_string(), "重复药材".to_string()];
+        let placeholders = names.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!("SELECT id, name FROM medicines WHERE name IN ({placeholders})");
+        let name_params: Vec<SqlValue> = names.iter().map(|n| SqlValue::Text(n.clone())).collect();
+        let mut existing_map: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
+        {
+            let mut stmt = conn.prepare(&sql).unwrap();
+            let rows = stmt
+                .query_map(params_from_iter(name_params.iter()), |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })
+                .unwrap();
+            for r in rows {
+                let (id, name) = r.unwrap();
+                existing_map.insert(name, id);
+            }
+        }
+
+        // 第一条：existing_map 为空 → 模拟 INSERT + 更新 HashMap
+        assert!(existing_map.get("重复药材").is_none(), "首条应判定为新建");
+        let new_id = insert_test_medicine(&conn, "重复药材");
+        existing_map.insert("重复药材".to_string(), new_id);
+
+        // 第二条：existing_map 已有 → 应走 UPDATE 路径
+        assert_eq!(
+            existing_map.get("重复药材"),
+            Some(&new_id),
+            "第二条应判定为更新"
+        );
     }
 
     // 避免未使用警告

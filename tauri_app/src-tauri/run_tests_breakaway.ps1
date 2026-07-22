@@ -83,7 +83,7 @@ public const uint OPEN_EXISTING = 3;
 public const uint FILE_ATTRIBUTE_NORMAL = 0x80;
 '@
 
-$exe = "D:\learn\trae\tauri_app\src-tauri\target\debug\deps\medicine_system_lib-87d48804e249cebd.exe"
+$exe = "D:\learn\trae\tauri_app\src-tauri\target\debug\deps\medicine_system_lib-5add84c37ef0f634.exe"
 $outFile = "D:\learn\trae\tauri_app\src-tauri\test_output.log"
 $errFile = "D:\learn\trae\tauri_app\src-tauri\test_error.log"
 

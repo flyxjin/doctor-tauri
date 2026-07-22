@@ -40,6 +40,7 @@ pub fn run() {
             // 库存管理
             commands::list_inventory,
             commands::update_stock,
+            commands::list_inventory_history,
             // 处方管理
             commands::list_prescriptions,
             commands::create_prescription,
@@ -62,6 +63,8 @@ pub fn run() {
             commands::export_medicines_csv,
             commands::download_import_template,
             commands::save_text_to_downloads,
+            // 操作日志
+            commands::list_operation_logs,
             // 打印处方
             commands::generate_prescription_html,
             // 数据备份与恢复

@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Col,
+  Drawer,
   Form,
   Input,
   InputNumber,
@@ -16,16 +17,20 @@ import {
   Statistic,
   Table,
   Tag,
+  Typography,
 } from 'antd';
 import {
   AlertOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
+  HistoryOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { listInventory, updateStock } from '@/api/tauri';
-import type { Inventory } from '@/types';
+import { listInventory, listInventoryHistory, updateStock } from '@/api/tauri';
+import type { Inventory, InventoryHistory } from '@/types';
+
+const { Text } = Typography;
 
 interface StockForm {
   change: number;
@@ -44,10 +49,18 @@ export default function InventoryPage() {
   const [target, setTarget] = useState<Inventory | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [keyword, setKeyword] = useState('');
+  const [historyTarget, setHistoryTarget] = useState<Inventory | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory'],
     queryFn: listInventory,
+  });
+
+  // 库存变更历史（仅当选择某药材时查询）
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['inventory-history', historyTarget?.medicine_id],
+    queryFn: () => listInventoryHistory(historyTarget!.medicine_id, undefined, undefined, undefined, 100),
+    enabled: !!historyTarget,
   });
 
   // 统计：总品种数、低库存数、零库存数、总价值
@@ -159,7 +172,7 @@ export default function InventoryPage() {
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 220,
       fixed: 'right',
       render: (_v, record) => (
         <Space size="small">
@@ -169,8 +182,60 @@ export default function InventoryPage() {
           <Button type="link" size="small" danger onClick={() => openModal(record, false)}>
             出库
           </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<HistoryOutlined />}
+            onClick={() => setHistoryTarget(record)}
+          >
+            历史
+          </Button>
         </Space>
       ),
+    },
+  ];
+
+  // 库存变更历史表格列定义
+  const historyColumns: ColumnsType<InventoryHistory> = [
+    {
+      title: '类型',
+      dataIndex: 'type',
+      key: 'type',
+      width: 90,
+      render: (t: string) => {
+        const colorMap: Record<string, string> = {
+          '入库': 'green',
+          '出库': 'orange',
+          '退库': 'blue',
+        };
+        return <Tag color={colorMap[t] ?? 'default'}>{t}</Tag>;
+      },
+    },
+    { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 90, align: 'right' },
+    {
+      title: '单价',
+      dataIndex: 'price',
+      key: 'price',
+      width: 90,
+      align: 'right',
+      render: (p: number | null) => (p != null ? `¥${p.toFixed(2)}` : '-'),
+    },
+    {
+      title: '金额',
+      dataIndex: 'total_amount',
+      key: 'total_amount',
+      width: 100,
+      align: 'right',
+      render: (a: number | null) => (a != null ? `¥${a.toFixed(2)}` : '-'),
+    },
+    { title: '操作人', dataIndex: 'operator', key: 'operator', width: 90, ellipsis: true },
+    { title: '备注', dataIndex: 'notes', key: 'notes', ellipsis: true },
+    {
+      title: '时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 170,
+      render: (t: string) => t ?? '-',
     },
   ];
 
@@ -293,6 +358,42 @@ export default function InventoryPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 库存变更历史抽屉 */}
+      <Drawer
+        title={`${historyTarget?.medicine_name ?? ''} - 库存变更历史`}
+        open={!!historyTarget}
+        onClose={() => setHistoryTarget(null)}
+        width={720}
+      >
+        {historyTarget && (
+          <>
+            <Space size="large" style={{ marginBottom: 16 }}>
+              <Text type="secondary">
+                当前库存：
+                <Text strong style={{ fontSize: 16 }}>
+                  {historyTarget.quantity} {historyTarget.unit}
+                </Text>
+              </Text>
+              <Text type="secondary">
+                单价：
+                <Text strong>¥{historyTarget.price.toFixed(2)}</Text>
+              </Text>
+            </Space>
+            <Table<InventoryHistory>
+              rowKey="id"
+              loading={historyLoading}
+              columns={historyColumns}
+              dataSource={historyData}
+              size="small"
+              pagination={{ pageSize: 10, showSizeChanger: true }}
+              locale={{
+                emptyText: '暂无变更记录',
+              }}
+            />
+          </>
+        )}
+      </Drawer>
     </div>
   );
 }

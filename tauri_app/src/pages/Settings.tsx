@@ -8,6 +8,7 @@ import {
   Descriptions,
   Popconfirm,
   Progress,
+  Select,
   Space,
   Table,
   Tag,
@@ -19,6 +20,7 @@ import {
   CloudDownloadOutlined,
   DatabaseOutlined,
   DownloadOutlined,
+  FileSearchOutlined,
   ReloadOutlined,
   RollbackOutlined,
   SaveOutlined,
@@ -29,16 +31,17 @@ import {
   downloadUpdate,
   installUpdate,
   listBackups,
+  listOperationLogs,
   restoreBackup,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
 import { compareVersions, formatFileSize } from '@/utils/format';
-import type { BackupEntry, DownloadProgress, UpdateInfo } from '@/types';
+import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/types';
 
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.2.0';
+const CURRENT_VERSION = '0.3.0';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -49,10 +52,16 @@ export default function SettingsPage() {
   const [downloadedPath, setDownloadedPath] = useState<string>('');
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [logType, setLogType] = useState<string | undefined>(undefined);
 
   const { data: backups, isLoading: backupsLoading } = useQuery({
     queryKey: ['backups'],
     queryFn: listBackups,
+  });
+
+  const { data: operationLogs, isLoading: logsLoading } = useQuery({
+    queryKey: ['operation-logs', logType],
+    queryFn: () => listOperationLogs(logType, undefined, undefined, undefined, 100),
   });
 
   const checkUpdateMutation = useMutation({
@@ -245,6 +254,60 @@ export default function SettingsPage() {
     updateInfo.version &&
     compareVersions(updateInfo.version, CURRENT_VERSION) > 0;
 
+  // 操作日志表格列
+  const logColumns: ColumnsType<OperationLog> = [
+    {
+      title: '类型',
+      dataIndex: 'operation_type',
+      key: 'operation_type',
+      width: 90,
+      render: (t: string) => {
+        const colorMap: Record<string, string> = {
+          CREATE: 'green',
+          UPDATE: 'blue',
+          DELETE: 'red',
+          STOCK: 'orange',
+          IMPORT: 'purple',
+        };
+        return <Tag color={colorMap[t] ?? 'default'}>{t}</Tag>;
+      },
+    },
+    {
+      title: '目标',
+      dataIndex: 'target_type',
+      key: 'target_type',
+      width: 100,
+    },
+    {
+      title: '目标ID',
+      dataIndex: 'target_id',
+      key: 'target_id',
+      width: 80,
+      render: (v: number) => (v > 0 ? v : '-'),
+    },
+    {
+      title: '详情',
+      dataIndex: 'details',
+      key: 'details',
+      ellipsis: true,
+    },
+    {
+      title: '时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 170,
+    },
+  ];
+
+  const LOG_TYPE_OPTIONS = [
+    { label: '全部', value: '' },
+    { label: '创建', value: 'CREATE' },
+    { label: '更新', value: 'UPDATE' },
+    { label: '删除', value: 'DELETE' },
+    { label: '库存', value: 'STOCK' },
+    { label: '导入', value: 'IMPORT' },
+  ];
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -387,6 +450,40 @@ export default function SettingsPage() {
           备份文件保存在应用数据目录下的 <Text code>backups/</Text> 子目录中。
           还原将用备份覆盖当前数据库，建议操作前先创建新备份。
         </Paragraph>
+      </Card>
+
+      {/* 操作日志 */}
+      <Card
+        title={
+          <Space>
+            <FileSearchOutlined />
+            <span>操作日志（最近 100 条）</span>
+          </Space>
+        }
+        extra={
+          <Select
+            placeholder="筛选操作类型"
+            allowClear
+            style={{ width: 140 }}
+            options={LOG_TYPE_OPTIONS}
+            value={logType}
+            onChange={(v) => setLogType(v || undefined)}
+          />
+        }
+        style={{ marginTop: 16 }}
+      >
+        <Table<OperationLog>
+          rowKey="id"
+          size="small"
+          loading={logsLoading}
+          columns={logColumns}
+          dataSource={operationLogs}
+          scroll={{ x: 700 }}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
+          locale={{
+            emptyText: <EmptyState title="暂无操作日志" description="系统操作后将自动记录日志" />,
+          }}
+        />
       </Card>
     </div>
   );
