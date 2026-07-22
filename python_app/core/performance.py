@@ -2,13 +2,13 @@
 """
 性能监控模块 - 测量和分析系统性能
 """
-import time
 import statistics
-from typing import Dict, List, Any, Optional, Callable
-from functools import wraps
-from dataclasses import dataclass, field
-from collections import defaultdict, deque
 import threading
+import time
+from collections import deque
+from dataclasses import dataclass, field
+from functools import wraps
+from typing import Any, Callable, Dict, Optional
 
 
 @dataclass
@@ -28,24 +28,24 @@ class PerformanceMetrics:
         if duration > self.max_time:
             self.max_time = duration
         self.times.append(duration)
-    
+
     def get_average(self) -> float:
         if self.call_count == 0:
             return 0.0
         return self.total_time / self.call_count
-    
+
     def get_median(self) -> float:
         if not self.times:
             return 0.0
         return statistics.median(self.times)
-    
+
     def get_percentile(self, percentile: float = 95) -> float:
         if not self.times:
             return 0.0
         sorted_times = sorted(self.times)
         idx = int(len(sorted_times) * percentile / 100)
         return sorted_times[min(idx, len(sorted_times) - 1)]
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'name': self.name,
@@ -63,54 +63,55 @@ class PerformanceMetrics:
 class PerformanceMonitor:
     _instance: Optional['PerformanceMonitor'] = None
     _lock = threading.Lock()
-    
+
     def __new__(cls) -> 'PerformanceMonitor':
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def __init__(self):
         if hasattr(self, '_initialized'):
             return
         self._metrics: Dict[str, PerformanceMetrics] = {}
-        self._lock = threading.RLock()
+        self._metrics_lock = threading.RLock()
         self._initialized = True
-    
+
     def record(self, name: str, duration: float) -> None:
-        with self._lock:
+        with self._metrics_lock:
             if name not in self._metrics:
                 self._metrics[name] = PerformanceMetrics(name=name)
             self._metrics[name].record(duration)
-    
+
     def get_metrics(self, name: str) -> Optional[PerformanceMetrics]:
-        with self._lock:
+        with self._metrics_lock:
             return self._metrics.get(name)
-    
+
     def get_all_metrics(self) -> Dict[str, PerformanceMetrics]:
-        with self._lock:
+        with self._metrics_lock:
             return dict(self._metrics)
-    
+
     def reset(self, name: Optional[str] = None) -> None:
-        with self._lock:
+        with self._metrics_lock:
             if name:
                 if name in self._metrics:
                     del self._metrics[name]
             else:
                 self._metrics.clear()
-    
+
     def get_report(self) -> Dict[str, Any]:
-        with self._lock:
-            report = {
+        with self._metrics_lock:
+            functions = [m.to_dict() for m in self._metrics.values()]
+            functions.sort(key=lambda x: x['total_time'], reverse=True)
+            report: Dict[str, Any] = {
                 'total_functions': len(self._metrics),
                 'total_calls': sum(m.call_count for m in self._metrics.values()),
                 'total_time': sum(m.total_time for m in self._metrics.values()),
-                'functions': [m.to_dict() for m in self._metrics.values()]
+                'functions': functions
             }
-            report['functions'].sort(key=lambda x: x['total_time'], reverse=True)
             return report
-    
+
     def print_report(self) -> None:
         report = self.get_report()
         print("\n" + "=" * 80)
@@ -129,7 +130,7 @@ class PerformanceMonitor:
 def measure(func: Optional[Callable] = None, name: Optional[str] = None):
     def decorator(f: Callable) -> Callable:
         metric_name = name or f"{f.__module__}.{f.__name__}"
-        
+
         @wraps(f)
         def wrapper(*args, **kwargs):
             start = time.perf_counter()
@@ -139,9 +140,9 @@ def measure(func: Optional[Callable] = None, name: Optional[str] = None):
                 duration = time.perf_counter() - start
                 monitor = PerformanceMonitor()
                 monitor.record(metric_name, duration)
-        
+
         return wrapper
-    
+
     if func is not None:
         if callable(func):
             return decorator(func)
@@ -154,7 +155,7 @@ def measure(func: Optional[Callable] = None, name: Optional[str] = None):
 def measure_async(func: Optional[Callable] = None, name: Optional[str] = None):
     def decorator(f: Callable) -> Callable:
         metric_name = name or f"{f.__module__}.{f.__name__}"
-        
+
         @wraps(f)
         async def wrapper(*args, **kwargs):
             start = time.perf_counter()
@@ -164,9 +165,9 @@ def measure_async(func: Optional[Callable] = None, name: Optional[str] = None):
                 duration = time.perf_counter() - start
                 monitor = PerformanceMonitor()
                 monitor.record(metric_name, duration)
-        
+
         return wrapper
-    
+
     if func is not None:
         if callable(func):
             return decorator(func)
@@ -181,19 +182,19 @@ class Timer:
         self.name = name
         self.start_time: Optional[float] = None
         self.monitor = PerformanceMonitor()
-    
+
     def __enter__(self) -> 'Timer':
         self.start_time = time.perf_counter()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.start_time is not None:
             duration = time.perf_counter() - self.start_time
             self.monitor.record(self.name, duration)
-    
+
     def start(self) -> None:
         self.start_time = time.perf_counter()
-    
+
     def stop(self) -> float:
         if self.start_time is None:
             return 0.0

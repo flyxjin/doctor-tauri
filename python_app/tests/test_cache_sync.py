@@ -2,10 +2,9 @@
 """
 缓存同步测试 - 验证 P0-2: Service 层操作后缓存自动同步
 """
-import pytest
+from core.cache import get_medicine_cache
 from core.models import Medicine
 from core.services import MedicineService
-from core.cache import get_medicine_cache, invalidate_medicine_cache
 
 
 def _make_medicine(name):

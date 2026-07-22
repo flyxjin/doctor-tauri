@@ -2,7 +2,7 @@
 """
 配伍禁忌检查测试 - 验证十八反、十九畏预警
 """
-from core.compatibility import check_pair, check_compatibility, check_against_existing
+from core.compatibility import check_against_existing, check_compatibility, check_pair
 
 
 class TestEighteenIncompatibilities:

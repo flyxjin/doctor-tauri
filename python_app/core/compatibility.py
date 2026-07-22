@@ -4,12 +4,19 @@
 
 基于中医传统配伍禁忌理论，检查处方中是否存在冲突的药材组合。
 匹配采用"包含"策略，以兼容炮制前后缀（如"生甘草"、"炙甘草"均匹配"甘草"）。
+
+规则外置到 data/compatibility_rules.json，可在不修改代码的前提下动态调整。
+若 JSON 文件加载失败，回退到内置硬编码规则，保证系统可用性。
 """
-from typing import List, Dict, Tuple
+import json
+import logging
+import os
+from typing import Dict, List, Tuple
 
+logger = logging.getLogger('MedicineSystem')
 
-# 十八反、十九畏禁忌配对（双向禁忌）
-INCOMPATIBLE_PAIRS: List[Tuple[str, str]] = [
+# 内置硬编码规则（fallback，与 compatibility_rules.json 保持一致）
+_FALLBACK_PAIRS: List[Tuple[str, str]] = [
     # 十八反 - 甘草反甘遂、大戟、海藻、芫花
     ('甘草', '甘遂'), ('甘草', '大戟'), ('甘草', '海藻'), ('甘草', '芫花'),
     # 十八反 - 乌头（川乌、草乌、附子）反贝母、瓜蒌、半夏、白蔹、白及
@@ -32,6 +39,48 @@ INCOMPATIBLE_PAIRS: List[Tuple[str, str]] = [
     ('官桂', '石脂'),
     ('人参', '五灵脂'),
 ]
+
+
+def _get_rules_file_path() -> str:
+    """获取配伍规则 JSON 文件的绝对路径"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(current_dir, 'data', 'compatibility_rules.json')
+
+
+def _load_incompatible_pairs() -> List[Tuple[str, str]]:
+    """从 JSON 文件加载禁忌配对；加载失败时回退到内置硬编码规则"""
+    rules_path = _get_rules_file_path()
+    try:
+        with open(rules_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        pairs = [
+            (item['a'], item['b'])
+            for item in data.get('pairs', [])
+            if 'a' in item and 'b' in item
+        ]
+        if not pairs:
+            logger.warning(f"配伍规则文件 {rules_path} 中无有效配对，使用内置规则")
+            return _FALLBACK_PAIRS
+        return pairs
+    except FileNotFoundError:
+        logger.warning(f"配伍规则文件不存在: {rules_path}，使用内置规则")
+        return _FALLBACK_PAIRS
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"配伍规则文件解析失败: {e}，使用内置规则")
+        return _FALLBACK_PAIRS
+    except Exception as e:
+        logger.error(f"加载配伍规则异常: {e}，使用内置规则")
+        return _FALLBACK_PAIRS
+
+
+# 模块加载时初始化（仅一次）
+INCOMPATIBLE_PAIRS: List[Tuple[str, str]] = _load_incompatible_pairs()
+
+
+def reload_rules() -> None:
+    """重新加载配伍规则（运行时修改 JSON 后调用，便于热更新）"""
+    global INCOMPATIBLE_PAIRS
+    INCOMPATIBLE_PAIRS = _load_incompatible_pairs()
 
 
 def _normalize(name: str) -> str:

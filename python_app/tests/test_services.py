@@ -3,8 +3,9 @@
 Service 层单元测试
 """
 import pytest
+
 from core.models import Medicine
-from core.services import MedicineService, InventoryService, ServiceError
+from core.services import InventoryService, MedicineService, ServiceError
 
 
 def _make_medicine(name='测试药材', **kwargs):

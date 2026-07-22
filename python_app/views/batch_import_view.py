@@ -1,11 +1,23 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                             QFileDialog, QProgressBar, QTextEdit, QGroupBox, QMessageBox,
-                             QTableWidget, QTableWidgetItem, QHeaderView)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
 import csv
-import os
 import logging
+
+from PySide6.QtCore import QThread, Signal
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from core.theme import AppColors, get_button_style
 
 logger = logging.getLogger('MedicineSystem')
@@ -25,19 +37,9 @@ def _get_value(data, key, default=''):
     return default
 
 
-def _get_id_from_result(result):
-    if result is None:
-        return None
-    if isinstance(result, dict):
-        return result.get('id')
-    elif len(result) > 0:
-        return result[0]
-    return None
-
-
 class ImportWorker(QThread):
-    progress = pyqtSignal(int, str)
-    finished = pyqtSignal(int, int, int, list)
+    progress = Signal(int, str)
+    finished = Signal(int, int, int, list)
 
     def __init__(self, db_path, data_list):
         super().__init__()
@@ -50,7 +52,9 @@ class ImportWorker(QThread):
 
     def run(self):
         from core.database import Database
+        from core.repositories import MedicineRepository
         db = Database.create_worker_connection(self.db_path)
+        repo = MedicineRepository(db)
 
         added = 0
         updated = 0
@@ -70,85 +74,46 @@ class ImportWorker(QThread):
                         errors.append(f"第{i+1}行: 药材名称不能为空")
                         continue
 
-                    existing = db.fetchone(
-                        "SELECT id FROM medicines WHERE name = ?", (name,)
-                    )
+                    # 统一构造入库字段（默认值与原内联 SQL 保持一致）
+                    item = {
+                        'name': name,
+                        'alias': _get_value(data, 'alias', ''),
+                        'category': _get_value(data, 'category', ''),
+                        'nature': _get_value(data, 'nature', ''),
+                        'taste': _get_value(data, 'taste', ''),
+                        'meridian': _get_value(data, 'meridian', ''),
+                        'efficacy': _get_value(data, 'efficacy', ''),
+                        'indications': _get_value(data, 'indications', ''),
+                        'usage': _get_value(data, 'usage', ''),
+                        'dosage': _get_value(data, 'dosage', ''),
+                        'contraindication': _get_value(data, 'contraindication', ''),
+                        'notes': _get_value(data, 'notes', ''),
+                    }
 
-                    if existing:
-                        existing_id = _get_id_from_result(existing)
-                        db.execute('''
-                            UPDATE medicines
-                            SET alias=?, category=?, nature=?, taste=?, meridian=?,
-                                efficacy=?, indications=?, usage=?, dosage=?,
-                                contraindication=?, notes=?
-                            WHERE id=?
-                        ''', (
-                            _get_value(data, 'alias', ''),
-                            _get_value(data, 'category', ''),
-                            _get_value(data, 'nature', ''),
-                            _get_value(data, 'taste', ''),
-                            _get_value(data, 'meridian', ''),
-                            _get_value(data, 'efficacy', ''),
-                            _get_value(data, 'indications', ''),
-                            _get_value(data, 'usage', ''),
-                            _get_value(data, 'dosage', ''),
-                            _get_value(data, 'contraindication', ''),
-                            _get_value(data, 'notes', ''),
-                            existing_id
-                        ))
+                    # 数值字段显式转换，避免字符串写入 REAL 列
+                    try:
+                        item['quantity'] = float(_get_value(data, 'quantity', 0) or 0)
+                        item['price'] = float(_get_value(data, 'price', 0) or 0)
+                        item['min_stock'] = float(_get_value(data, 'min_stock', 10) or 10)
+                    except (ValueError, TypeError) as ve:
+                        errors.append(f"第{i+1}行: 数值字段转换失败 - {ve}")
+                        continue
+                    item['unit'] = _get_value(data, 'unit', 'g')
 
-                        if _get_value(data, 'quantity') is not None:
-                            db.execute('''
-                                UPDATE inventory
-                                SET quantity=?, unit=?, price=?, min_stock=?, notes=?
-                                WHERE medicine_id=?
-                            ''', (
-                                _get_value(data, 'quantity', 0),
-                                _get_value(data, 'unit', 'g'),
-                                _get_value(data, 'price', 0),
-                                _get_value(data, 'min_stock', 10),
-                                _get_value(data, 'notes', ''),
-                                existing_id
-                            ))
+                    # 调用 Validator 校验
+                    from core.validators import MedicineValidator
+                    is_valid, val_errors = MedicineValidator.validate(item)
+                    if not is_valid:
+                        errors.append(f"第{i+1}行: {'; '.join(val_errors)}")
+                        continue
+
+                    existing_id = repo.find_id_by_name(name)
+
+                    if existing_id:
+                        repo.update_with_inventory(existing_id, item)
                         updated += 1
                     else:
-                        db.execute('''
-                            INSERT INTO medicines
-                            (name, alias, category, nature, taste, meridian,
-                             efficacy, indications, usage, dosage, contraindication, notes)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            name,
-                            _get_value(data, 'alias', ''),
-                            _get_value(data, 'category', ''),
-                            _get_value(data, 'nature', ''),
-                            _get_value(data, 'taste', ''),
-                            _get_value(data, 'meridian', ''),
-                            _get_value(data, 'efficacy', ''),
-                            _get_value(data, 'indications', ''),
-                            _get_value(data, 'usage', ''),
-                            _get_value(data, 'dosage', ''),
-                            _get_value(data, 'contraindication', ''),
-                            _get_value(data, 'notes', '')
-                        ))
-
-                        new_record = db.fetchone(
-                            "SELECT id FROM medicines WHERE name = ?", (name,)
-                        )
-                        med_id = _get_id_from_result(new_record)
-
-                        db.execute('''
-                            INSERT INTO inventory
-                            (medicine_id, quantity, unit, price, min_stock, notes)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        ''', (
-                            med_id,
-                            _get_value(data, 'quantity', 0),
-                            _get_value(data, 'unit', 'g'),
-                            _get_value(data, 'price', 0),
-                            _get_value(data, 'min_stock', 10),
-                            _get_value(data, 'notes', '')
-                        ))
+                        repo.insert_with_inventory(item)
                         added += 1
 
                 except Exception as e:
@@ -165,7 +130,11 @@ class ImportWorker(QThread):
             errors.append(f"导入异常: {str(e)}")
             logger.error(f"批量导入异常: {e}")
         finally:
-            db.close()
+            # worker 线程使用独立连接（非单例），通过 close() 安全关闭（已自动判断非单例）
+            try:
+                db.close()
+            except Exception as e:
+                logger.warning(f"关闭 worker 连接失败: {e}")
 
         self.finished.emit(added, updated, len(errors), errors)
 
@@ -177,18 +146,18 @@ class BatchImportView(QWidget):
         self.worker = None
         self.preview_data = []
         self.init_ui()
-        
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
-        
+
         title = QLabel('批量导入药材数据')
         title.setStyleSheet(f'font-size: 20px; font-weight: bold; color: {AppColors.PRIMARY};')
         layout.addWidget(title)
-        
+
         file_group = QGroupBox('选择文件')
         file_layout = QHBoxLayout(file_group)
-        
+
         self.file_label = QLabel('未选择文件')
         self.file_label.setStyleSheet(f'color: {AppColors.INFO};')
 
@@ -199,33 +168,33 @@ class BatchImportView(QWidget):
         self.template_btn = QPushButton('下载模板')
         self.template_btn.setStyleSheet(get_button_style(AppColors.SUCCESS, padding='8px 20px'))
         self.template_btn.clicked.connect(self.download_template)
-        
+
         file_layout.addWidget(self.file_label, 1)
         file_layout.addWidget(self.select_btn)
         file_layout.addWidget(self.template_btn)
         layout.addWidget(file_group)
-        
+
         self.preview_group = QGroupBox('数据预览')
         preview_layout = QVBoxLayout(self.preview_group)
-        
+
         self.preview_table = QTableWidget()
         self.preview_table.setMaximumHeight(200)
         self.preview_table.setAlternatingRowColors(True)
         preview_layout.addWidget(self.preview_table)
-        
+
         self.preview_info = QLabel()
         self.preview_info.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY};')
         preview_layout.addWidget(self.preview_info)
-        
+
         self.preview_group.setVisible(False)
         layout.addWidget(self.preview_group)
-        
+
         import_group = QGroupBox('导入操作')
         import_layout = QVBoxLayout(import_group)
-        
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
-        
+
         self.status_label = QLabel('请选择要导入的文件')
         self.status_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY};')
 
@@ -239,27 +208,27 @@ class BatchImportView(QWidget):
         self.cancel_btn.setStyleSheet(get_button_style(AppColors.INFO, padding='10px 30px'))
         self.cancel_btn.clicked.connect(self.cancel_import)
         self.cancel_btn.setVisible(False)
-        
+
         btn_layout.addStretch()
         btn_layout.addWidget(self.import_btn)
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addStretch()
-        
+
         import_layout.addWidget(self.progress_bar)
         import_layout.addWidget(self.status_label)
         import_layout.addLayout(btn_layout)
         layout.addWidget(import_group)
-        
+
         log_group = QGroupBox('导入日志')
         log_layout = QVBoxLayout(log_group)
-        
+
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setMaximumHeight(150)
         log_layout.addWidget(self.log_text)
-        
+
         layout.addWidget(log_group)
-        
+
         help_group = QGroupBox('导入说明')
         help_layout = QVBoxLayout(help_group)
         help_text = QLabel('''
@@ -278,22 +247,22 @@ class BatchImportView(QWidget):
         help_text.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY};')
         help_layout.addWidget(help_text)
         layout.addWidget(help_group)
-        
+
         layout.addStretch()
-        
+
     def select_file(self):
         file_filter = '数据文件 (*.csv *.xlsx);;CSV文件 (*.csv);;Excel文件 (*.xlsx)'
         if not HAS_OPENPYXL:
             file_filter = 'CSV文件 (*.csv)'
-            
+
         filename, _ = QFileDialog.getOpenFileName(self, '选择导入文件', '', file_filter)
-        
+
         if not filename:
             return
-            
+
         self.file_label.setText(filename)
         self.file_label.setStyleSheet(f'color: {AppColors.TEXT_PRIMARY};')
-        
+
         try:
             if filename.endswith('.csv'):
                 self.preview_data = self.parse_csv(filename)
@@ -302,50 +271,50 @@ class BatchImportView(QWidget):
             else:
                 QMessageBox.warning(self, '错误', '不支持的文件格式')
                 return
-                
+
             self.show_preview()
             self.import_btn.setEnabled(True)
-            
+
         except Exception as e:
             logger.error(f"文件解析失败: {e}")
             QMessageBox.warning(self, '错误', f'文件解析失败: {str(e)}')
-            
+
     def parse_csv(self, filename):
         data = []
         encodings = ['utf-8', 'utf-8-sig', 'gbk', 'gb2312']
-        
+
         for encoding in encodings:
             try:
                 with open(filename, 'r', encoding=encoding) as f:
                     reader = csv.DictReader(f)
                     headers = reader.fieldnames
-                    
+
                     if not headers or 'name' not in [h.lower() for h in headers]:
                         raise ValueError('CSV文件必须包含name列')
-                        
+
                     for row in reader:
                         normalized = {}
                         for key, value in row.items():
                             normalized[key.lower()] = value.strip() if value else ''
                         data.append(normalized)
-                        
+
                 break
             except UnicodeDecodeError:
                 continue
-                
+
         return data
-        
+
     def parse_excel(self, filename):
         data = []
         wb = openpyxl.load_workbook(filename)
         ws = wb.active
-        
+
         headers = [cell.value for cell in ws[1] if cell.value]
         headers_lower = [h.lower() for h in headers]
-        
+
         if 'name' not in headers_lower:
             raise ValueError('Excel文件必须包含name列')
-            
+
         for row in ws.iter_rows(min_row=2, values_only=True):
             if not row[0]:
                 continue
@@ -354,61 +323,61 @@ class BatchImportView(QWidget):
                 if i < len(row):
                     item[header] = str(row[i]) if row[i] else ''
             data.append(item)
-            
+
         return data
-        
+
     def show_preview(self):
         if not self.preview_data:
             return
-            
+
         self.preview_group.setVisible(True)
-        
+
         self.preview_table.clear()
         self.preview_table.setRowCount(min(5, len(self.preview_data)))
-        
+
         if self.preview_data:
             headers = list(self.preview_data[0].keys())
             self.preview_table.setColumnCount(len(headers))
             self.preview_table.setHorizontalHeaderLabels(headers)
-            
+
             for row_idx, row_data in enumerate(self.preview_data[:5]):
                 for col_idx, header in enumerate(headers):
                     value = row_data.get(header, '')
                     item = QTableWidgetItem(str(value)[:30] if value else '')
                     self.preview_table.setItem(row_idx, col_idx, item)
-                    
+
             self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-            
+
         self.preview_info.setText(f'共 {len(self.preview_data)} 条数据待导入')
-        
+
     def download_template(self):
         filename, _ = QFileDialog.getSaveFileName(
             self, '保存模板文件', '药材导入模板.csv', 'CSV文件 (*.csv)'
         )
-        
+
         if not filename:
             return
-            
+
         headers = [
             'name', 'alias', 'category', 'nature', 'taste', 'meridian',
             'efficacy', 'indications', 'usage', 'dosage', 'contraindication',
             'notes', 'quantity', 'unit', 'price', 'min_stock'
         ]
-        
+
         sample_data = [
             ['人参', '黄参', '补虚药', '温', '甘、微苦', '归脾、肺、心经',
              '大补元气', '体虚欲脱', '煎服', '3-9g', '实证忌服', '', '500', 'g', '85', '50'],
             ['黄芪', '黄耆', '补虚药', '微温', '甘', '归脾、肺经',
              '补气升阳', '气虚乏力', '煎服', '9-30g', '实证禁服', '', '600', 'g', '42', '60'],
         ]
-        
+
         with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             writer.writerows(sample_data)
-            
+
         QMessageBox.information(self, '成功', f'模板已保存到:\n{filename}')
-        
+
     def start_import(self):
         if not self.preview_data:
             return
@@ -437,33 +406,47 @@ class BatchImportView(QWidget):
         if self.worker and self.worker.isRunning():
             self.worker.cancel()
             self.log_text.append('正在取消导入...')
+            self.worker.wait(3000)
 
         self.reset_ui()
-        
+
+    def closeEvent(self, event):
+        """对话框关闭时取消 worker 线程，避免信号更新已销毁 UI 导致崩溃"""
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+            self.worker.wait(3000)
+        super().closeEvent(event)
+
     def on_progress(self, percent, message):
-        self.progress_bar.setValue(percent)
-        self.status_label.setText(message)
-        
+        try:
+            self.progress_bar.setValue(percent)
+            self.status_label.setText(message)
+        except RuntimeError:
+            pass  # UI 已销毁，忽略
+
     def on_finished(self, added, updated, errors, error_list):
-        self.progress_bar.setValue(100)
-        self.status_label.setText(f'导入完成！新增 {added} 条，更新 {updated} 条')
-        
-        self.log_text.append(f'导入完成！')
-        self.log_text.append(f'  新增: {added} 条')
-        self.log_text.append(f'  更新: {updated} 条')
-        
-        if errors > 0:
-            self.log_text.append(f'  错误: {errors} 条')
-            self.log_text.append('\n错误详情:')
-            for err in error_list[:10]:
-                self.log_text.append(f'  {err}')
-            if len(error_list) > 10:
-                self.log_text.append(f'  ... 还有 {len(error_list) - 10} 条错误')
-        
-        logger.info(f"批量导入完成: 新增{added}条, 更新{updated}条, 错误{errors}条")
-                
-        self.reset_ui()
-        
+        try:
+            self.progress_bar.setValue(100)
+            self.status_label.setText(f'导入完成！新增 {added} 条，更新 {updated} 条')
+
+            self.log_text.append('导入完成！')
+            self.log_text.append(f'  新增: {added} 条')
+            self.log_text.append(f'  更新: {updated} 条')
+
+            if errors > 0:
+                self.log_text.append(f'  错误: {errors} 条')
+                self.log_text.append('\n错误详情:')
+                for err in error_list[:10]:
+                    self.log_text.append(f'  {err}')
+                if len(error_list) > 10:
+                    self.log_text.append(f'  ... 还有 {len(error_list) - 10} 条错误')
+
+            logger.info(f"批量导入完成: 新增{added}条, 更新{updated}条, 错误{errors}条")
+
+            self.reset_ui()
+        except RuntimeError:
+            pass  # UI 已销毁，忽略
+
     def reset_ui(self):
         self.import_btn.setEnabled(True)
         self.select_btn.setEnabled(True)

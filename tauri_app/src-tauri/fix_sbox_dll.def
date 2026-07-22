@@ -1,0 +1,17 @@
+LIBRARY api-ms-win-core-synch-l1-2-0.dll
+EXPORTS
+    DeleteSynchronizationBarrier = kernelbase.DeleteSynchronizationBarrier
+    EnterSynchronizationBarrier = kernelbase.EnterSynchronizationBarrier
+    InitOnceBeginInitialize = kernelbase.InitOnceBeginInitialize
+    InitOnceComplete = kernelbase.InitOnceComplete
+    InitOnceExecuteOnce = kernelbase.InitOnceExecuteOnce
+    InitOnceInitialize = kernelbase.InitOnceInitialize
+    InitializeConditionVariable = kernelbase.InitializeConditionVariable
+    InitializeSynchronizationBarrier = kernelbase.InitializeSynchronizationBarrier
+    SignalObjectAndWait = kernelbase.SignalObjectAndWait
+    Sleep = kernelbase.Sleep
+    SleepConditionVariableCS = kernelbase.SleepConditionVariableCS
+    SleepConditionVariableSRW = kernelbase.SleepConditionVariableSRW
+    WaitOnAddress = kernelbase.WaitOnAddress
+    WakeByAddressAll = kernelbase.WakeByAddressAll
+    WakeByAddressSingle = kernelbase.WakeByAddressSingle

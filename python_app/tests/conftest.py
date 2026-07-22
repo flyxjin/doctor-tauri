@@ -2,17 +2,18 @@
 """
 pytest 共享 fixtures
 """
-import pytest
 import os
+import shutil
 import sys
 import tempfile
-import shutil
+
+import pytest
 
 # 确保能导入 core 模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.database import Database
 from core.cache import invalidate_medicine_cache
+from core.database import Database
 
 
 @pytest.fixture

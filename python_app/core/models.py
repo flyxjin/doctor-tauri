@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 模型层 - 数据模型定义
+
+基于 Pydantic v2 BaseModel，提供自动验证、序列化和 JSON Schema 支持。
+所有模型保持与原 dataclass 版本兼容的属性访问、to_dict() / from_dict() 接口。
 """
-from dataclasses import dataclass, field
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-@dataclass
-class Medicine:
-    name: str
+class Medicine(BaseModel):
+    """药材数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    name: str = ""
     alias: str = ""
     category: str = ""
     nature: str = ""
@@ -24,7 +30,7 @@ class Medicine:
     id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     def to_dict(self) -> dict:
         return {
             'id': self.id,
@@ -41,37 +47,23 @@ class Medicine:
             'contraindication': self.contraindication,
             'notes': self.notes
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Medicine':
-        return cls(
-            id=data.get('id'),
-            name=data.get('name', ''),
-            alias=data.get('alias', ''),
-            category=data.get('category', ''),
-            nature=data.get('nature', ''),
-            taste=data.get('taste', ''),
-            meridian=data.get('meridian', ''),
-            efficacy=data.get('efficacy', ''),
-            indications=data.get('indications', ''),
-            usage=data.get('usage', ''),
-            dosage=data.get('dosage', ''),
-            contraindication=data.get('contraindication', ''),
-            notes=data.get('notes', ''),
-            created_at=data.get('created_at'),
-            updated_at=data.get('updated_at')
-        )
-    
-    def validate(self) -> List[str]:
+        return cls.model_validate(data)
+
+    def validate_fields(self) -> List[str]:
         errors = []
         if not self.name or not self.name.strip():
             errors.append("药材名称不能为空")
         return errors
 
 
-@dataclass
-class Inventory:
-    medicine_id: int
+class Inventory(BaseModel):
+    """库存数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    medicine_id: int = 0
     quantity: float = 0.0
     unit: str = "g"
     price: float = 0.0
@@ -96,29 +88,19 @@ class Inventory:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Inventory':
-        return cls(
-            id=data.get('id'),
-            medicine_id=data.get('medicine_id', 0),
-            quantity=data.get('quantity', 0.0),
-            unit=data.get('unit', 'g'),
-            price=data.get('price', 0.0),
-            min_stock=data.get('min_stock', 0.0),
-            notes=data.get('notes', ''),
-            medicine_name=data.get('medicine_name', ''),
-            category=data.get('category', ''),
-            created_at=data.get('created_at'),
-            updated_at=data.get('updated_at')
-        )
-    
+        return cls.model_validate(data)
+
     def is_low_stock(self) -> bool:
         return self.quantity <= self.min_stock
-    
+
     def get_value(self) -> float:
         return self.quantity * self.price
 
 
-@dataclass
-class Prescription:
+class Prescription(BaseModel):
+    """处方数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
     patient_name: str = ""
     patient_age: Optional[int] = None
     patient_gender: str = ""
@@ -127,8 +109,8 @@ class Prescription:
     created_by: str = ""
     id: Optional[int] = None
     created_at: Optional[datetime] = None
-    items: List['PrescriptionItem'] = field(default_factory=list)
-    
+    items: List['PrescriptionItem'] = Field(default_factory=list)
+
     def to_dict(self) -> dict:
         return {
             'id': self.id,
@@ -140,35 +122,28 @@ class Prescription:
             'created_by': self.created_by,
             'created_at': str(self.created_at) if self.created_at else None
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Prescription':
-        return cls(
-            id=data.get('id'),
-            patient_name=data.get('patient_name', ''),
-            patient_age=data.get('patient_age'),
-            patient_gender=data.get('patient_gender', ''),
-            diagnosis=data.get('diagnosis', ''),
-            total_amount=data.get('total_amount', 0.0),
-            created_by=data.get('created_by', ''),
-            created_at=data.get('created_at')
-        )
-    
+        return cls.model_validate(data)
+
     def calculate_total(self) -> float:
         return sum(item.amount for item in self.items)
 
 
-@dataclass
-class PrescriptionItem:
-    prescription_id: int
-    medicine_id: int
-    medicine_name: str
-    quantity: float
-    unit: str
-    price: float
-    amount: float
+class PrescriptionItem(BaseModel):
+    """处方明细数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    prescription_id: int = 0
+    medicine_id: int = 0
+    medicine_name: str = ""
+    quantity: float = 0.0
+    unit: str = "g"
+    price: float = 0.0
+    amount: float = 0.0
     id: Optional[int] = None
-    
+
     def to_dict(self) -> dict:
         return {
             'id': self.id,
@@ -180,68 +155,101 @@ class PrescriptionItem:
             'price': self.price,
             'amount': self.amount
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'PrescriptionItem':
-        return cls(
-            id=data.get('id'),
-            prescription_id=data.get('prescription_id', 0),
-            medicine_id=data.get('medicine_id', 0),
-            medicine_name=data.get('medicine_name', ''),
-            quantity=data.get('quantity', 0.0),
-            unit=data.get('unit', 'g'),
-            price=data.get('price', 0.0),
-            amount=data.get('amount', 0.0)
-        )
+        return cls.model_validate(data)
 
 
-@dataclass
-class InventoryHistory:
-    medicine_id: int
-    medicine_name: str
-    type: str
-    quantity: float
+class InventoryHistory(BaseModel):
+    """库存变更历史数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    medicine_id: int = 0
+    medicine_name: str = ""
+    type: str = ""
+    quantity: float = 0.0
     price: Optional[float] = None
     total_amount: Optional[float] = None
     operator: str = ""
     notes: str = ""
     id: Optional[int] = None
     created_at: Optional[datetime] = None
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'InventoryHistory':
-        return cls(
-            id=data.get('id'),
-            medicine_id=data.get('medicine_id', 0),
-            medicine_name=data.get('medicine_name', ''),
-            type=data.get('type', ''),
-            quantity=data.get('quantity', 0.0),
-            price=data.get('price'),
-            total_amount=data.get('total_amount'),
-            operator=data.get('operator', ''),
-            notes=data.get('notes', ''),
-            created_at=data.get('created_at')
-        )
+        return cls.model_validate(data)
 
 
-@dataclass
-class OperationLog:
-    operation_type: str
-    target_type: str
-    target_id: int
+class OperationLog(BaseModel):
+    """操作日志数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    operation_type: str = ""
+    target_type: str = ""
+    target_id: int = 0
     operator: str = ""
     details: str = ""
     id: Optional[int] = None
     created_at: Optional[datetime] = None
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'OperationLog':
-        return cls(
-            id=data.get('id'),
-            operation_type=data.get('operation_type', ''),
-            target_type=data.get('target_type', ''),
-            target_id=data.get('target_id', 0),
-            operator=data.get('operator', ''),
-            details=data.get('details', ''),
-            created_at=data.get('created_at')
-        )
+        return cls.model_validate(data)
+
+
+class Patient(BaseModel):
+    """患者档案数据模型"""
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    id: Optional[int] = None
+    name: str = ""
+    gender: Optional[str] = ""
+    age: Optional[int] = None
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
+    allergy: Optional[str] = ""
+    medical_history: Optional[str] = ""
+    notes: Optional[str] = ""
+    created_at: Optional[str] = ""
+    updated_at: Optional[str] = ""
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'gender': self.gender or "",
+            'age': self.age,
+            'phone': self.phone or "",
+            'address': self.address or "",
+            'allergy': self.allergy or "",
+            'medical_history': self.medical_history or "",
+            'notes': self.notes or "",
+            'created_at': self.created_at or "",
+            'updated_at': self.updated_at or "",
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Patient':
+        # 旧库新增列的值为 NULL，统一转为空串避免 Pydantic 校验失败
+        nullable_str_fields = ('gender', 'phone', 'address', 'allergy',
+                               'medical_history', 'notes', 'created_at', 'updated_at')
+        sanitized = dict(data)
+        for field in nullable_str_fields:
+            if sanitized.get(field) is None:
+                sanitized[field] = ""
+        return cls.model_validate(sanitized)
+
+    def validate_fields(self) -> List[str]:
+        errors = []
+        if not self.name or not self.name.strip():
+            errors.append("患者姓名不能为空")
+        if self.age is not None and (self.age < 0 or self.age > 150):
+            errors.append("患者年龄不合法")
+        if self.gender and self.gender not in ('男', '女'):
+            errors.append("性别只能为'男'或'女'")
+        return errors
+
+
+# 解析 Prescription.items 中的前向引用（PrescriptionItem 在 Prescription 之后定义）
+Prescription.model_rebuild()

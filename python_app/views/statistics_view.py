@@ -4,10 +4,19 @@
 提供营收汇总、热销药材排行、营收趋势等数据分析功能。
 """
 from datetime import datetime, timedelta
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-                             QLabel, QComboBox, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QFrame, QPushButton)
-from PyQt5.QtCore import Qt
+
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
+
+from core import StatisticsService
 from core.theme import AppColors
 from views.base_view import BaseDataView
 
@@ -33,11 +42,13 @@ class _StatCard(QFrame):
 
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(f'color: {AppColors.TEXT_MUTED}; font-size: 13px;')
+        self.title_label.setMinimumHeight(18)
 
         self.value_label = QLabel(value)
         self.value_label.setStyleSheet(
             f'color: {color}; font-size: 24px; font-weight: 700;'
         )
+        self.value_label.setMinimumHeight(32)
 
         layout.addWidget(self.title_label)
         layout.addWidget(self.value_label)
@@ -51,6 +62,7 @@ class StatisticsView(BaseDataView):
 
     def __init__(self, db, parent=None):
         super().__init__(db, parent)
+        self._stats_service = StatisticsService(db)
         self.init_ui()
         self.refresh_data()
 
@@ -182,20 +194,14 @@ class StatisticsView(BaseDataView):
         return start, end
 
     def refresh_data(self):
-        """刷新统计数据"""
+        """刷新统计数据（通过 StatisticsService 访问数据，遵循分层架构）"""
         try:
             start, end = self._get_date_range()
             start_str = start.strftime('%Y-%m-%d %H:%M:%S')
             end_str = end.strftime('%Y-%m-%d %H:%M:%S')
 
             # 汇总：处方数和营收
-            summary = self.db.fetchone(
-                '''SELECT COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as revenue
-                   FROM prescriptions
-                   WHERE created_at BETWEEN ? AND ?''',
-                (start_str, end_str)
-            ) or {'cnt': 0, 'revenue': 0}
-
+            summary = self._stats_service.get_summary(start_str, end_str)
             pres_count = summary['cnt'] or 0
             revenue = summary['revenue'] or 0
 
@@ -203,42 +209,17 @@ class StatisticsView(BaseDataView):
             self.card_today_revenue.set_value(f'¥{revenue:.2f}')
 
             # 药材种类数
-            med_count_row = self.db.fetchone('SELECT COUNT(*) as cnt FROM medicines') or {'cnt': 0}
-            self.card_med_count.set_value(str(med_count_row['cnt'] or 0))
+            self.card_med_count.set_value(str(self._stats_service.get_medicine_count()))
 
             # 低库存预警数
-            low_stock_row = self.db.fetchone(
-                'SELECT COUNT(*) as cnt FROM inventory WHERE quantity <= min_stock'
-            ) or {'cnt': 0}
-            self.card_low_stock.set_value(str(low_stock_row['cnt'] or 0))
+            self.card_low_stock.set_value(str(self._stats_service.get_low_stock_count()))
 
             # 热销药材 TOP 10
-            top_meds = self.db.fetchall(
-                '''SELECT pi.medicine_name as name,
-                          COUNT(*) as freq,
-                          COALESCE(SUM(pi.quantity), 0) as total_qty
-                   FROM prescription_items pi
-                   JOIN prescriptions p ON pi.prescription_id = p.id
-                   WHERE p.created_at BETWEEN ? AND ?
-                   GROUP BY pi.medicine_name
-                   ORDER BY freq DESC
-                   LIMIT 10''',
-                (start_str, end_str)
-            )
+            top_meds = self._stats_service.get_top_medicines(start_str, end_str, limit=10)
             self._populate_top_meds(top_meds)
 
             # 营收趋势（按天分组，最多 30 天）
-            trend = self.db.fetchall(
-                '''SELECT DATE(p.created_at) as date,
-                          COUNT(*) as cnt,
-                          COALESCE(SUM(p.total_amount), 0) as revenue
-                   FROM prescriptions p
-                   WHERE p.created_at BETWEEN ? AND ?
-                   GROUP BY DATE(p.created_at)
-                   ORDER BY date DESC
-                   LIMIT 30''',
-                (start_str, end_str)
-            )
+            trend = self._stats_service.get_revenue_trend(start_str, end_str, limit=30)
             self._populate_trend(trend)
 
         except Exception as e:

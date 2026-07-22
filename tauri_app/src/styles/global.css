@@ -1,0 +1,580 @@
+/* ============================================================
+   东方本草 · Traditional Chinese Medicine Theme
+   设计理念：温润草本色调 + 墨色排版 + 朱砂点缀 + 宣纸质感
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* 主色系：深草本绿（如陈年药材） */
+  --primary-color: #2D5F3F;
+  --primary-light: #E8F0EA;
+  --primary-dark: #1F4530;
+  --primary-hover: #347049;
+
+  /* 强调色：朱砂红（如印章钤朱） */
+  --accent-color: #C8472C;
+  --accent-light: #FDF0EC;
+
+  /* 背景色系：宣纸暖沙 */
+  --bg-color: #F7F4EF;
+  --bg-surface: #FDFAF5;
+  --bg-elevated: #FFFFFF;
+
+  /* 文字色系：墨色层次 */
+  --text-color: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-muted: #8B8580;
+  --text-inverse: #FDFAF5;
+
+  /* 边框与分割 */
+  --border-color: #E5DFD5;
+  --border-light: #F0EBE0;
+
+  /* 语义色 */
+  --success-color: #5B8C3E;
+  --success-light: #EDF5E8;
+  --warning-color: #D4943A;
+  --warning-light: #FBF3E6;
+  --danger-color: #B83A2E;
+  --danger-light: #FCEDEA;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(45, 95, 63, 0.04);
+  --shadow-md: 0 2px 8px rgba(45, 95, 63, 0.06), 0 1px 3px rgba(45, 95, 63, 0.04);
+  --shadow-lg: 0 8px 24px rgba(45, 95, 63, 0.08), 0 2px 8px rgba(45, 95, 63, 0.04);
+
+  /* 字体 */
+  --font-display: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* 动画 */
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--font-body);
+  color: var(--text-color);
+  background-color: var(--bg-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   页面布局
+   ============================================================ */
+
+.page-container {
+  padding: 28px 32px;
+  animation: fadeInUp 0.4s ease;
+}
+
+.page-header {
+  margin-bottom: 28px;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: var(--text-color);
+  letter-spacing: 0.5px;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+/* ============================================================
+   统计卡片
+   ============================================================ */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.tcm-stat-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-light);
+  transition: transform var(--transition), box-shadow var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.tcm-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--primary-color);
+  opacity: 0.8;
+}
+
+.tcm-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.tcm-stat-card.accent::before {
+  background: var(--accent-color);
+}
+
+.tcm-stat-card.success::before {
+  background: var(--success-color);
+}
+
+.tcm-stat-card.warning::before {
+  background: var(--warning-color);
+}
+
+.tcm-stat-card .stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.tcm-stat-card .stat-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1.2;
+}
+
+.tcm-stat-card .stat-prefix {
+  font-size: 18px;
+  font-weight: 400;
+  margin-right: 4px;
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   表格容器
+   ============================================================ */
+
+.table-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.table-card .table-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ============================================================
+   侧边栏
+   ============================================================ */
+
+.tcm-sider {
+  background: var(--primary-dark) !important;
+  position: relative;
+}
+
+.tcm-sider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tcm-logo {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tcm-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: #FDFAF5;
+  flex-shrink: 0;
+}
+
+.tcm-logo-text {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: #E8F0EA;
+  letter-spacing: 0.5px;
+  line-height: 1.3;
+}
+
+/* 侧边栏菜单覆盖 */
+.tcm-sider .ant-menu {
+  background: transparent !important;
+  border-right: 0 !important;
+  padding: 8px 12px;
+}
+
+.tcm-sider .ant-menu-item {
+  color: rgba(232, 240, 234, 0.65) !important;
+  border-radius: var(--radius-md) !important;
+  margin: 2px 0 !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  transition: all var(--transition) !important;
+}
+
+.tcm-sider .ant-menu-item:hover {
+  color: #E8F0EA !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.tcm-sider .ant-menu-item-selected {
+  color: #FDFAF5 !important;
+  background: rgba(200, 71, 44, 0.25) !important;
+}
+
+.tcm-sider .ant-menu-item-selected::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--accent-color);
+  border-radius: 0 3px 3px 0;
+}
+
+.tcm-sider .ant-menu-item .anticon {
+  font-size: 16px !important;
+}
+
+/* ============================================================
+   顶栏
+   ============================================================ */
+
+.tcm-header {
+  background: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px !important;
+  height: 56px !important;
+}
+
+.tcm-header-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.tcm-header-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   低库存预警徽章
+   ============================================================ */
+
+.low-stock-tag {
+  color: var(--danger-color);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.low-stock-tag::before {
+  content: '●';
+  font-size: 8px;
+}
+
+/* ============================================================
+   配伍禁忌预警
+   ============================================================ */
+
+.compat-alert {
+  margin-bottom: 16px;
+  border-radius: var(--radius-md) !important;
+}
+
+.compat-alert.ant-alert-warning {
+  background: var(--warning-light) !important;
+  border-color: var(--warning-color) !important;
+}
+
+.compat-alert.ant-alert-error {
+  background: var(--danger-light) !important;
+  border-color: var(--danger-color) !important;
+}
+
+/* ============================================================
+   开处方布局
+   ============================================================ */
+
+.prescription-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  height: calc(100vh - 116px);
+}
+
+.prescription-search-panel {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  overflow: auto;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.prescription-edit-panel {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  overflow: auto;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+/* ============================================================
+   药材搜索项
+   ============================================================ */
+
+.medicine-search-item {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition);
+  border: 1px solid transparent;
+}
+
+.medicine-search-item:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+
+.medicine-search-item .name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--text-color);
+}
+
+.medicine-search-item .meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* ============================================================
+   滚动条美化
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ============================================================
+   Ant Design 组件覆盖
+   ============================================================ */
+
+/* 表格 */
+.ant-table {
+  background: transparent !important;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--bg-color) !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  font-size: 13px !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--border-light) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: var(--primary-light) !important;
+}
+
+/* 卡片 */
+.ant-card {
+  border-radius: var(--radius-lg) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* 按钮 */
+.ant-btn-primary {
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 2px 4px rgba(45, 95, 63, 0.15) !important;
+}
+
+.ant-btn-primary:hover {
+  background: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+/* 输入框 */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector {
+  border-radius: var(--radius-md) !important;
+  border-color: var(--border-color) !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px rgba(45, 95, 63, 0.1) !important;
+}
+
+/* 分页 */
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--primary-color) !important;
+}
+
+.ant-pagination .ant-pagination-item-active a {
+  color: var(--primary-color) !important;
+}
+
+/* 标签 */
+.ant-tag {
+  border-radius: var(--radius-sm) !important;
+  font-size: 12px !important;
+}
+
+/* 统计数值 */
+.ant-statistic-title {
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+}
+
+.ant-statistic-content {
+  font-family: var(--font-display) !important;
+  font-weight: 600 !important;
+}
+
+/* Alert */
+.ant-alert {
+  border-radius: var(--radius-md) !important;
+}
+
+/* Empty */
+.ant-empty-description {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================================
+   动画
+   ============================================================ */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ============================================================
+   响应式
+   ============================================================ */
+
+@media (max-width: 1200px) {
+  .prescription-layout {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .prescription-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .page-container {
+    padding: 16px;
+  }
+}

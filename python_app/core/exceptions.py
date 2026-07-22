@@ -2,8 +2,8 @@
 """
 异常处理模块 - 统一的异常定义和处理
 """
-from typing import Optional, List, Dict, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class ErrorCode(Enum):
@@ -41,7 +41,7 @@ class AppException(Exception):
         self.message = message
         self.code = code
         self.details = details or {}
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'success': False,
@@ -51,7 +51,7 @@ class AppException(Exception):
                 'details': self.details
             }
         }
-    
+
     def __str__(self) -> str:
         return f"[{self.code.name}] {self.message}"
 
@@ -79,7 +79,7 @@ class ValidationException(AppException):
         code: ErrorCode = ErrorCode.VALIDATION_ERROR,
         errors: Optional[List[str]] = None
     ):
-        details = {}
+        details: Dict[str, Any] = {}
         if field:
             details['field'] = field
         if errors:
@@ -106,7 +106,7 @@ class InventoryException(AppException):
         required_quantity: Optional[float] = None,
         code: ErrorCode = ErrorCode.INVENTORY_ERROR
     ):
-        details = {}
+        details: Dict[str, Any] = {}
         if medicine_id is not None:
             details['medicine_id'] = medicine_id
         if current_quantity is not None:
@@ -128,7 +128,7 @@ class CacheException(AppException):
 
 class Result:
     __slots__ = ('_success', '_data', '_error', '_message')
-    
+
     def __init__(
         self,
         success: bool,
@@ -140,49 +140,49 @@ class Result:
         self._data = data
         self._error = error
         self._message = message
-    
+
     @classmethod
     def ok(cls, data: Any = None, message: str = "") -> 'Result':
         return cls(success=True, data=data, message=message)
-    
+
     @classmethod
     def fail(cls, error: AppException, message: str = "") -> 'Result':
         return cls(success=False, error=error, message=message)
-    
+
     @classmethod
     def fail_from_exception(cls, exc: Exception) -> 'Result':
         if isinstance(exc, AppException):
             return cls(success=False, error=exc, message=exc.message)
         return cls(success=False, error=AppException(str(exc)), message=str(exc))
-    
+
     @property
     def is_success(self) -> bool:
         return self._success
-    
+
     @property
     def is_failure(self) -> bool:
         return not self._success
-    
+
     @property
     def data(self) -> Any:
         return self._data
-    
+
     @property
     def error(self) -> Optional[AppException]:
         return self._error
-    
+
     @property
     def message(self) -> str:
         return self._message
-    
+
     def unwrap(self) -> Any:
         if self._success:
             return self._data
         raise self._error if self._error else AppException("Unknown error")
-    
+
     def unwrap_or(self, default: Any) -> Any:
         return self._data if self._success else default
-    
+
     def to_dict(self) -> Dict[str, Any]:
         if self._success:
             return {
@@ -196,16 +196,16 @@ class Result:
 def handle_exception(exc: Exception) -> AppException:
     if isinstance(exc, AppException):
         return exc
-    
+
     exc_name = type(exc).__name__
     exc_message = str(exc)
-    
+
     if 'sqlite' in exc_name.lower() or 'database' in exc_message.lower():
         return DatabaseException(
             message=exc_message,
             original_error=exc
         )
-    
+
     return AppException(message=exc_message, details={'type': exc_name})
 
 

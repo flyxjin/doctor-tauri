@@ -2,11 +2,13 @@
 """
 基础视图模块 - 提取各 View 的公共逻辑
 """
-from PyQt5.QtWidgets import QWidget, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QLabel
-from PyQt5.QtCore import Qt, QTimer
-from typing import Optional, Callable
-from utils.responsive_font import ResponsiveWidget, get_font_manager
+from typing import Callable, Optional
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QLabel, QPushButton, QTableWidget, QWidget
+
 from core.theme import AppColors, get_button_style, get_secondary_button_style, get_table_style
+from utils.responsive_font import ResponsiveWidget, get_font_manager
 
 _BUTTON_ROLE_MAP = {
     'primary': (AppColors.PRIMARY, 'white'),
@@ -61,19 +63,19 @@ class BaseDataView(QWidget, ResponsiveWidget):
         self.apply_responsive_table(table)
         return table
 
-    def apply_responsive_table(self, table: QTableWidget, 
+    def apply_responsive_table(self, table: QTableWidget,
                                base_column_widths: list = None,
                                stats_label: QLabel = None):
         config = self.font_manager.get_table_config()
         scale = config['scale']
-        
+
         table.verticalHeader().setDefaultSectionSize(config['row_height'])
         table.verticalHeader().setMinimumSectionSize(config['row_height'])
-        
+
         header = table.horizontalHeader()
         header.setMinimumSectionSize(config['cell_padding'] * 2)
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        
+
         if base_column_widths:
             for col in range(len(base_column_widths)):
                 if col == 0:
@@ -81,15 +83,15 @@ class BaseDataView(QWidget, ResponsiveWidget):
                 base_width = base_column_widths[col]
                 scaled_width = int(base_width * scale)
                 table.setColumnWidth(col, scaled_width)
-        
+
         font = self.font_manager.get_font('table_cell')
         table.setFont(font)
-        
+
         header_font = self.font_manager.get_font('table_header')
         header.setFont(header_font)
-        
+
         table.setStyleSheet(get_table_style(config['font_size'], config['header_font_size'], config['cell_padding']))
-        
+
         if stats_label:
             stats_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY}; font-size: {self.font_manager.get_font_size("small")}px;')
 

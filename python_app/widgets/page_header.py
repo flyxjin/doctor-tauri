@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt
-from utils.responsive_font import get_font_manager
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+
 from core.theme import AppColors
+from utils.responsive_font import get_font_manager
 
 
 class PageHeader(QWidget):
@@ -19,6 +19,10 @@ class PageHeader(QWidget):
             'title': '开处方',
             'subtitle': '中医处方开具与管理'
         },
+        'patient': {
+            'title': '客户管理',
+            'subtitle': '患者档案管理与历史处方查询'
+        },
         'inventory': {
             'title': '库存管理',
             'subtitle': '药材库存监控与调配'
@@ -32,39 +36,41 @@ class PageHeader(QWidget):
             'subtitle': '营收汇总与数据分析'
         }
     }
-    
+
     def __init__(self, page_key='medicine', parent=None):
         super().__init__(parent)
         self.font_manager = get_font_manager()
         self._page_key = page_key
         self.init_ui()
-    
+
     def init_ui(self):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 16)
         main_layout.setSpacing(0)
-        
+
         text_container = QWidget()
         text_container.setObjectName('header_text_container')
         text_layout = QVBoxLayout(text_container)
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(4)
-        
+
         self.title_label = QLabel()
         self.title_label.setObjectName('header_title')
-        
+        self.title_label.setMinimumHeight(28)
+
         self.subtitle_label = QLabel()
         self.subtitle_label.setObjectName('header_subtitle')
-        
+        self.subtitle_label.setMinimumHeight(18)
+
         text_layout.addWidget(self.title_label)
         text_layout.addWidget(self.subtitle_label)
-        
+
         main_layout.addWidget(text_container)
         main_layout.addStretch()
-        
+
         self._apply_styles()
         self.set_page(self._page_key)
-    
+
     def _apply_styles(self):
         base_size = self.font_manager.current_base_size
         title_size = int(base_size * 1.6)
@@ -90,17 +96,17 @@ class PageHeader(QWidget):
                 font-weight: 400;
             }}
         ''')
-    
+
     def set_page(self, page_key):
         config = self.PAGE_CONFIG.get(page_key, self.PAGE_CONFIG['medicine'])
-        
+
         self.title_label.setText(config.get('title', '页面标题'))
         self.subtitle_label.setText(config.get('subtitle', ''))
         self._page_key = page_key
-    
+
     def update_fonts(self):
         self._apply_styles()
-    
+
     def get_current_page(self):
         return self._page_key
 
@@ -112,39 +118,39 @@ class CompactHeader(QFrame):
         self._title = title
         self._subtitle = subtitle
         self.init_ui()
-    
+
     def init_ui(self):
         self.setObjectName('compact_header')
-        
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(12)
-        
+
         self.indicator = QFrame()
         self.indicator.setObjectName('header_indicator')
         self.indicator.setFixedWidth(3)
-        
+
         text_container = QWidget()
         text_layout = QVBoxLayout(text_container)
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(2)
-        
+
         self.title_label = QLabel(self._title)
         self.title_label.setObjectName('compact_title')
-        
+
         self.subtitle_label = QLabel(self._subtitle)
         self.subtitle_label.setObjectName('compact_subtitle')
-        
+
         text_layout.addWidget(self.title_label)
         if self._subtitle:
             text_layout.addWidget(self.subtitle_label)
-        
+
         layout.addWidget(self.indicator)
         layout.addWidget(text_container)
         layout.addStretch()
-        
+
         self._apply_styles()
-    
+
     def _apply_styles(self):
         base_size = self.font_manager.current_base_size
         title_size = int(base_size * 1.1)
@@ -170,13 +176,13 @@ class CompactHeader(QFrame):
                 font-size: {subtitle_size}px;
             }}
         ''')
-    
+
     def set_title(self, title, subtitle=''):
         self._title = title
         self._subtitle = subtitle
         self.title_label.setText(title)
         self.subtitle_label.setText(subtitle)
         self.subtitle_label.setVisible(bool(subtitle))
-    
+
     def update_fonts(self):
         self._apply_styles()

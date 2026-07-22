@@ -4,10 +4,20 @@
 应用启动后默认显示的概览页面，包含关键指标卡片、低库存预警、最近处方和营收简报。
 """
 from datetime import datetime, timedelta
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QTableWidget, QTableWidgetItem, QHeaderView,
-                             QFrame, QProgressBar, QGridLayout)
-from PyQt5.QtCore import Qt
+
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QProgressBar,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
+
+from core import DashboardService
 from core.theme import AppColors
 from views.base_view import BaseDataView
 
@@ -34,14 +44,17 @@ class _MetricCard(QFrame):
 
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(f'color: {AppColors.TEXT_MUTED}; font-size: 13px;')
+        self.title_label.setMinimumHeight(18)
 
         self.value_label = QLabel(value)
         self.value_label.setStyleSheet(
             f'color: {color}; font-size: 28px; font-weight: 700;'
         )
+        self.value_label.setMinimumHeight(36)
 
         self.subtitle_label = QLabel(subtitle)
         self.subtitle_label.setStyleSheet(f'color: {AppColors.TEXT_MUTED}; font-size: 12px;')
+        self.subtitle_label.setMinimumHeight(16)
 
         layout.addWidget(self.title_label)
         layout.addWidget(self.value_label)
@@ -54,25 +67,26 @@ class _MetricCard(QFrame):
 
 
 class _RevenueBar(QFrame):
-    """营收条形图（用 QProgressBar 模拟）"""
+    """营收条形图（用 QProgressBar 模拟）。
 
-    def __init__(self, date: str, revenue: float, max_revenue: float, parent=None):
+    支持通过 update_data 复用实例，避免每次刷新都重建 7 个 widget 造成内存抖动。
+    """
+
+    def __init__(self, date: str = '', revenue: float = 0, max_revenue: float = 1, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        date_label = QLabel(date)
-        date_label.setFixedWidth(80)
-        date_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY}; font-size: 12px;')
+        self.date_label = QLabel(date)
+        self.date_label.setFixedWidth(80)
+        self.date_label.setStyleSheet(f'color: {AppColors.TEXT_SECONDARY}; font-size: 12px;')
 
-        bar = QProgressBar()
-        bar.setRange(0, 100)
-        pct = int((revenue / max_revenue * 100)) if max_revenue > 0 else 0
-        bar.setValue(min(pct, 100))
-        bar.setTextVisible(False)
-        bar.setFixedHeight(16)
-        bar.setStyleSheet(f'''
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 100)
+        self.bar.setTextVisible(False)
+        self.bar.setFixedHeight(16)
+        self.bar.setStyleSheet(f'''
             QProgressBar {{
                 background-color: {AppColors.BG_SECONDARY};
                 border: none;
@@ -84,13 +98,25 @@ class _RevenueBar(QFrame):
             }}
         ''')
 
-        amount_label = QLabel(f'¥{revenue:.0f}')
-        amount_label.setFixedWidth(70)
-        amount_label.setStyleSheet(f'color: {AppColors.TEXT_HEADING}; font-size: 12px; font-weight: 600;')
+        self.amount_label = QLabel(f'¥{revenue:.0f}')
+        self.amount_label.setFixedWidth(70)
+        self.amount_label.setStyleSheet(
+            f'color: {AppColors.TEXT_HEADING}; font-size: 12px; font-weight: 600;'
+        )
 
-        layout.addWidget(date_label)
-        layout.addWidget(bar, 1)
-        layout.addWidget(amount_label)
+        layout.addWidget(self.date_label)
+        layout.addWidget(self.bar, 1)
+        layout.addWidget(self.amount_label)
+
+        # 初始填充一次数据
+        self.update_data(date, revenue, max_revenue)
+
+    def update_data(self, date: str, revenue: float, max_revenue: float) -> None:
+        """复用实例，仅更新显示数据，避免 widget 重建"""
+        self.date_label.setText(date)
+        pct = int((revenue / max_revenue * 100)) if max_revenue > 0 else 0
+        self.bar.setValue(min(pct, 100))
+        self.amount_label.setText(f'¥{revenue:.0f}')
 
 
 class DashboardView(BaseDataView):
@@ -98,6 +124,7 @@ class DashboardView(BaseDataView):
 
     def __init__(self, db, parent=None):
         super().__init__(db, parent)
+        self._dashboard_service = DashboardService(db)
         self.init_ui()
         self.refresh_data()
 
@@ -190,6 +217,13 @@ class DashboardView(BaseDataView):
         self.revenue_bars_container = QVBoxLayout()
         self.revenue_bars_container.setSpacing(6)
 
+        # 预创建 7 个 _RevenueBar 实例复用，避免每次刷新重建 widget 造成内存抖动
+        self._revenue_bars: list = []
+        for _ in range(7):
+            bar = _RevenueBar()
+            self._revenue_bars.append(bar)
+            self.revenue_bars_container.addWidget(bar)
+
         revenue_layout.addWidget(revenue_title)
         revenue_layout.addLayout(self.revenue_bars_container)
 
@@ -214,43 +248,24 @@ class DashboardView(BaseDataView):
             return '晚上好'
 
     def refresh_data(self):
-        """刷新仪表盘数据"""
+        """刷新仪表盘数据（通过 DashboardService 访问数据，遵循分层架构）"""
         try:
-            now = datetime.now()
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            today_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
-            now_str = now.strftime('%Y-%m-%d %H:%M:%S')
-
             # 今日营收和处方数
-            today_data = self.db.fetchone(
-                '''SELECT COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as revenue
-                   FROM prescriptions
-                   WHERE created_at BETWEEN ? AND ?''',
-                (today_str, now_str)
-            ) or {'cnt': 0, 'revenue': 0}
-
+            today_data = self._dashboard_service.get_today_summary()
             self.card_revenue.set_value(f"¥{today_data['revenue'] or 0:.2f}")
             self.card_prescriptions.set_value(str(today_data['cnt'] or 0), '张')
 
             # 药材总数
-            med_row = self.db.fetchone('SELECT COUNT(*) as cnt FROM medicines') or {'cnt': 0}
-            self.card_medicines.set_value(str(med_row['cnt'] or 0), '味')
+            med_count = self._dashboard_service.get_medicine_count()
+            self.card_medicines.set_value(str(med_count), '味')
 
             # 低库存预警
-            low_rows = self.db.fetchall(
-                '''SELECT m.name, i.quantity, i.min_stock
-                   FROM inventory i JOIN medicines m ON i.medicine_id = m.id
-                   WHERE i.quantity <= i.min_stock
-                   ORDER BY i.quantity ASC LIMIT 10'''
-            )
+            low_rows = self._dashboard_service.get_low_stock_alerts(limit=10)
             self.card_low_stock.set_value(str(len(low_rows)), '种')
             self._populate_alerts(low_rows)
 
             # 最近处方
-            recent = self.db.fetchall(
-                '''SELECT id, patient_name, total_amount, created_at
-                   FROM prescriptions ORDER BY created_at DESC LIMIT 5'''
-            )
+            recent = self._dashboard_service.get_recent_prescriptions(limit=5)
             self._populate_recent(recent)
 
             # 近 7 天营收趋势
@@ -271,11 +286,11 @@ class DashboardView(BaseDataView):
             qty_item = QTableWidgetItem(f"{qty}")
             min_item = QTableWidgetItem(f"{min_stock}")
 
-            # 库存为 0 标红
+            # 库存为 0 标朱砂红，低库存标古铜黄
             if qty <= 0:
-                qty_item.setForeground(Qt.red)
+                qty_item.setForeground(QColor(AppColors.DANGER))
             elif qty <= min_stock:
-                qty_item.setForeground(Qt.darkYellow)
+                qty_item.setForeground(QColor(AppColors.WARNING))
 
             self.alert_table.setItem(i, 0, name_item)
             self.alert_table.setItem(i, 1, qty_item)
@@ -294,39 +309,22 @@ class DashboardView(BaseDataView):
             self.recent_table.setItem(i, 3, QTableWidgetItem(created))
 
     def _refresh_revenue_trend(self):
-        """刷新近 7 天营收趋势条形图"""
-        # 清除旧的条形图
-        while self.revenue_bars_container.count():
-            item = self.revenue_bars_container.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
+        """刷新近 7 天营收趋势条形图（复用 widget 实例，仅更新数据）"""
         now = datetime.now()
         seven_days_ago = now - timedelta(days=6)
-        start_str = seven_days_ago.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S')
-        end_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
-        rows = self.db.fetchall(
-            '''SELECT DATE(created_at) as date,
-                      COALESCE(SUM(total_amount), 0) as revenue
-               FROM prescriptions
-               WHERE created_at BETWEEN ? AND ?
-               GROUP BY DATE(created_at)
-               ORDER BY date ASC'''
-            ,
-            (start_str, end_str)
-        )
+        rows = self._dashboard_service.get_revenue_trend_7_days()
 
         # 构建日期到营收的映射
         revenue_map = {row['date']: row['revenue'] for row in rows}
         max_revenue = max(revenue_map.values()) if revenue_map else 0
+        scale = max_revenue if max_revenue > 0 else 1
 
-        # 生成近 7 天的条形图
-        for i in range(7):
+        # 复用预创建的 7 个 _RevenueBar，仅更新数据
+        for i, bar in enumerate(self._revenue_bars):
             date = (seven_days_ago + timedelta(days=i)).strftime('%Y-%m-%d')
             revenue = revenue_map.get(date, 0)
-            bar = _RevenueBar(date, revenue, max_revenue if max_revenue > 0 else 1)
-            self.revenue_bars_container.addWidget(bar)
+            bar.update_data(date, revenue, scale)
 
     def update_fonts(self):
         self._apply_responsive_table()

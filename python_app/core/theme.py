@@ -1,76 +1,78 @@
 # -*- coding: utf-8 -*-
 """
-主题模块 - 现代极简设计系统
-设计原则：大留白、细边框、克制色彩、清晰层次
+主题模块 - 新极简主义 + 东方雅致设计系统
+设计原则：宣纸温润、本草清雅、墨色沉稳、触觉质感
+配色灵感：宣纸米白 / 本草青 / 墨黑 / 朱砂红
 """
 
 
 class AppColors:
-    # --- 主色 ---
-    PRIMARY = '#111827'
-    PRIMARY_HOVER = '#1F2937'
-    PRIMARY_ACTIVE = '#030712'
-    ACCENT = '#6366F1'
-    ACCENT_HOVER = '#818CF8'
-    ACCENT_LIGHT = '#EEF2FF'
+    # --- 主色（本草青 - 沉稳专业，呼应中医药属性） ---
+    PRIMARY = '#3D6B52'        # 本草青深
+    PRIMARY_HOVER = '#4D7E63'  # 悬停稍亮
+    PRIMARY_ACTIVE = '#2E5240' # 按下更深
+    ACCENT = '#5A8A6A'         # 本草青主色
+    ACCENT_HOVER = '#6B9B7B'   # 强调悬停
+    ACCENT_LIGHT = '#EDF5F0'   # 本草青浅底
 
     # --- 语义色 ---
-    SUCCESS = '#10B981'
-    SUCCESS_HOVER = '#34D399'
-    SUCCESS_BG = '#ECFDF5'
-    WARNING = '#F59E0B'
-    WARNING_HOVER = '#FBBF24'
-    WARNING_BG = '#FFFBEB'
-    DANGER = '#EF4444'
-    DANGER_HOVER = '#F87171'
-    DANGER_BG = '#FEF2F2'
+    SUCCESS = '#3D6B52'
+    SUCCESS_HOVER = '#4D7E63'
+    SUCCESS_BG = '#EDF5F0'
+    WARNING = '#C8902E'        # 古铜黄（替代刺眼橙黄）
+    WARNING_HOVER = '#D9A346'
+    WARNING_BG = '#FBF5E8'
+    DANGER = '#C8443A'         # 朱砂红（传统标记色）
+    DANGER_HOVER = '#D85A50'
+    DANGER_BG = '#FBEEEC'
     INFO = '#6B7280'
     INFO_HOVER = '#9CA3AF'
 
-    # --- 文本 ---
-    TEXT_PRIMARY = '#111827'
-    TEXT_SECONDARY = '#6B7280'
-    TEXT_MUTED = '#9CA3AF'
-    TEXT_PLACEHOLDER = '#D1D5DB'
-    TEXT_HEADING = '#030712'
+    # --- 文本（墨色系，中式书写感） ---
+    TEXT_PRIMARY = '#2C2C2C'   # 墨黑
+    TEXT_SECONDARY = '#6B6B6B' # 次级墨灰
+    TEXT_MUTED = '#9C9C9C'
+    TEXT_PLACEHOLDER = '#C8C8C8'
+    TEXT_HEADING = '#1A1A1A'   # 标题深墨
     TEXT_WHITE = '#FFFFFF'
 
-    # --- 背景 ---
-    BG_PAGE = '#F9FAFB'
+    # --- 背景（宣纸温润，长时间使用舒适） ---
+    BG_PAGE = '#FAF8F3'        # 宣纸米白
     BG_CARD = '#FFFFFF'
     BG_SIDEBAR = '#FFFFFF'
     BG_MENUBAR = '#FFFFFF'
-    BG_HEADER = '#F9FAFB'
-    BG_HOVER = '#F3F4F6'
-    BG_SELECTED = '#F0FDF4'
-    BG_SECONDARY = '#F9FAFB'
+    BG_HEADER = '#FAF8F3'
+    BG_HOVER = '#F3EFE6'       # 宣纸悬停
+    BG_SELECTED = '#EDF5F0'    # 本草青浅底
+    BG_SECONDARY = '#FAF8F3'
     BG_INPUT = '#FFFFFF'
-    # 库存状态背景：库存为 0（危险红）、低库存（警告黄）
-    STOCK_ZERO_BG = '#FEE2E2'
-    STOCK_LOW_BG = '#FEF3C7'
+    # 库存状态背景：库存为 0（朱砂红）、低库存（古铜黄）
+    STOCK_ZERO_BG = '#FBEEEC'
+    STOCK_LOW_BG = '#FBF5E8'
 
     # --- 边框 ---
-    BORDER = '#E5E7EB'
-    BORDER_LIGHT = '#F3F4F6'
-    BORDER_FOCUS = '#6366F1'
+    BORDER = '#E5DFD3'         # 宣纸边框
+    BORDER_LIGHT = '#F0EBE0'
+    BORDER_FOCUS = '#5A8A6A'
 
     # --- 禁用 ---
-    DISABLED_BG = '#F3F4F6'
-    DISABLED_TEXT = '#9CA3AF'
+    DISABLED_BG = '#F0EBE0'
+    DISABLED_TEXT = '#B8B8B8'
 
     # --- 侧栏 ---
     SIDEBAR_WIDTH = 220
     SIDEBAR_BG = '#FFFFFF'
-    SIDEBAR_BORDER = '#E5E7EB'
-    SIDEBAR_TEXT = '#6B7280'
-    SIDEBAR_TEXT_ACTIVE = '#111827'
-    SIDEBAR_HOVER = '#F9FAFB'
-    SIDEBAR_INDICATOR = '#111827'
+    SIDEBAR_BORDER = '#E5DFD3'
+    SIDEBAR_TEXT = '#6B6B6B'
+    SIDEBAR_TEXT_ACTIVE = '#2C2C2C'
+    SIDEBAR_HOVER = '#FAF8F3'
+    SIDEBAR_INDICATOR = '#3D6B52'
 
-    # --- 阴影 ---
-    SHADOW_SM = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
-    SHADOW_MD = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)'
-    SHADOW_LG = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)'
+    # --- 阴影（柔和漫射，营造纵深） ---
+    SHADOW_SM = '0 1px 2px 0 rgba(60, 50, 40, 0.06)'
+    SHADOW_MD = '0 4px 8px -2px rgba(60, 50, 40, 0.08), 0 2px 4px -2px rgba(60, 50, 40, 0.06)'
+    SHADOW_LG = '0 12px 20px -4px rgba(60, 50, 40, 0.10), 0 4px 8px -4px rgba(60, 50, 40, 0.06)'
+    SHADOW_HOVER = '0 6px 12px -2px rgba(61, 107, 82, 0.18)'
 
     # --- 圆角 ---
     RADIUS_SM = '4px'
@@ -163,6 +165,9 @@ def get_table_style(font_size=13, header_font_size=12, padding=12):
             border-bottom: 1px solid {AppColors.BORDER_LIGHT};
             color: {AppColors.TEXT_PRIMARY};
         }}
+        QTableWidget::item:hover {{
+            background-color: {AppColors.BG_HOVER};
+        }}
         QTableWidget::item:selected {{
             background-color: {AppColors.ACCENT_LIGHT};
             color: {AppColors.ACCENT};
@@ -173,7 +178,7 @@ def get_table_style(font_size=13, header_font_size=12, padding=12):
             text-transform: uppercase;
             letter-spacing: 0.5px;
             padding: {padding}px {padding + 4}px;
-            background-color: {AppColors.BG_PAGE};
+            background-color: {AppColors.BG_HEADER};
             border: none;
             border-bottom: 2px solid {AppColors.BORDER};
             color: {AppColors.TEXT_SECONDARY};
@@ -252,7 +257,6 @@ def get_dialog_style():
 
 
 def get_main_window_style(base_size=14):
-    title_size = int(base_size * 1.5)
     subtitle_size = int(base_size * 1.2)
     body_size = base_size
     small_size = int(base_size * 0.9)
@@ -312,7 +316,7 @@ def get_main_window_style(base_size=14):
             color: {AppColors.TEXT_HEADING};
             font-size: {int(base_size * 1.2)}px;
             font-weight: 700;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.3px;
         }}
         QLabel#brand_subtitle {{
             color: {AppColors.TEXT_MUTED};
@@ -327,12 +331,12 @@ def get_main_window_style(base_size=14):
             background-color: transparent;
             color: {AppColors.SIDEBAR_TEXT};
             text-align: left;
-            padding: 12px 16px;
+            padding: 10px 12px;
             border-radius: {AppColors.RADIUS_MD};
-            margin: 2px 8px;
+            margin: 2px 4px;
             min-width: 0;
             font-size: {button_size}px;
-            min-height: 40px;
+            min-height: 38px;
             border-left: 2px solid transparent;
         }}
         QPushButton#nav_btn:hover {{
@@ -341,20 +345,20 @@ def get_main_window_style(base_size=14):
         }}
         QPushButton#nav_btn:checked {{
             background-color: {AppColors.ACCENT_LIGHT};
-            color: {AppColors.ACCENT};
-            border-left: 2px solid {AppColors.ACCENT};
+            color: {AppColors.PRIMARY};
+            border-left: 2px solid {AppColors.PRIMARY};
             font-weight: 600;
         }}
         QPushButton#import_btn {{
             background-color: {AppColors.ACCENT};
             color: {AppColors.TEXT_WHITE};
             text-align: center;
-            padding: 12px 20px;
+            padding: 10px 14px;
             border-radius: {AppColors.RADIUS_MD};
             font-weight: 500;
             font-size: {button_size}px;
-            min-height: 40px;
-            margin: 8px;
+            min-height: 38px;
+            margin: 4px;
         }}
         QPushButton#import_btn:hover {{
             background-color: {AppColors.ACCENT_HOVER};
@@ -362,7 +366,7 @@ def get_main_window_style(base_size=14):
         QLabel#version_label {{
             color: {AppColors.TEXT_MUTED};
             font-size: {tiny_size}px;
-            padding: 8px;
+            padding: 4px 6px;
         }}
         QFrame#content_area {{
             background-color: transparent;
@@ -396,6 +400,9 @@ def get_main_window_style(base_size=14):
             border-bottom: 1px solid {AppColors.BORDER_LIGHT};
             color: {AppColors.TEXT_PRIMARY};
         }}
+        QTableWidget::item:hover {{
+            background-color: {AppColors.BG_HOVER};
+        }}
         QTableWidget::item:selected {{
             background-color: {AppColors.ACCENT_LIGHT};
             color: {AppColors.ACCENT};
@@ -406,7 +413,7 @@ def get_main_window_style(base_size=14):
             text-transform: uppercase;
             letter-spacing: 0.5px;
             padding: 12px 10px;
-            background-color: {AppColors.BG_PAGE};
+            background-color: {AppColors.BG_HEADER};
             border: none;
             border-bottom: 2px solid {AppColors.BORDER};
             color: {AppColors.TEXT_SECONDARY};

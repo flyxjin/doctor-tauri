@@ -1,10 +1,11 @@
 import json
+import logging
 import os
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict
 
-CURRENT_VERSION = "3.3.2"
-VERSION_DATE = "2026-06-21"
+CURRENT_VERSION = "4.2.0"
+VERSION_DATE = "2026-07-22"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
@@ -13,6 +14,50 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "4.1.0": {
+        "date": "2026-07-05",
+        "changes": [
+            "UI 风格升级：新极简主义 + 东方雅致设计系统",
+            "配色调整：宣纸米白底 + 本草青主色 + 墨黑文字 + 朱砂红警示，呼应中医药文化属性",
+            "语义色优化：古铜黄替代刺眼橙黄，朱砂红替代亮红，长时间使用更舒适",
+            "触觉质感增强：表格行悬停高亮，侧栏导航选中态改用本草青主色",
+            "阴影系统柔和化：漫射阴影替代硬边框，营造层次纵深",
+            "Dashboard 库存预警颜色统一到主题色板（朱砂红/古铜黄）",
+            "修复窗口缩放显示异常：font_manager 单例化，所有组件共享同一信号源",
+            "修复最小窗口下显示不完整：主窗口最小尺寸提升至 1024x720，各视图设置最小宽度 760px，侧边栏在小窗口下自动收窄",
+            "修复双重缓存同步：移除 View 层手动缓存操作，统一由 Service 层同步（含库存字段）",
+            "修复 PrescriptionService 事务隔离：库存扣减/回退改为在主事务内通过 SQL 执行，避免跨 Service 事务读旧数据",
+            "修复 PrescriptionView N+1 查询：一次联表查询替换循环内 get_by_medicine_id，搜索响应从秒级降为毫秒级",
+            "补充 4 个缺失的数据库索引：prescription_items.prescription_id/medicine_id、operation_logs.target_type、inventory_history.created_at",
+            "修复 BatchImportView worker 关闭时未取消：新增 closeEvent 取消 worker，信号回调加 RuntimeError 保护",
+            "修复更新前备份失败静默吞没：备份失败时弹窗询问用户是否继续",
+            "修复 worker 通过私有方法关闭连接：改用公开的 close() 方法",
+            "批量导入新增 MedicineValidator 校验和数值字段显式转换",
+            "保存处方新增 PrescriptionValidator 校验",
+            "修复 table.item().text() 链式调用无 None 检查：新增 _get_cell_text 安全方法",
+            "配置加载/保存异常改为记录日志而非静默吞没",
+            "缓存 update/delete 优化为 O(1) 定向索引更新，替代全量重建",
+            "修复药性筛选器列表不一致：补充微寒/微温/大寒选项",
+            "修复 insert_prescription 未写入 created_at 字段导致日期过滤失效",
+            "修复库存管理与药材管理种类不一致：update_with_inventory 改为 UPSERT 补建缺失 inventory 记录，启动时自动修复历史数据",
+            "库存管理统计口径统一：药材种类基于 medicines 表 COUNT（与药材管理/仪表盘/统计页一致）",
+            "测试覆盖从 61 个增至 90 个：新增 PrescriptionService、Repository 写方法、DataLoader 测试"
+        ]
+    },
+    "4.0.0": {
+        "date": "2026-07-04",
+        "changes": [
+            "GUI 框架升级：PyQt5 5.15 → PySide6 6.6+（Qt 官方维护，LGPL 授权）",
+            "引入 SQLAlchemy 2.0 ORM：7 张表 ORM 映射，Engine/Session 管理，工作线程独立 Session",
+            "Repository 分层架构：Service 层通过 Repository 访问数据，SQL 下沉到 Repository",
+            "Repository 只读方法切换到 ORM（select 语句），写方法保留原生 SQL 维持跨 Repository 事务原子性",
+            "Database 持有 SQLAlchemy Engine：表结构改由 Base.metadata.create_all() 创建，手写索引保留",
+            "修复 Database.close() 单例 bug：close() 后再调用 reset_instance() 误清空新实例的 Engine",
+            "修复 Database.close() 非幂等问题：重复调用 close() 会关闭被新单例复用的连接",
+            "新增 32 个 Repository ORM 回归测试，总测试数 61 个全部通过",
+            "清理 Win7 兼容代码：PySide6 不支持 Windows 7，移除 Win7 spec/guide/requirements"
+        ]
+    },
     "3.3.2": {
         "date": "2026-06-21",
         "changes": [
@@ -225,26 +270,26 @@ class Version:
     def __init__(self, version_str: str):
         self.original = version_str
         self.parts = self._parse(version_str)
-    
+
     def _parse(self, version_str: str) -> tuple:
         parts = version_str.replace('v', '').split('.')
         return tuple(int(p) for p in parts if p.isdigit())
-    
+
     def __lt__(self, other):
         return self.parts < other.parts
-    
+
     def __gt__(self, other):
         return self.parts > other.parts
-    
+
     def __eq__(self, other):
         return self.parts == other.parts
-    
+
     def __le__(self, other):
         return self.parts <= other.parts
-    
+
     def __ge__(self, other):
         return self.parts >= other.parts
-    
+
     def __str__(self):
         return self.original
 
@@ -253,21 +298,20 @@ class VersionManager:
     def __init__(self, config_dir: str = None):
         if config_dir is None:
             config_dir = self._get_config_dir()
-        
+
         self.config_dir = config_dir
         self.config_file = os.path.join(config_dir, "update_config.json")
         self._ensure_config_dir()
         self.config = self._load_config()
-    
+
     def _get_config_dir(self) -> str:
-        app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
-        config_dir = os.path.join(app_data, 'MedicineSystem')
-        return config_dir
-    
+        from core.database import get_app_data_dir
+        return get_app_data_dir()
+
     def _ensure_config_dir(self):
         if not os.path.exists(self.config_dir):
             os.makedirs(self.config_dir)
-    
+
     def _load_config(self) -> Dict[str, Any]:
         default_config = {
             "check_on_startup": True,
@@ -277,60 +321,64 @@ class VersionManager:
             "auto_download": False,
             "download_dir": os.path.join(self.config_dir, "downloads")
         }
-        
+
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     saved = json.load(f)
                     default_config.update(saved)
-            except Exception:
-                pass
-        
+            except (json.JSONDecodeError, OSError) as e:
+                logging.getLogger('MedicineSystem').warning(f"加载更新配置失败: {e}")
+            except Exception as e:
+                # 配置结构异常（如字段类型错误）时回退到默认配置，避免崩溃
+                logging.getLogger('MedicineSystem').warning(f"更新配置解析异常，使用默认配置: {e}")
+
         return default_config
-    
+
     def save_config(self):
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
-    
+        except OSError as e:
+            logging.getLogger('MedicineSystem').warning(f"保存更新配置失败: {e}")
+
     def get_current_version(self) -> Version:
         return Version(CURRENT_VERSION)
-    
+
     def should_check_update(self) -> bool:
         if not self.config.get("check_on_startup", True):
             return False
-        
+
         last_check = self.config.get("last_check_time")
         if not last_check:
             return True
-        
+
         try:
             last_time = datetime.fromisoformat(last_check)
             interval_hours = self.config.get("check_interval_hours", 24)
             elapsed = datetime.now() - last_time
             return elapsed.total_seconds() >= interval_hours * 3600
-        except Exception:
+        except (ValueError, TypeError):
+            # last_check_time 格式异常或字段类型错误时，触发检查
             return True
-    
+
     def record_check_time(self):
         self.config["last_check_time"] = datetime.now().isoformat()
         self.save_config()
-    
+
     def skip_version(self, version: str):
         self.config["skip_version"] = version
         self.save_config()
-    
+
     def is_version_skipped(self, version: str) -> bool:
         return self.config.get("skip_version") == version
-    
+
     def get_download_dir(self) -> str:
         download_dir = self.config.get("download_dir")
         if download_dir and not os.path.exists(download_dir):
             os.makedirs(download_dir)
         return download_dir
-    
+
     def get_changelog(self, version: str = None) -> Dict[str, Any]:
         if version:
             return CHANGELOG.get(version, {})
