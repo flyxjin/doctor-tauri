@@ -24,8 +24,8 @@
 
 | 层 | 技术 | 说明 |
 |----|------|------|
-| 后端 | Rust + Tauri 2.x | `#[tauri::command]` 暴露 31 个 IPC 命令 |
-| 数据库 | rusqlite (bundled SQLite) | WAL 模式 + 5 项 PRAGMA 优化，7 张业务表 |
+| 后端 | Rust + Tauri 2.x | `#[tauri::command]` 暴露 33 个 IPC 命令 |
+| 数据库 | rusqlite (bundled SQLite) | WAL 模式 + 5 项 PRAGMA 优化，8 张业务表 |
 | 前端 | React 18 + TypeScript 严格模式 | 函数组件 + Hooks |
 | UI 库 | Ant Design 5.x | 中文 locale，路由懒加载 |
 | 状态 | TanStack Query 5 | 服务端状态 + 自动失效 |
@@ -145,7 +145,7 @@ npm run tauri:build
 
 ## 数据库设计
 
-数据库文件位于 `%APPDATA%\com.medicine.system\medicine_system.db`，7 张业务表 + 1 张迁移追踪表：
+数据库文件位于 `%APPDATA%\com.medicine.system\medicine_system.db`，8 张业务表 + 1 张迁移追踪表：
 
 | 表名 | 用途 |
 |------|------|
@@ -190,7 +190,7 @@ PRAGMA foreign_keys = ON;        -- 外键级联
 ```
 tauri_app/
 ├── src/                          # React 前端
-│   ├── api/tauri.ts              # Tauri invoke 封装（31 个命令）
+│   ├── api/tauri.ts              # Tauri invoke 封装（33 个命令）
 │   ├── components/               # EmptyState / ErrorBoundary / StatCard 等
 │   ├── data/                     # 处方模板 JSON
 │   ├── hooks/useCrudMutations.ts # 通用 CRUD mutation Hook
@@ -211,7 +211,7 @@ tauri_app/
 ├── src-tauri/                    # Rust 后端
 │   ├── src/
 │   │   ├── lib.rs                # 应用入口 + 命令注册
-│   │   ├── commands.rs           # 31 个 Tauri 命令 + 46 个单元测试
+│   │   ├── commands.rs           # 33 个 Tauri 命令 + 46 个单元测试
 │   │   ├── compatibility.rs      # 配伍禁忌引擎
 │   │   ├── db.rs                 # 数据库管理 + 迁移
 │   │   ├── models.rs             # 数据模型
