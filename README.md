@@ -334,8 +334,11 @@ npx eslint src            # lint
 
 ## License
 
-- 根项目：[Apache License 2.0](LICENSE)
-- 方案 B (tauri_app)：[MIT License](tauri_app/LICENSE)
+[MIT License](LICENSE) — Copyright (c) 2026 东方本草
+
+两套方案统一使用 MIT 协议，允许商用、闭源衍生，仅需保留版权声明。
+
+> 方案 A (python_app) 使用 PySide6 (LGPL v3)，已按 LGPL 合规要求提供 [第三方组件声明](python_app/THIRD_PARTY_NOTICES.md)，包含 Qt 库替换方式与源码获取地址。
 
 ---
 
