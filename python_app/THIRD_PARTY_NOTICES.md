@@ -43,23 +43,7 @@
 
 ---
 
-## 4. reportlab — BSD License
-
-- **用途**：PDF 生成（处方打印）
-- **协议**：BSD License
-- **主页**：https://www.reportlab.com/
-
----
-
-## 5. Pillow — HPND License
-
-- **用途**：图像处理
-- **协议**：Historical Permission Notice and Disclaimer (HPND)
-- **主页**：https://python-pillow.org/
-
----
-
-## 6. openpyxl — MIT License
+## 4. openpyxl — MIT License
 
 - **用途**：Excel 读写
 - **协议**：MIT License
@@ -67,7 +51,7 @@
 
 ---
 
-## 7. PyInstaller — GPL License（带例外条款）
+## 5. PyInstaller — GPL License（带例外条款）
 
 - **用途**：打包工具（仅开发期使用，不包含在运行时）
 - **协议**：GPL v2（带 Bootloader 例外条款）

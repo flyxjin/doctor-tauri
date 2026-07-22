@@ -71,14 +71,14 @@ npm run tauri:build    # 生产构建
 └────────────────────┬────────────────────────────┘
                      │ invoke() IPC
 ┌────────────────────▼────────────────────────────┐
-│           Rust 后端 (31 个 Tauri 命令)            │
+│           Rust 后端 (33 个 Tauri 命令)            │
 │  ┌──────────┐ ┌──────────────┐ ┌──────────────┐ │
 │  │commands  │ │compatibility │ │   updater    │ │
 │  │  .rs     │ │    .rs       │ │    .rs       │ │
 │  └────┬─────┘ └──────────────┘ └──────────────┘ │
 │       │                                        │
 │  ┌────▼────────────────────────────────────┐   │
-│  │  rusqlite (SQLite, WAL 模式, 7 张表)     │   │
+│  │  rusqlite (SQLite, WAL 模式, 8 张表)     │   │
 │  └─────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────┘
 ```
@@ -189,7 +189,7 @@ doctor/
 ├── tauri_app/               # 方案 B：Tauri + React 版本（生产首选）
 │   ├── src/                 # React 前端
 │   │   ├── pages/           # 9 个页面
-│   │   ├── api/tauri.ts     # Tauri invoke 封装（31 个命令）
+│   │   ├── api/tauri.ts     # Tauri invoke 封装（33 个命令）
 │   │   ├── hooks/           # 通用 CRUD mutation Hook
 │   │   ├── components/      # 通用组件
 │   │   ├── services/        # 方剂模板服务
@@ -204,7 +204,7 @@ doctor/
 │   └── README.md            # 详细文档
 │
 ├── README.md                # 本文件
-├── LICENSE                  # Apache 2.0
+├── LICENSE                  # MIT License
 └── .gitee/                  # Gitee Issue / PR 模板
 ```
 

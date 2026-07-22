@@ -14,6 +14,36 @@ GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
 GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
 
 CHANGELOG = {
+    "4.2.0": {
+        "date": "2026-07-22",
+        "changes": [
+            "UI 风格升级：新极简主义 + 东方雅致设计系统",
+            "配色调整：宣纸米白底 + 本草青主色 + 墨黑文字 + 朱砂红警示，呼应中医药文化属性",
+            "语义色优化：古铜黄替代刺眼橙黄，朱砂红替代亮红，长时间使用更舒适",
+            "触觉质感增强：表格行悬停高亮，侧栏导航选中态改用本草青主色",
+            "阴影系统柔和化：漫射阴影替代硬边框，营造层次纵深",
+            "Dashboard 库存预警颜色统一到主题色板（朱砂红/古铜黄）",
+            "修复窗口缩放显示异常：font_manager 单例化，所有组件共享同一信号源",
+            "修复最小窗口下显示不完整：主窗口最小尺寸提升至 1024x720，各视图设置最小宽度 760px，侧边栏在小窗口下自动收窄",
+            "修复双重缓存同步：移除 View 层手动缓存操作，统一由 Service 层同步（含库存字段）",
+            "修复 PrescriptionService 事务隔离：库存扣减/回退改为在主事务内通过 SQL 执行，避免跨 Service 事务读旧数据",
+            "修复 PrescriptionView N+1 查询：一次联表查询替换循环内 get_by_medicine_id，搜索响应从秒级降为毫秒级",
+            "补充 4 个缺失的数据库索引：prescription_items.prescription_id/medicine_id、operation_logs.target_type、inventory_history.created_at",
+            "修复 BatchImportView worker 关闭时未取消：新增 closeEvent 取消 worker，信号回调加 RuntimeError 保护",
+            "修复更新前备份失败静默吞没：备份失败时弹窗询问用户是否继续",
+            "修复 worker 通过私有方法关闭连接：改用公开的 close() 方法",
+            "批量导入新增 MedicineValidator 校验和数值字段显式转换",
+            "保存处方新增 PrescriptionValidator 校验",
+            "修复 table.item().text() 链式调用无 None 检查：新增 _get_cell_text 安全方法",
+            "配置加载/保存异常改为记录日志而非静默吞没",
+            "缓存 update/delete 优化为 O(1) 定向索引更新，替代全量重建",
+            "修复药性筛选器列表不一致：补充微寒/微温/大寒选项",
+            "修复 insert_prescription 未写入 created_at 字段导致日期过滤失效",
+            "修复库存管理与药材管理种类不一致：update_with_inventory 改为 UPSERT 补建缺失 inventory 记录，启动时自动修复历史数据",
+            "库存管理统计口径统一：药材种类基于 medicines 表 COUNT（与药材管理/仪表盘/统计页一致）",
+            "测试覆盖从 61 个增至 207 个：新增 PrescriptionService、Repository 写方法、DataLoader 测试"
+        ]
+    },
     "4.1.0": {
         "date": "2026-07-05",
         "changes": [
