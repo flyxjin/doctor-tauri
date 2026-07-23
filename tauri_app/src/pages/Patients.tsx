@@ -247,7 +247,7 @@ export default function Patients() {
         okText="保存"
         cancelText="取消"
         width={640}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Space style={{ display: 'flex' }} size="middle">

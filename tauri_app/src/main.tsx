@@ -11,6 +11,8 @@ const queryClient = new QueryClient({
       staleTime: 30 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
+      // 搜索关键字切换时保留上一次数据，避免表格闪烁加载态
+      placeholderData: (prev: unknown) => prev,
     },
   },
 });

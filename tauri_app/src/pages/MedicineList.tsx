@@ -221,7 +221,7 @@ export default function MedicineList() {
         okText="保存"
         cancelText="取消"
         width={680}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item

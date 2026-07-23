@@ -25,6 +25,7 @@ import {
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
 import { parseCsvText } from '@/utils/csv';
+import { formatError } from '@/utils/formatError';
 import type { BatchImportResult, MedicineImportRecord } from '@/types';
 
 const { Paragraph, Text } = Typography;
@@ -49,7 +50,7 @@ export default function BatchImportPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setResult(data);
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
     onSettled: () => {
       setImporting(false);
       setProgress(100);
@@ -106,7 +107,7 @@ export default function BatchImportPage() {
       const path = await saveTextToDownloads('药材导入模板.csv', csv);
       message.success(`模板已保存到：${path}`);
     } catch (e) {
-      message.error(String(e));
+      message.error(formatError(e));
     }
   };
 
@@ -117,7 +118,7 @@ export default function BatchImportPage() {
       const path = await saveTextToDownloads(`medicines_export_${ts}.csv`, csv);
       message.success(`已导出到：${path}`);
     } catch (e) {
-      message.error(String(e));
+      message.error(formatError(e));
     }
   };
 

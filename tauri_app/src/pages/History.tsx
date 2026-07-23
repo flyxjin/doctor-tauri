@@ -21,6 +21,7 @@ import { deletePrescription, generatePrescriptionHtml, listPrescriptions } from 
 import { printHtmlInIframe } from '@/utils/print';
 import type { PrescriptionItem, PrescriptionWithItems } from '@/types';
 import EmptyState from '@/components/EmptyState';
+import { formatError } from '@/utils/formatError';
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
@@ -59,7 +60,7 @@ export default function HistoryPage() {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       setDetail(null);
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   // 导出当前筛选结果为 CSV 并触发下载
@@ -122,7 +123,7 @@ export default function HistoryPage() {
       await printHtmlInIframe(html);
       message.success('已发送至打印预览');
     } catch (e) {
-      message.error(String(e));
+      message.error(formatError(e));
     } finally {
       setPrintingId(null);
     }
