@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Layout, Menu } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { App, Layout, Menu, Tag, Typography, Spin } from 'antd';
 import {
   DashboardOutlined,
   MedicineBoxOutlined,
@@ -12,8 +12,14 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { checkAndDownloadSilently, installUpdate } from '@/api/tauri';
+import { formatFileSize } from '@/utils/format';
 
 const { Header, Sider, Content } = Layout;
+const { Paragraph, Text } = Typography;
+
+/** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
+const CURRENT_VERSION = '0.3.2';
 
 /** 侧边栏导航项 */
 const NAV_ITEMS = [
@@ -37,6 +43,76 @@ function formatToday(): string {
 
 export default function MainLayout() {
   const location = useLocation();
+  const { message, modal } = App.useApp();
+  const [installing, setInstalling] = useState(false);
+
+  // 启动时静默检查更新：仅触发一次，失败不提示
+  useEffect(() => {
+    let cancelled = false;
+    // 延迟 1.5s，避免与首屏数据请求争抢网络
+    const timer = setTimeout(() => {
+      checkAndDownloadSilently(CURRENT_VERSION)
+        .then((result) => {
+          if (cancelled) return;
+          if (!result.has_update) return;
+          const info = result.info;
+          if (result.downloaded_path) {
+            // 已下载完成：弹窗询问是否立即静默安装
+            modal.confirm({
+              title: '发现新版本，已下载完成',
+              width: 520,
+              content: (
+                <div>
+                  <Paragraph>
+                    <Text strong>新版本：</Text>
+                    <Tag color="blue">v{info.version}</Tag>
+                    <Text type="secondary" style={{ marginLeft: 8 }}>
+                      当前 v{CURRENT_VERSION}
+                    </Text>
+                  </Paragraph>
+                  {info.file_size > 0 && (
+                    <Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                      安装包大小：{formatFileSize(info.file_size)}
+                    </Paragraph>
+                  )}
+                  <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                    点击「立即更新」将自动静默安装并重启应用，期间请勿关闭程序。
+                  </Paragraph>
+                </div>
+              ),
+              okText: '立即更新',
+              cancelText: '稍后',
+              onOk: async () => {
+                setInstalling(true);
+                try {
+                  await installUpdate(result.downloaded_path, true);
+                  // 静默安装已启动，后端会在 500ms 后调用 app.exit(0)
+                  message.info('正在静默安装并退出，请稍候...');
+                } catch (e) {
+                  setInstalling(false);
+                  message.error(`启动安装失败：${String(e)}`);
+                }
+              },
+            });
+          } else {
+            // 有新版本但下载失败：仅提示用户到 Settings 页手动操作
+            message.info(
+              `发现新版本 v${info.version}，自动下载失败，请到「系统设置」手动下载`,
+              6,
+            );
+          }
+        })
+        .catch(() => {
+          // 静默失败：不干扰用户启动
+        });
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedKey = useMemo(() => {
     const path = location.pathname;
@@ -82,6 +158,27 @@ export default function MainLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      {/* 静默安装中遮罩：后端 spawn 安装程序后约 500ms 调用 app.exit(0) */}
+      {installing && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            color: '#fff',
+          }}
+        >
+          <Spin size="large" />
+          <div style={{ marginTop: 16, fontSize: 15 }}>正在静默安装新版本并退出...</div>
+          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>请勿关闭程序</div>
+        </div>
+      )}
     </Layout>
   );
 }

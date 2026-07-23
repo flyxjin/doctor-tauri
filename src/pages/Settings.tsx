@@ -41,7 +41,7 @@ import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.1';
+const CURRENT_VERSION = '0.3.2';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -156,7 +156,8 @@ export default function SettingsPage() {
   });
 
   const installMutation = useMutation({
-    mutationFn: installUpdate,
+    // 手动安装路径：显式 silent=false，走 NSIS 安装向导 UI（非静默）
+    mutationFn: (path: string) => installUpdate(path, false),
     onSuccess: () => {
       message.success('安装程序已启动，请按安装向导完成升级');
     },
