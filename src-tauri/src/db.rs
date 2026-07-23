@@ -30,6 +30,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "006_fix_price_unit",
         include_str!("../migrations/006_fix_price_unit.sql"),
     ),
+    (
+        "007_expand_herbs",
+        include_str!("../migrations/007_expand_herbs.sql"),
+    ),
 ];
 
 /// 数据库状态：持有单个 SQLite 连接，通过 Mutex 序列化访问
@@ -318,25 +322,26 @@ mod tests {
         assert_eq!(count_after, 0, "删除药材后库存应被级联删除");
     }
 
-    /// 测试种子数据已被迁移脚本插入：300 味种子药材 + 19 味补充药材 = 319 味
+    /// 测试种子数据已被迁移脚本插入：300 味种子药材 + 19 味补充药材 + 81 味扩充药材 = 400 味
     #[test]
     fn test_seed_data_inserted() {
         let db = setup_in_memory();
         let conn = db.lock().unwrap();
         // 002_seed_medicines.sql 插入 300 味药材，加上 001_init.sql 已有 5 味（重名被 IGNORE）
         // 004_supplement_herbs.sql 再补充 19 味方剂模板引用药材
-        // 所以最终 medicines 表应有 319 条
+        // 007_expand_herbs.sql 再扩充 81 味常用中药材
+        // 所以最终 medicines 表应有 400 条
         let medicine_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM medicines", (), |row| row.get(0))
             .unwrap();
-        assert_eq!(medicine_count, 319, "种子+补充应共 319 味药材");
-        // 库存记录应至少 319 条（每味药材对应一条库存）
+        assert_eq!(medicine_count, 400, "种子+补充+扩充应共 400 味药材");
+        // 库存记录应至少 400 条（每味药材对应一条库存）
         let inventory_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM inventory", (), |row| row.get(0))
             .unwrap();
         assert!(
-            inventory_count >= 319,
-            "库存记录至少 319 条，实际: {inventory_count}"
+            inventory_count >= 400,
+            "库存记录至少 400 条，实际: {inventory_count}"
         );
         // 验证特定药材存在
         let exists: i64 = conn
