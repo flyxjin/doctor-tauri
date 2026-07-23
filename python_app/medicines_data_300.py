@@ -13,7 +13,7 @@ medicines_300 = [
         "contraindication": "实证、热证而正气不虚者忌服",
         "quantity": 500,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 50,
         "notes": "一等选装人参"
     },
@@ -31,7 +31,7 @@ medicines_300 = [
         "contraindication": "表实邪盛,气滞湿阻,食积停滞,痈疽初起或溃后热毒尚盛等实证,以及阴虚阳亢者,均须禁服",
         "quantity": 600,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 60,
         "notes": ""
     },
@@ -49,7 +49,7 @@ medicines_300 = [
         "contraindication": "湿阻中满及大便溏泄者慎服",
         "quantity": 450,
         "unit": "g",
-        "price": 58,
+        "price": 0.58,
         "min_stock": 45,
         "notes": ""
     },
@@ -67,7 +67,7 @@ medicines_300 = [
         "contraindication": "阳衰虚寒之证不宜用",
         "quantity": 400,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 40,
         "notes": ""
     },
@@ -85,7 +85,7 @@ medicines_300 = [
         "contraindication": "脾虚湿滞,腹满便溏,痰多者不宜使用",
         "quantity": 350,
         "unit": "g",
-        "price": 75,
+        "price": 0.75,
         "min_stock": 35,
         "notes": ""
     },
@@ -103,7 +103,7 @@ medicines_300 = [
         "contraindication": "不宜与藜芦同用",
         "quantity": 550,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 55,
         "notes": ""
     },
@@ -121,7 +121,7 @@ medicines_300 = [
         "contraindication": "阴虚内热,津枯液燥者慎用",
         "quantity": 500,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 50,
         "notes": ""
     },
@@ -139,7 +139,7 @@ medicines_300 = [
         "contraindication": "阴虚而无湿热者慎用",
         "quantity": 450,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 45,
         "notes": ""
     },
@@ -157,7 +157,7 @@ medicines_300 = [
         "contraindication": "不宜与京大戟、芫花、甘遂同用",
         "quantity": 600,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 60,
         "notes": ""
     },
@@ -175,7 +175,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒及气虚疮疡脓清者不宜使用",
         "quantity": 400,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 40,
         "notes": ""
     },
@@ -193,7 +193,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒及气虚脓清者不宜使用",
         "quantity": 350,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 35,
         "notes": ""
     },
@@ -211,7 +211,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -229,7 +229,7 @@ medicines_300 = [
         "contraindication": "用量过大可致缓泻",
         "quantity": 350,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 35,
         "notes": ""
     },
@@ -247,7 +247,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 40,
         "notes": ""
     },
@@ -265,7 +265,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用,阴虚津伤者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 30,
         "notes": ""
     },
@@ -283,7 +283,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 35,
         "notes": ""
     },
@@ -301,7 +301,7 @@ medicines_300 = [
         "contraindication": "体虚自汗,盗汗,虚喘者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 40,
         "notes": ""
     },
@@ -319,7 +319,7 @@ medicines_300 = [
         "contraindication": "热病高热,阴虚火旺,血热妄行者忌用",
         "quantity": 450,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 45,
         "notes": ""
     },
@@ -337,7 +337,7 @@ medicines_300 = [
         "contraindication": "肝阳上亢,气机上逆者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 40,
         "notes": ""
     },
@@ -355,7 +355,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,上盛下虚及气弱者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 40,
         "notes": ""
     },
@@ -373,7 +373,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 450,
         "unit": "g",
-        "price": 48,
+        "price": 0.48,
         "min_stock": 45,
         "notes": ""
     },
@@ -391,7 +391,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 30,
         "notes": ""
     },
@@ -409,7 +409,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -427,7 +427,7 @@ medicines_300 = [
         "contraindication": "阴虚燥咳,津伤口渴,血证者忌用",
         "quantity": 400,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 40,
         "notes": ""
     },
@@ -445,7 +445,7 @@ medicines_300 = [
         "contraindication": "气虚体燥,阴虚燥咳者慎用",
         "quantity": 500,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 50,
         "notes": ""
     },
@@ -463,7 +463,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱及孕妇慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 35,
         "notes": ""
     },
@@ -481,7 +481,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱者慎用",
         "quantity": 450,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 45,
         "notes": ""
     },
@@ -499,7 +499,7 @@ medicines_300 = [
         "contraindication": "脾阴虚者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 30,
         "notes": ""
     },
@@ -517,7 +517,7 @@ medicines_300 = [
         "contraindication": "哺乳期妇女慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 35,
         "notes": ""
     },
@@ -535,7 +535,7 @@ medicines_300 = [
         "contraindication": "实邪郁火者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 40,
         "notes": ""
     },
@@ -553,7 +553,7 @@ medicines_300 = [
         "contraindication": "便溏者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 30,
         "notes": ""
     },
@@ -571,7 +571,7 @@ medicines_300 = [
         "contraindication": "胃炎及胃溃疡者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 35,
         "notes": ""
     },
@@ -589,7 +589,7 @@ medicines_300 = [
         "contraindication": "气血虚甚者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 185,
+        "price": 1.85,
         "min_stock": 30,
         "notes": ""
     },
@@ -607,7 +607,7 @@ medicines_300 = [
         "contraindication": "无特殊禁忌",
         "quantity": 350,
         "unit": "g",
-        "price": 48,
+        "price": 0.48,
         "min_stock": 35,
         "notes": ""
     },
@@ -625,7 +625,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 40,
         "notes": ""
     },
@@ -643,7 +643,7 @@ medicines_300 = [
         "contraindication": "体虚有寒者慎用",
         "quantity": 450,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 45,
         "notes": ""
     },
@@ -661,7 +661,7 @@ medicines_300 = [
         "contraindication": "湿热积滞者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 40,
         "notes": ""
     },
@@ -679,7 +679,7 @@ medicines_300 = [
         "contraindication": "不宜久服,肝肾功能不全者慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 280,
+        "price": 2.8,
         "min_stock": 10,
         "notes": ""
     },
@@ -697,7 +697,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 40,
         "notes": ""
     },
@@ -715,7 +715,7 @@ medicines_300 = [
         "contraindication": "阴虚内热者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 20,
         "notes": ""
     },
@@ -733,7 +733,7 @@ medicines_300 = [
         "contraindication": "实证者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 125,
+        "price": 1.25,
         "min_stock": 25,
         "notes": ""
     },
@@ -751,7 +751,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -769,7 +769,7 @@ medicines_300 = [
         "contraindication": "大便溏泄者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 35,
         "notes": ""
     },
@@ -787,7 +787,7 @@ medicines_300 = [
         "contraindication": "实证、热证者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 30,
         "notes": ""
     },
@@ -805,7 +805,7 @@ medicines_300 = [
         "contraindication": "中阳衰微,胃有寒湿者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 320,
+        "price": 3.2,
         "min_stock": 20,
         "notes": ""
     },
@@ -823,7 +823,7 @@ medicines_300 = [
         "contraindication": "实证者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 35,
         "notes": ""
     },
@@ -841,7 +841,7 @@ medicines_300 = [
         "contraindication": "湿盛中满者慎用",
         "quantity": 500,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 50,
         "notes": ""
     },
@@ -859,7 +859,7 @@ medicines_300 = [
         "contraindication": "无特殊禁忌",
         "quantity": 400,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 40,
         "notes": ""
     },
@@ -877,7 +877,7 @@ medicines_300 = [
         "contraindication": "湿盛脘腹胀满者慎用",
         "quantity": 500,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 50,
         "notes": ""
     },
@@ -895,7 +895,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -913,7 +913,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -931,7 +931,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 95,
+        "price": 0.95,
         "min_stock": 20,
         "notes": ""
     },
@@ -949,7 +949,7 @@ medicines_300 = [
         "contraindication": "体温热甚者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 30,
         "notes": ""
     },
@@ -967,7 +967,7 @@ medicines_300 = [
         "contraindication": "湿阻中满,湿热痰滞者慎用",
         "quantity": 500,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 50,
         "notes": ""
     },
@@ -985,7 +985,7 @@ medicines_300 = [
         "contraindication": "阴虚阳亢,血分有热,胃火盛者忌用",
         "quantity": 50,
         "unit": "g",
-        "price": 580,
+        "price": 5.8,
         "min_stock": 5,
         "notes": ""
     },
@@ -1003,7 +1003,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 320,
+        "price": 3.2,
         "min_stock": 10,
         "notes": ""
     },
@@ -1021,7 +1021,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 35,
         "notes": ""
     },
@@ -1039,7 +1039,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 30,
         "notes": ""
     },
@@ -1057,7 +1057,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 52,
+        "price": 0.52,
         "min_stock": 25,
         "notes": ""
     },
@@ -1075,7 +1075,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 48,
+        "price": 0.48,
         "min_stock": 40,
         "notes": ""
     },
@@ -1093,7 +1093,7 @@ medicines_300 = [
         "contraindication": "痢疾初起者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 35,
         "notes": ""
     },
@@ -1111,7 +1111,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,大便溏泄者忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 25,
         "notes": ""
     },
@@ -1129,7 +1129,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,脾虚泄泻者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 30,
         "notes": ""
     },
@@ -1147,7 +1147,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -1165,7 +1165,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 300,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 30,
         "notes": ""
     },
@@ -1183,7 +1183,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,大便燥结者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 35,
         "notes": ""
     },
@@ -1201,7 +1201,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 30,
         "notes": ""
     },
@@ -1219,7 +1219,7 @@ medicines_300 = [
         "contraindication": "风寒咳嗽者忌用",
         "quantity": 100,
         "unit": "g",
-        "price": 280,
+        "price": 2.8,
         "min_stock": 10,
         "notes": ""
     },
@@ -1237,7 +1237,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,痰热咳嗽者慎用",
         "quantity": 450,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 45,
         "notes": ""
     },
@@ -1255,7 +1255,7 @@ medicines_300 = [
         "contraindication": "有表邪者慎用",
         "quantity": 50,
         "unit": "g",
-        "price": 680,
+        "price": 6.8,
         "min_stock": 5,
         "notes": ""
     },
@@ -1273,7 +1273,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 25,
         "notes": ""
     },
@@ -1291,7 +1291,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 300,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 30,
         "notes": ""
     },
@@ -1309,7 +1309,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用,不宜久服",
         "quantity": 150,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 15,
         "notes": ""
     },
@@ -1327,7 +1327,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 20,
         "notes": ""
     },
@@ -1345,7 +1345,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 80,
         "unit": "g",
-        "price": 380,
+        "price": 3.8,
         "min_stock": 8,
         "notes": ""
     },
@@ -1363,7 +1363,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 185,
+        "price": 1.85,
         "min_stock": 20,
         "notes": ""
     },
@@ -1381,7 +1381,7 @@ medicines_300 = [
         "contraindication": "大便溏泄者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 35,
         "notes": ""
     },
@@ -1399,7 +1399,7 @@ medicines_300 = [
         "contraindication": "湿盛中满者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 40,
         "notes": ""
     },
@@ -1417,7 +1417,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 25,
         "notes": ""
     },
@@ -1435,7 +1435,7 @@ medicines_300 = [
         "contraindication": "风寒咳嗽者忌用",
         "quantity": 300,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 30,
         "notes": ""
     },
@@ -1453,7 +1453,7 @@ medicines_300 = [
         "contraindication": "风寒咳嗽者忌用",
         "quantity": 350,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 35,
         "notes": ""
     },
@@ -1471,7 +1471,7 @@ medicines_300 = [
         "contraindication": "风寒咳嗽者忌用",
         "quantity": 400,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 40,
         "notes": ""
     },
@@ -1489,7 +1489,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒泄泻者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 40,
         "notes": ""
     },
@@ -1507,7 +1507,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒泄泻者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 35,
         "notes": ""
     },
@@ -1525,7 +1525,7 @@ medicines_300 = [
         "contraindication": "温热病早期阴未伤者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 125,
+        "price": 1.25,
         "min_stock": 20,
         "notes": ""
     },
@@ -1543,7 +1543,7 @@ medicines_300 = [
         "contraindication": "痰湿气滞者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -1561,7 +1561,7 @@ medicines_300 = [
         "contraindication": "痰湿气滞者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 40,
         "notes": ""
     },
@@ -1579,7 +1579,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 450,
         "unit": "g",
-        "price": 48,
+        "price": 0.48,
         "min_stock": 45,
         "notes": ""
     },
@@ -1597,7 +1597,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 35,
         "notes": ""
     },
@@ -1615,7 +1615,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒泄泻者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -1633,7 +1633,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒便溏者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 30,
         "notes": ""
     },
@@ -1651,7 +1651,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 165,
+        "price": 1.65,
         "min_stock": 15,
         "notes": ""
     },
@@ -1669,7 +1669,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 145,
+        "price": 1.45,
         "min_stock": 15,
         "notes": ""
     },
@@ -1687,7 +1687,7 @@ medicines_300 = [
         "contraindication": "孕妇及月经期、哺乳期慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 40,
         "notes": "生大黄"
     },
@@ -1705,7 +1705,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 30,
         "notes": ""
     },
@@ -1723,7 +1723,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,用量过大可致恶心呕吐腹痛",
         "quantity": 250,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 25,
         "notes": ""
     },
@@ -1741,7 +1741,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,脾胃虚寒者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 20,
         "notes": ""
     },
@@ -1759,7 +1759,7 @@ medicines_300 = [
         "contraindication": "用量过大可致中毒",
         "quantity": 400,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 40,
         "notes": ""
     },
@@ -1777,7 +1777,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 30,
         "notes": ""
     },
@@ -1795,7 +1795,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 35,
         "notes": ""
     },
@@ -1813,7 +1813,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,体虚者慎用,反甘草",
         "quantity": 100,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 10,
         "notes": ""
     },
@@ -1831,7 +1831,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,体虚者慎用,反甘草",
         "quantity": 100,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 10,
         "notes": ""
     },
@@ -1849,7 +1849,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,体虚者慎用,反甘草",
         "quantity": 80,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 8,
         "notes": ""
     },
@@ -1867,7 +1867,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,脾虚水肿者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 15,
         "notes": ""
     },
@@ -1885,7 +1885,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,胃弱气虚者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -1903,7 +1903,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,体弱者慎用,反牵牛子",
         "quantity": 50,
         "unit": "g",
-        "price": 95,
+        "price": 0.95,
         "min_stock": 5,
         "notes": ""
     },
@@ -1921,7 +1921,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,体弱便溏者慎用",
         "quantity": 80,
         "unit": "g",
-        "price": 75,
+        "price": 0.75,
         "min_stock": 8,
         "notes": ""
     },
@@ -1939,7 +1939,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 35,
         "notes": ""
     },
@@ -1957,7 +1957,7 @@ medicines_300 = [
         "contraindication": "气血亏虚者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -1975,7 +1975,7 @@ medicines_300 = [
         "contraindication": "胃纳不佳及阴虚体弱者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 30,
         "notes": ""
     },
@@ -1993,7 +1993,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 30,
         "notes": ""
     },
@@ -2011,7 +2011,7 @@ medicines_300 = [
         "contraindication": "内有郁热,小便短赤者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 40,
         "notes": ""
     },
@@ -2029,7 +2029,7 @@ medicines_300 = [
         "contraindication": "无特殊禁忌",
         "quantity": 350,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 35,
         "notes": ""
     },
@@ -2047,7 +2047,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -2065,7 +2065,7 @@ medicines_300 = [
         "contraindication": "血虚生风者慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 185,
+        "price": 1.85,
         "min_stock": 10,
         "notes": ""
     },
@@ -2083,7 +2083,7 @@ medicines_300 = [
         "contraindication": "血虚生风者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 125,
+        "price": 1.25,
         "min_stock": 15,
         "notes": ""
     },
@@ -2101,7 +2101,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用",
         "quantity": 100,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 10,
         "notes": ""
     },
@@ -2119,7 +2119,7 @@ medicines_300 = [
         "contraindication": "阴虚内热者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 40,
         "notes": ""
     },
@@ -2137,7 +2137,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 35,
         "notes": ""
     },
@@ -2155,7 +2155,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 40,
         "notes": ""
     },
@@ -2173,7 +2173,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 35,
         "notes": ""
     },
@@ -2191,7 +2191,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 30,
         "notes": ""
     },
@@ -2209,7 +2209,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 25,
         "notes": ""
     },
@@ -2227,7 +2227,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 20,
         "notes": ""
     },
@@ -2245,7 +2245,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 20,
         "notes": ""
     },
@@ -2263,7 +2263,7 @@ medicines_300 = [
         "contraindication": "肾虚精滑者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 40,
         "notes": ""
     },
@@ -2281,7 +2281,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 500,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 50,
         "notes": ""
     },
@@ -2299,7 +2299,7 @@ medicines_300 = [
         "contraindication": "肾虚精滑者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 35,
         "notes": ""
     },
@@ -2317,7 +2317,7 @@ medicines_300 = [
         "contraindication": "脾虚者慎用,孕妇慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 40,
         "notes": ""
     },
@@ -2335,7 +2335,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,肾功能不全者忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 25,
         "notes": ""
     },
@@ -2353,7 +2353,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 20,
         "notes": ""
     },
@@ -2371,7 +2371,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 25,
         "notes": ""
     },
@@ -2389,7 +2389,7 @@ medicines_300 = [
         "contraindication": "脾虚者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 30,
         "notes": ""
     },
@@ -2407,7 +2407,7 @@ medicines_300 = [
         "contraindication": "阴虚者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 25,
         "notes": ""
     },
@@ -2425,7 +2425,7 @@ medicines_300 = [
         "contraindication": "肾阴亏虚者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 20,
         "notes": ""
     },
@@ -2443,7 +2443,7 @@ medicines_300 = [
         "contraindication": "阴虚者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 25,
         "notes": ""
     },
@@ -2461,7 +2461,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,脾虚便溏者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 20,
         "notes": ""
     },
@@ -2479,7 +2479,7 @@ medicines_300 = [
         "contraindication": "虚寒者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 15,
         "notes": ""
     },
@@ -2497,7 +2497,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,阴虚阳亢者忌用,反半夏、瓜蒌、贝母、白蔹、白及",
         "quantity": 200,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 20,
         "notes": "制附子"
     },
@@ -2515,7 +2515,7 @@ medicines_300 = [
         "contraindication": "阴虚内热,血热妄行者忌用,孕妇慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 40,
         "notes": ""
     },
@@ -2533,7 +2533,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,里有实热,血热妄行者及孕妇忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 48,
+        "price": 0.48,
         "min_stock": 25,
         "notes": ""
     },
@@ -2551,7 +2551,7 @@ medicines_300 = [
         "contraindication": "阴虚有热者忌用,孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 20,
         "notes": ""
     },
@@ -2569,7 +2569,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 35,
         "notes": ""
     },
@@ -2587,7 +2587,7 @@ medicines_300 = [
         "contraindication": "热证及阴虚内热者忌用,畏郁金",
         "quantity": 150,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 15,
         "notes": ""
     },
@@ -2605,7 +2605,7 @@ medicines_300 = [
         "contraindication": "阴虚有热者忌用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -2623,7 +2623,7 @@ medicines_300 = [
         "contraindication": "阴虚有火者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 20,
         "notes": ""
     },
@@ -2641,7 +2641,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用,孕妇慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 35,
         "notes": ""
     },
@@ -2659,7 +2659,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 150,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 15,
         "notes": ""
     },
@@ -2677,7 +2677,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者忌用",
         "quantity": 150,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 15,
         "notes": ""
     },
@@ -2695,7 +2695,7 @@ medicines_300 = [
         "contraindication": "体虚自汗、盗汗、虚喘及高血压患者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 30,
         "notes": ""
     },
@@ -2713,7 +2713,7 @@ medicines_300 = [
         "contraindication": "孕妇及月经过多者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 35,
         "notes": ""
     },
@@ -2731,7 +2731,7 @@ medicines_300 = [
         "contraindication": "气虚表虚者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 25,
         "notes": ""
     },
@@ -2749,7 +2749,7 @@ medicines_300 = [
         "contraindication": "表虚自汗者慎用",
         "quantity": 280,
         "unit": "g",
-        "price": 20,
+        "price": 0.2,
         "min_stock": 28,
         "notes": ""
     },
@@ -2767,7 +2767,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -2785,7 +2785,7 @@ medicines_300 = [
         "contraindication": "阴虚头痛者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 25,
         "notes": ""
     },
@@ -2803,7 +2803,7 @@ medicines_300 = [
         "contraindication": "阴虚血热者忌用",
         "quantity": 280,
         "unit": "g",
-        "price": 24,
+        "price": 0.24,
         "min_stock": 28,
         "notes": ""
     },
@@ -2821,7 +2821,7 @@ medicines_300 = [
         "contraindication": "气虚多汗、阴虚阳亢头痛、阴虚燥咳者忌用",
         "quantity": 150,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 15,
         "notes": "用量不宜过大"
     },
@@ -2839,7 +2839,7 @@ medicines_300 = [
         "contraindication": "血虚头痛者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 20,
         "notes": ""
     },
@@ -2857,7 +2857,7 @@ medicines_300 = [
         "contraindication": "血虚头痛者不宜用",
         "quantity": 180,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 18,
         "notes": "有小毒"
     },
@@ -2875,7 +2875,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 20,
         "notes": ""
     },
@@ -2893,7 +2893,7 @@ medicines_300 = [
         "contraindication": "表虚多汗者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 8,
+        "price": 0.08,
         "min_stock": 30,
         "notes": ""
     },
@@ -2911,7 +2911,7 @@ medicines_300 = [
         "contraindication": "胃溃疡患者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 18,
         "notes": ""
     },
@@ -2929,7 +2929,7 @@ medicines_300 = [
         "contraindication": "体虚多汗者不宜用",
         "quantity": 250,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 25,
         "notes": ""
     },
@@ -2947,7 +2947,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 220,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 22,
         "notes": ""
     },
@@ -2965,7 +2965,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 15,
         "notes": ""
     },
@@ -2983,7 +2983,7 @@ medicines_300 = [
         "contraindication": "风寒咳嗽者不宜用",
         "quantity": 300,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 30,
         "notes": ""
     },
@@ -3001,7 +3001,7 @@ medicines_300 = [
         "contraindication": "气虚胃寒者慎用",
         "quantity": 280,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 28,
         "notes": ""
     },
@@ -3019,7 +3019,7 @@ medicines_300 = [
         "contraindication": "血虚有火之头痛者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 20,
         "notes": ""
     },
@@ -3037,7 +3037,7 @@ medicines_300 = [
         "contraindication": "阴虚阳亢,肝风内动,阴虚火旺及气机上逆者忌用",
         "quantity": 350,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 35,
         "notes": ""
     },
@@ -3055,7 +3055,7 @@ medicines_300 = [
         "contraindication": "阴虚阳浮,喘满气逆及麻疹已透者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 20,
         "notes": ""
     },
@@ -3073,7 +3073,7 @@ medicines_300 = [
         "contraindication": "胃寒者慎用",
         "quantity": 400,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 40,
         "notes": ""
     },
@@ -3091,7 +3091,7 @@ medicines_300 = [
         "contraindication": "胃虚易泛恶者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 25,
         "notes": ""
     },
@@ -3109,7 +3109,7 @@ medicines_300 = [
         "contraindication": "表虚自汗者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 15,
         "notes": ""
     },
@@ -3127,7 +3127,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒及阴虚内热者忌用",
         "quantity": 500,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 50,
         "notes": ""
     },
@@ -3145,7 +3145,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 30,
         "notes": ""
     },
@@ -3163,7 +3163,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 280,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 28,
         "notes": ""
     },
@@ -3181,7 +3181,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 30,
         "notes": ""
     },
@@ -3199,7 +3199,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 35,
         "notes": ""
     },
@@ -3217,7 +3217,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,不宜与川乌、草乌同用",
         "quantity": 250,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 25,
         "notes": ""
     },
@@ -3235,7 +3235,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -3253,7 +3253,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 18,
         "notes": ""
     },
@@ -3271,7 +3271,7 @@ medicines_300 = [
         "contraindication": "胃寒呕吐,脾虚泄泻者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 20,
         "notes": ""
     },
@@ -3289,7 +3289,7 @@ medicines_300 = [
         "contraindication": "脾虚泄泻,胃弱食少者忌用",
         "quantity": 280,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 28,
         "notes": ""
     },
@@ -3307,7 +3307,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者忌用,阴虚津伤者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 18,
         "notes": ""
     },
@@ -3325,7 +3325,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -3343,7 +3343,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者忌用,不宜与藜芦同用",
         "quantity": 220,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 22,
         "notes": ""
     },
@@ -3361,7 +3361,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 20,
         "notes": ""
     },
@@ -3379,7 +3379,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒及气虚疮疡脓清者忌用",
         "quantity": 350,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 35,
         "notes": ""
     },
@@ -3397,7 +3397,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒及气虚脓清者不宜",
         "quantity": 300,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 30,
         "notes": ""
     },
@@ -3415,7 +3415,7 @@ medicines_300 = [
         "contraindication": "用量过大可致缓泻",
         "quantity": 300,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 30,
         "notes": ""
     },
@@ -3433,7 +3433,7 @@ medicines_300 = [
         "contraindication": "体质虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -3451,7 +3451,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 25,
         "notes": ""
     },
@@ -3469,7 +3469,7 @@ medicines_300 = [
         "contraindication": "不宜多服久服,脾胃虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -3487,7 +3487,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者忌用",
         "quantity": 220,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 22,
         "notes": ""
     },
@@ -3505,7 +3505,7 @@ medicines_300 = [
         "contraindication": "体虚而无实火热毒者忌用",
         "quantity": 350,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 35,
         "notes": ""
     },
@@ -3523,7 +3523,7 @@ medicines_300 = [
         "contraindication": "胃寒者慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 10,
         "notes": ""
     },
@@ -3541,7 +3541,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": "有小毒"
     },
@@ -3559,7 +3559,7 @@ medicines_300 = [
         "contraindication": "虚寒证及阴性疮疡忌用",
         "quantity": 300,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 30,
         "notes": ""
     },
@@ -3577,7 +3577,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用,孕妇忌用",
         "quantity": 180,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 18,
         "notes": ""
     },
@@ -3595,7 +3595,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒泄泻者忌用",
         "quantity": 150,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 15,
         "notes": "有毒"
     },
@@ -3613,7 +3613,7 @@ medicines_300 = [
         "contraindication": "风寒伏肺咳嗽失音者禁服",
         "quantity": 120,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 12,
         "notes": ""
     },
@@ -3631,7 +3631,7 @@ medicines_300 = [
         "contraindication": "虚寒泻痢者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 20,
         "notes": ""
     },
@@ -3649,7 +3649,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用,孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 25,
         "notes": ""
     },
@@ -3667,7 +3667,7 @@ medicines_300 = [
         "contraindication": "胃肠出血及肝肾病患者忌用,孕妇慎用",
         "quantity": 80,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 8,
         "notes": "有小毒"
     },
@@ -3685,7 +3685,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱者慎用",
         "quantity": 220,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 22,
         "notes": ""
     },
@@ -3703,7 +3703,7 @@ medicines_300 = [
         "contraindication": "阴疽及脾胃虚寒者忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 25,
         "notes": ""
     },
@@ -3721,7 +3721,7 @@ medicines_300 = [
         "contraindication": "肝肾阴虚者慎服,服药时忌茶",
         "quantity": 300,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 30,
         "notes": ""
     },
@@ -3739,7 +3739,7 @@ medicines_300 = [
         "contraindication": "虚寒证禁用,孕妇慎用",
         "quantity": 30,
         "unit": "g",
-        "price": 280,
+        "price": 2.8,
         "min_stock": 3,
         "notes": ""
     },
@@ -3757,7 +3757,7 @@ medicines_300 = [
         "contraindication": "脾虚湿滞,腹满便溏者不宜使用",
         "quantity": 350,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 35,
         "notes": ""
     },
@@ -3775,7 +3775,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒,食少便溏者不宜使用,不宜与藜芦同用",
         "quantity": 280,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 28,
         "notes": ""
     },
@@ -3793,7 +3793,7 @@ medicines_300 = [
         "contraindication": "血虚有寒,月经过多及孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 25,
         "notes": ""
     },
@@ -3811,7 +3811,7 @@ medicines_300 = [
         "contraindication": "血虚经闭者不宜用,不宜与藜芦同用",
         "quantity": 280,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 28,
         "notes": ""
     },
@@ -3829,7 +3829,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒便溏者忌服",
         "quantity": 180,
         "unit": "g",
-        "price": 38,
+        "price": 0.38,
         "min_stock": 18,
         "notes": ""
     },
@@ -3847,7 +3847,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 20,
         "notes": ""
     },
@@ -3865,7 +3865,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱,肠滑泄泻者忌用",
         "quantity": 250,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 25,
         "notes": ""
     },
@@ -3883,7 +3883,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 18,
         "notes": ""
     },
@@ -3901,7 +3901,7 @@ medicines_300 = [
         "contraindication": "外感风寒发热及脾虚便溏者不宜用",
         "quantity": 220,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 22,
         "notes": ""
     },
@@ -3919,7 +3919,7 @@ medicines_300 = [
         "contraindication": "外感风寒,血虚无热者忌用",
         "quantity": 180,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 18,
         "notes": ""
     },
@@ -3937,7 +3937,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 42,
+        "price": 0.42,
         "min_stock": 15,
         "notes": ""
     },
@@ -3955,7 +3955,7 @@ medicines_300 = [
         "contraindication": "孕妇及月经期、哺乳期慎用",
         "quantity": 300,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 30,
         "notes": ""
     },
@@ -3973,7 +3973,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,不宜与三棱同用",
         "quantity": 250,
         "unit": "g",
-        "price": 8,
+        "price": 0.08,
         "min_stock": 25,
         "notes": ""
     },
@@ -3991,7 +3991,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,剂量过大可致恶心呕吐腹痛",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -4009,7 +4009,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒,食少便溏及孕妇忌用",
         "quantity": 120,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 12,
         "notes": ""
     },
@@ -4027,7 +4027,7 @@ medicines_300 = [
         "contraindication": "用量过大可致中毒",
         "quantity": 300,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 30,
         "notes": ""
     },
@@ -4045,7 +4045,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 18,
         "notes": ""
     },
@@ -4063,7 +4063,7 @@ medicines_300 = [
         "contraindication": "孕妇禁用,不宜与甘草同用",
         "quantity": 60,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 6,
         "notes": "有毒"
     },
@@ -4081,7 +4081,7 @@ medicines_300 = [
         "contraindication": "孕妇禁用,不宜与甘草同用",
         "quantity": 80,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 8,
         "notes": "有毒"
     },
@@ -4099,7 +4099,7 @@ medicines_300 = [
         "contraindication": "孕妇禁用,不宜与甘草同用",
         "quantity": 60,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 6,
         "notes": "有毒"
     },
@@ -4117,7 +4117,7 @@ medicines_300 = [
         "contraindication": "孕妇及体弱者忌用,不宜与牵牛子同用",
         "quantity": 30,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 3,
         "notes": "有大毒"
     },
@@ -4135,7 +4135,7 @@ medicines_300 = [
         "contraindication": "孕妇禁用,不宜与巴豆同用",
         "quantity": 100,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 10,
         "notes": "有毒"
     },
@@ -4153,7 +4153,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 25,
         "notes": ""
     },
@@ -4171,7 +4171,7 @@ medicines_300 = [
         "contraindication": "气血亏虚及孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -4189,7 +4189,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,不宜与半夏、瓜蒌、贝母、白蔹、白及同用",
         "quantity": 80,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 8,
         "notes": "有毒"
     },
@@ -4207,7 +4207,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用,不宜与半夏、瓜蒌、贝母、白蔹、白及同用",
         "quantity": 80,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 8,
         "notes": "有毒"
     },
@@ -4225,7 +4225,7 @@ medicines_300 = [
         "contraindication": "血虚生风者慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 10,
         "notes": ""
     },
@@ -4243,7 +4243,7 @@ medicines_300 = [
         "contraindication": "血虚生风者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 15,
         "notes": ""
     },
@@ -4261,7 +4261,7 @@ medicines_300 = [
         "contraindication": "内有郁热,小便短赤者慎用",
         "quantity": 280,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 28,
         "notes": ""
     },
@@ -4279,7 +4279,7 @@ medicines_300 = [
         "contraindication": "血虚手足不遂者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 18,
         "notes": ""
     },
@@ -4297,7 +4297,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -4315,7 +4315,7 @@ medicines_300 = [
         "contraindication": "阴虚内热者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 18,
         "notes": ""
     },
@@ -4333,7 +4333,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 20,
         "notes": ""
     },
@@ -4351,7 +4351,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 18,
         "notes": ""
     },
@@ -4369,7 +4369,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 18,
         "notes": ""
     },
@@ -4387,7 +4387,7 @@ medicines_300 = [
         "contraindication": "孕妇忌服,体质虚弱者慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 10,
         "notes": "有小毒"
     },
@@ -4405,7 +4405,7 @@ medicines_300 = [
         "contraindication": "久病虚寒,尿多便溏者慎用",
         "quantity": 220,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 22,
         "notes": ""
     },
@@ -4423,7 +4423,7 @@ medicines_300 = [
         "contraindication": "阳虚畏寒,便溏者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 18,
         "notes": ""
     },
@@ -4441,7 +4441,7 @@ medicines_300 = [
         "contraindication": "寒饮停聚者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 25,
         "notes": ""
     },
@@ -4459,7 +4459,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -4477,7 +4477,7 @@ medicines_300 = [
         "contraindication": "粉碎时注意防护,以免引起过敏",
         "quantity": 200,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": ""
     },
@@ -4495,7 +4495,7 @@ medicines_300 = [
         "contraindication": "寒饮停聚者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 18,
         "notes": ""
     },
@@ -4513,7 +4513,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -4531,7 +4531,7 @@ medicines_300 = [
         "contraindication": "过敏体质者慎用",
         "quantity": 220,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 22,
         "notes": ""
     },
@@ -4549,7 +4549,7 @@ medicines_300 = [
         "contraindication": "肾虚有热,小便不利者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 20,
         "notes": ""
     },
@@ -4567,7 +4567,7 @@ medicines_300 = [
         "contraindication": "阴虚内热者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 32,
+        "price": 0.32,
         "min_stock": 15,
         "notes": ""
     },
@@ -4585,7 +4585,7 @@ medicines_300 = [
         "contraindication": "孕妇忌用",
         "quantity": 80,
         "unit": "g",
-        "price": 120,
+        "price": 1.2,
         "min_stock": 8,
         "notes": ""
     },
@@ -4603,7 +4603,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 15,
         "notes": ""
     },
@@ -4621,7 +4621,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者不宜用",
         "quantity": 280,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 28,
         "notes": ""
     },
@@ -4639,7 +4639,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 220,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 22,
         "notes": ""
     },
@@ -4657,7 +4657,7 @@ medicines_300 = [
         "contraindication": "阴虚内热,气虚多汗者忌用",
         "quantity": 280,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 28,
         "notes": ""
     },
@@ -4675,7 +4675,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 25,
         "notes": ""
     },
@@ -4693,7 +4693,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 15,
         "notes": ""
     },
@@ -4711,7 +4711,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 120,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 12,
         "notes": ""
     },
@@ -4729,7 +4729,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 15,
         "notes": ""
     },
@@ -4747,7 +4747,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
     "quantity": 180,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 18,
         "notes": ""
     },
@@ -4765,7 +4765,7 @@ medicines_300 = [
         "contraindication": "阴虚燥咳,津伤口渴,血证,燥痰者禁服,不宜与川乌、草乌同用",
         "quantity": 300,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 30,
         "notes": "有毒"
     },
@@ -4783,7 +4783,7 @@ medicines_300 = [
         "contraindication": "阴虚燥痰者及孕妇忌用",
         "quantity": 180,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 18,
         "notes": "有毒"
     },
@@ -4801,7 +4801,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,生品内服宜慎",
         "quantity": 120,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 12,
         "notes": "有毒"
     },
@@ -4819,7 +4819,7 @@ medicines_300 = [
         "contraindication": "肺虚咳嗽,阴虚火旺者忌服",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -4837,7 +4837,7 @@ medicines_300 = [
         "contraindication": "孕妇忌服,咯血者禁用",
         "quantity": 100,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 10,
         "notes": "有小毒"
     },
@@ -4855,7 +4855,7 @@ medicines_300 = [
         "contraindication": "阴虚劳嗽,肺燥咳嗽者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 18,
         "notes": ""
     },
@@ -4873,7 +4873,7 @@ medicines_300 = [
         "contraindication": "肺虚干咳者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 18,
         "notes": ""
     },
@@ -4891,7 +4891,7 @@ medicines_300 = [
         "contraindication": "阴虚咳嗽,寒饮咳嗽者禁服",
         "quantity": 200,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": ""
     },
@@ -4909,7 +4909,7 @@ medicines_300 = [
         "contraindication": "阴虚久咳,咯血者禁服",
         "quantity": 250,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 25,
         "notes": ""
     },
@@ -4927,7 +4927,7 @@ medicines_300 = [
         "contraindication": "不宜与川乌、草乌同用",
         "quantity": 150,
         "unit": "g",
-        "price": 180,
+        "price": 1.8,
         "min_stock": 15,
         "notes": ""
     },
@@ -4945,7 +4945,7 @@ medicines_300 = [
         "contraindication": "不宜与川乌、草乌同用",
         "quantity": 200,
         "unit": "g",
-        "price": 65,
+        "price": 0.65,
         "min_stock": 20,
         "notes": ""
     },
@@ -4963,7 +4963,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒,大便不实者忌用,不宜与川乌、草乌同用",
         "quantity": 250,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 25,
         "notes": ""
     },
@@ -4981,7 +4981,7 @@ medicines_300 = [
         "contraindication": "胃寒呕吐者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -4999,7 +4999,7 @@ medicines_300 = [
         "contraindication": "寒痰,便溏者忌用",
         "quantity": 200,
         "unit": "ml",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": ""
     },
@@ -5017,7 +5017,7 @@ medicines_300 = [
         "contraindication": "寒痰者禁用",
         "quantity": 100,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 10,
         "notes": ""
     },
@@ -5035,7 +5035,7 @@ medicines_300 = [
         "contraindication": "阴虚咳嗽者禁服",
         "quantity": 180,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 18,
         "notes": ""
     },
@@ -5053,7 +5053,7 @@ medicines_300 = [
         "contraindication": "不宜与甘草同用",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -5071,7 +5071,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 25,
         "notes": ""
     },
@@ -5089,7 +5089,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -5107,7 +5107,7 @@ medicines_300 = [
         "contraindication": "虚寒咳嗽者禁服",
         "quantity": 150,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 15,
         "notes": ""
     },
@@ -5125,7 +5125,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 100,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 10,
         "notes": ""
     },
@@ -5143,7 +5143,7 @@ medicines_300 = [
         "contraindication": "阴虚咳嗽,大便溏泄者慎用,有小毒",
         "quantity": 250,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 25,
         "notes": "有小毒"
     },
@@ -5161,7 +5161,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": ""
     },
@@ -5179,7 +5179,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱者慎用",
         "quantity": 220,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 22,
         "notes": ""
     },
@@ -5197,7 +5197,7 @@ medicines_300 = [
         "contraindication": "阴虚燥咳者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -5215,7 +5215,7 @@ medicines_300 = [
         "contraindication": "肺火燔灼者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 18,
         "notes": ""
     },
@@ -5233,7 +5233,7 @@ medicines_300 = [
         "contraindication": "虚寒咳喘,脾虚便溏者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 15,
         "notes": ""
     },
@@ -5251,7 +5251,7 @@ medicines_300 = [
         "contraindication": "胃寒呕吐,肺感风寒咳嗽者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -5269,7 +5269,7 @@ medicines_300 = [
         "contraindication": "肺寒咳嗽者忌用",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -5287,7 +5287,7 @@ medicines_300 = [
         "contraindication": "肺虚喘咳,脾虚肿满者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 15,
         "notes": ""
     },
@@ -5305,7 +5305,7 @@ medicines_300 = [
         "contraindication": "有实邪者忌服,生食有毒",
         "quantity": 180,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 18,
         "notes": "有毒"
     },
@@ -5323,7 +5323,7 @@ medicines_300 = [
         "contraindication": "孕妇,外感,痰热咳喘,青光眼,高血压,心动过速者禁用",
         "quantity": 50,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 5,
         "notes": "有毒"
     },
@@ -5341,7 +5341,7 @@ medicines_300 = [
         "contraindication": "阴虚燥咳,吐血证及舌赤少津者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 35,
         "notes": ""
     },
@@ -5359,7 +5359,7 @@ medicines_300 = [
         "contraindication": "气虚者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -5377,7 +5377,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 25,
         "notes": ""
     },
@@ -5395,7 +5395,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 25,
         "notes": ""
     },
@@ -5413,7 +5413,7 @@ medicines_300 = [
         "contraindication": "阴虚津液不足者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 20,
         "notes": ""
     },
@@ -5431,7 +5431,7 @@ medicines_300 = [
         "contraindication": "气虚无滞者慎用,阴虚血热者忌服",
         "quantity": 250,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 25,
         "notes": ""
     },
@@ -5449,7 +5449,7 @@ medicines_300 = [
         "contraindication": "气虚,有内热者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": ""
     },
@@ -5467,7 +5467,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,气虚下陷者慎用",
         "quantity": 50,
         "unit": "g",
-        "price": 180,
+        "price": 1.8,
         "min_stock": 5,
         "notes": ""
     },
@@ -5485,7 +5485,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 80,
         "unit": "g",
-        "price": 120,
+        "price": 1.2,
         "min_stock": 8,
         "notes": ""
     },
@@ -5503,7 +5503,7 @@ medicines_300 = [
         "contraindication": "脾胃虚寒者慎用,有小毒",
         "quantity": 150,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 15,
         "notes": "有小毒"
     },
@@ -5521,7 +5521,7 @@ medicines_300 = [
         "contraindication": "无寒湿气滞者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 15,
         "notes": ""
     },
@@ -5539,7 +5539,7 @@ medicines_300 = [
         "contraindication": "气虚者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 18,
         "notes": ""
     },
@@ -5557,7 +5557,7 @@ medicines_300 = [
         "contraindication": "阴虚有火,无气滞者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 15,
         "notes": ""
     },
@@ -5575,7 +5575,7 @@ medicines_300 = [
         "contraindication": "阴虚血燥者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 15,
         "notes": ""
     },
@@ -5593,7 +5593,7 @@ medicines_300 = [
         "contraindication": "阴虚有火者慎用",
         "quantity": 120,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 12,
         "notes": ""
     },
@@ -5611,7 +5611,7 @@ medicines_300 = [
         "contraindication": "阴虚重症者慎用",
         "quantity": 80,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 8,
         "notes": ""
     },
@@ -5629,7 +5629,7 @@ medicines_300 = [
         "contraindication": "脾胃虚弱者慎用",
         "quantity": 350,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 35,
         "notes": ""
     },
@@ -5647,7 +5647,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 8,
+        "price": 0.08,
         "min_stock": 20,
         "notes": ""
     },
@@ -5665,7 +5665,7 @@ medicines_300 = [
         "contraindication": "哺乳期妇女慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 6,
+        "price": 0.06,
         "min_stock": 25,
         "notes": ""
     },
@@ -5683,7 +5683,7 @@ medicines_300 = [
         "contraindication": "胃下垂者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 5,
+        "price": 0.05,
         "min_stock": 20,
         "notes": ""
     },
@@ -5701,7 +5701,7 @@ medicines_300 = [
         "contraindication": "气虚及无食积、痰滞者慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 18,
         "notes": ""
     },
@@ -5719,7 +5719,7 @@ medicines_300 = [
         "contraindication": "脾虚无积滞者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 15,
         "notes": ""
     },
@@ -5737,7 +5737,7 @@ medicines_300 = [
         "contraindication": "大量服用可致呃逆,眩晕,呕吐",
         "quantity": 150,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 15,
         "notes": ""
     },
@@ -5755,7 +5755,7 @@ medicines_300 = [
         "contraindication": "体弱者慎用,孕妇忌用",
         "quantity": 100,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 10,
         "notes": "有毒"
     },
@@ -5773,7 +5773,7 @@ medicines_300 = [
         "contraindication": "脾虚便溏者慎用,孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 20,
         "notes": ""
     },
@@ -5791,7 +5791,7 @@ medicines_300 = [
         "contraindication": "无特殊禁忌",
         "quantity": 200,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 20,
         "notes": ""
     },
@@ -5809,7 +5809,7 @@ medicines_300 = [
         "contraindication": "外感初起者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 12,
+        "price": 0.12,
         "min_stock": 25,
         "notes": ""
     },
@@ -5827,7 +5827,7 @@ medicines_300 = [
         "contraindication": "不宜与川乌、草乌同用",
         "quantity": 180,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 18,
         "notes": ""
     },
@@ -5845,7 +5845,7 @@ medicines_300 = [
         "contraindication": "瘀滞出血者慎用",
         "quantity": 150,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 15,
         "notes": ""
     },
@@ -5863,7 +5863,7 @@ medicines_300 = [
         "contraindication": "胃弱者慎用",
         "quantity": 80,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 8,
         "notes": ""
     },
@@ -5881,7 +5881,7 @@ medicines_300 = [
         "contraindication": "无特殊禁忌",
         "quantity": 180,
         "unit": "g",
-        "price": 10,
+        "price": 0.1,
         "min_stock": 18,
         "notes": ""
     },
@@ -5899,7 +5899,7 @@ medicines_300 = [
         "contraindication": "阴虚血热者慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 8,
+        "price": 0.08,
         "min_stock": 25,
         "notes": ""
     },
@@ -5917,7 +5917,7 @@ medicines_300 = [
         "contraindication": "阴虚失血者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 5,
+        "price": 0.05,
         "min_stock": 20,
         "notes": ""
     },
@@ -5935,7 +5935,7 @@ medicines_300 = [
         "contraindication": "阴虚火旺,多汗,热盛及无瘀之出血证,孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 25,
         "notes": ""
     },
@@ -5953,7 +5953,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 20,
         "notes": ""
     },
@@ -5971,7 +5971,7 @@ medicines_300 = [
         "contraindication": "不宜与丁香同用,孕妇慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 18,
         "notes": ""
     },
@@ -5989,7 +5989,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 18,
         "notes": ""
     },
@@ -6007,7 +6007,7 @@ medicines_300 = [
         "contraindication": "孕妇及胃弱者慎用",
         "quantity": 120,
         "unit": "g",
-        "price": 55,
+        "price": 0.55,
         "min_stock": 12,
         "notes": ""
     },
@@ -6025,7 +6025,7 @@ medicines_300 = [
         "contraindication": "孕妇及胃弱者慎用",
         "quantity": 120,
         "unit": "g",
-        "price": 48,
+        "price": 0.48,
         "min_stock": 12,
         "notes": ""
     },
@@ -6043,7 +6043,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,不宜与人参同用",
         "quantity": 100,
         "unit": "g",
-        "price": 35,
+        "price": 0.35,
         "min_stock": 10,
         "notes": ""
     },
@@ -6061,7 +6061,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用,不宜与藜芦同用",
         "quantity": 300,
         "unit": "g",
-        "price": 25,
+        "price": 0.25,
         "min_stock": 30,
         "notes": ""
     },
@@ -6079,7 +6079,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 20,
         "notes": ""
     },
@@ -6097,7 +6097,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 28,
+        "price": 0.28,
         "min_stock": 20,
         "notes": ""
     },
@@ -6115,7 +6115,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 250,
         "unit": "g",
-        "price": 8,
+        "price": 0.08,
         "min_stock": 25,
         "notes": ""
     },
@@ -6133,7 +6133,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 22,
+        "price": 0.22,
         "min_stock": 20,
         "notes": ""
     },
@@ -6151,7 +6151,7 @@ medicines_300 = [
         "contraindication": "月经过多者慎用",
         "quantity": 200,
         "unit": "g",
-        "price": 18,
+        "price": 0.18,
         "min_stock": 20,
         "notes": ""
     },
@@ -6169,7 +6169,7 @@ medicines_300 = [
         "contraindication": "孕妇慎用",
         "quantity": 180,
         "unit": "g",
-        "price": 15,
+        "price": 0.15,
         "min_stock": 18,
         "notes": ""
     },
@@ -6187,7 +6187,7 @@ medicines_300 = [
         "contraindication": "孕妇禁用",
         "quantity": 100,
         "unit": "g",
-        "price": 45,
+        "price": 0.45,
         "min_stock": 10,
         "notes": "有小毒"
     },
@@ -6205,7 +6205,7 @@ medicines_300 = [
         "contraindication": "孕妇禁用,体弱血虚者慎用",
         "quantity": 80,
         "unit": "g",
-        "price": 85,
+        "price": 0.85,
         "min_stock": 8,
         "notes": "有小毒"
     }
