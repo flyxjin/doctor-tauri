@@ -10,6 +10,7 @@ import type {
   CreatePrescriptionInput,
   DashboardData,
   DownloadProgress,
+  ExpiringBatch,
   Inventory,
   InventoryHistory,
   Medicine,
@@ -52,13 +53,21 @@ export async function listInventory(): Promise<Inventory[]> {
   return invoke<Inventory[]>('list_inventory');
 }
 
-/** 入库 / 出库（is_in=true 入库，false 出库） */
+/**
+ * 入库 / 出库（批次版，008 迁移）
+ *
+ * - `is_in=true` 入库：`batchNo`/`productionDate`/`expiryDate` 生效；同批次号自动合并，新批次号新建行
+ * - `is_in=false` 出库：忽略批次参数，按 FEFO（近效期优先）跨批次扣减
+ */
 export async function updateStock(
   medicineId: number,
   change: number,
   isIn: boolean,
   operator?: string,
   notes?: string,
+  batchNo?: string,
+  productionDate?: string,
+  expiryDate?: string,
 ): Promise<void> {
   return invoke<void>('update_stock', {
     medicineId,
@@ -66,7 +75,15 @@ export async function updateStock(
     isIn,
     operator,
     notes,
+    batchNo,
+    productionDate,
+    expiryDate,
   });
+}
+
+/** 效期预警：查询指定天数内到期的批次（默认 30 天） */
+export async function listExpiringBatches(days?: number): Promise<ExpiringBatch[]> {
+  return invoke<ExpiringBatch[]>('list_expiring_batches', { days });
 }
 
 /** 库存变更历史（支持按药材、类型、日期范围筛选） */

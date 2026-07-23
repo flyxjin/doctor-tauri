@@ -41,6 +41,7 @@ pub fn run() {
             commands::list_inventory,
             commands::update_stock,
             commands::list_inventory_history,
+            commands::list_expiring_batches,
             // 处方管理
             commands::list_prescriptions,
             commands::create_prescription,

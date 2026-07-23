@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
   App,
   Button,
   Card,
   Col,
+  DatePicker,
   Drawer,
   Form,
   Input,
@@ -17,17 +19,26 @@ import {
   Statistic,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
   AlertOutlined,
+  ClockCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
   HistoryOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { listInventory, listInventoryHistory, updateStock } from '@/api/tauri';
+import type { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
+import {
+  listExpiringBatches,
+  listInventory,
+  listInventoryHistory,
+  updateStock,
+} from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
 import type { Inventory, InventoryHistory } from '@/types';
 
@@ -38,9 +49,26 @@ interface StockForm {
   is_in: boolean;
   operator?: string;
   notes?: string;
+  batch_no?: string;
+  production_date?: Dayjs | null;
+  expiry_date?: Dayjs | null;
 }
 
-type FilterMode = 'all' | 'low' | 'zero';
+type FilterMode = 'all' | 'low' | 'zero' | 'expiring';
+
+/** 距效期多少天开始标黄预警 */
+const EXPIRY_WARN_DAYS = 30;
+
+/** 判断批次效期状态：expired=已过期，near=近效期，ok=正常，none=无期 */
+function expiryStatus(dateStr?: string | null): 'expired' | 'near' | 'ok' | 'none' {
+  if (!dateStr) return 'none';
+  const d = dayjs(dateStr);
+  if (!d.isValid()) return 'none';
+  const today = dayjs().startOf('day');
+  if (d.isBefore(today)) return 'expired';
+  if (d.isBefore(today.add(EXPIRY_WARN_DAYS, 'day'))) return 'near';
+  return 'ok';
+}
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
@@ -57,6 +85,12 @@ export default function InventoryPage() {
     queryFn: listInventory,
   });
 
+  // 效期预警批次（30 天内到期或已过期）
+  const { data: expiringData } = useQuery({
+    queryKey: ['expiring-batches', EXPIRY_WARN_DAYS],
+    queryFn: () => listExpiringBatches(EXPIRY_WARN_DAYS),
+  });
+
   // 库存变更历史（仅当选择某药材时查询）
   const { data: historyData, isLoading: historyLoading } = useQuery({
     queryKey: ['inventory-history', historyTarget?.medicine_id],
@@ -64,33 +98,83 @@ export default function InventoryPage() {
     enabled: !!historyTarget,
   });
 
-  // 统计：总品种数、低库存数、零库存数、总价值
+  // 按药材聚合的汇总（一药多批后统计口径需跨批次合并）
+  const medicineSummary = useMemo(() => {
+    const list = data ?? [];
+    const map = new Map<number, { totalQty: number; minStock: number; name: string; category: string }>();
+    for (const i of list) {
+      const cur = map.get(i.medicine_id);
+      if (cur) {
+        cur.totalQty += i.quantity;
+        cur.minStock = Math.min(cur.minStock, i.min_stock);
+      } else {
+        map.set(i.medicine_id, {
+          totalQty: i.quantity,
+          minStock: i.min_stock,
+          name: i.medicine_name ?? '',
+          category: i.category ?? '',
+        });
+      }
+    }
+    return map;
+  }, [data]);
+
+  // 统计：总品种数（按药材去重）、低库存数、零库存数、总价值
   const stats = useMemo(() => {
     const list = data ?? [];
     const totalValue = list.reduce((sum, i) => sum + i.quantity * i.price, 0);
-    const lowCount = list.filter((i) => i.quantity > 0 && i.quantity <= i.min_stock).length;
-    const zeroCount = list.filter((i) => i.quantity <= 0).length;
-    return { total: list.length, lowCount, zeroCount, totalValue };
+    let lowCount = 0;
+    let zeroCount = 0;
+    for (const [, s] of medicineSummary) {
+      if (s.totalQty <= 0) zeroCount++;
+      else if (s.totalQty <= s.minStock) lowCount++;
+    }
+    return { totalKinds: medicineSummary.size, lowCount, zeroCount, totalValue };
+  }, [data, medicineSummary]);
+
+  // 近效期批次数（用于筛选标签计数）
+  const expiringCount = useMemo(() => {
+    return (data ?? []).filter((i) => {
+      const st = expiryStatus(i.expiry_date);
+      return st === 'expired' || st === 'near';
+    }).length;
   }, [data]);
 
   // 筛选：按模式 + 关键字
   const filteredData = useMemo(() => {
     let list = data ?? [];
     if (filterMode === 'low') {
-      list = list.filter((i) => i.quantity > 0 && i.quantity <= i.min_stock);
+      // 低库存：按药材聚合后总量 <= min_stock
+      const lowIds = new Set<number>();
+      for (const [id, s] of medicineSummary) {
+        if (s.totalQty > 0 && s.totalQty <= s.minStock) lowIds.add(id);
+      }
+      list = list.filter((i) => lowIds.has(i.medicine_id));
     } else if (filterMode === 'zero') {
-      list = list.filter((i) => i.quantity <= 0);
+      // 零库存：按药材聚合后总量 <= 0
+      const zeroIds = new Set<number>();
+      for (const [id, s] of medicineSummary) {
+        if (s.totalQty <= 0) zeroIds.add(id);
+      }
+      list = list.filter((i) => zeroIds.has(i.medicine_id));
+    } else if (filterMode === 'expiring') {
+      // 近效期：批次已过期或 30 天内到期
+      list = list.filter((i) => {
+        const st = expiryStatus(i.expiry_date);
+        return st === 'expired' || st === 'near';
+      });
     }
     if (keyword.trim()) {
       const k = keyword.trim().toLowerCase();
       list = list.filter(
         (i) =>
           i.medicine_name?.toLowerCase().includes(k) ||
-          i.category?.toLowerCase().includes(k),
+          i.category?.toLowerCase().includes(k) ||
+          i.batch_no?.toLowerCase().includes(k),
       );
     }
     return list;
-  }, [data, filterMode, keyword]);
+  }, [data, filterMode, keyword, medicineSummary]);
 
   const mutation = useMutation({
     mutationFn: (vars: { medicineId: number; form: StockForm }) =>
@@ -100,10 +184,14 @@ export default function InventoryPage() {
         vars.form.is_in,
         vars.form.operator,
         vars.form.notes,
+        vars.form.batch_no,
+        vars.form.production_date?.format('YYYY-MM-DD'),
+        vars.form.expiry_date?.format('YYYY-MM-DD'),
       ),
     onSuccess: (_d, vars) => {
       message.success(`${vars.form.is_in ? '入库' : '出库'}成功`);
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches', EXPIRY_WARN_DAYS] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setModalOpen(false);
     },
@@ -113,11 +201,19 @@ export default function InventoryPage() {
   const openModal = (record: Inventory, isIn: boolean) => {
     setTarget(record);
     form.resetFields();
-    form.setFieldsValue({ change: 0, is_in: isIn, operator: '', notes: '' });
+    form.setFieldsValue({
+      change: 0,
+      is_in: isIn,
+      operator: '',
+      notes: '',
+      batch_no: '',
+      production_date: null,
+      expiry_date: null,
+    });
     setModalOpen(true);
   };
 
-  // 订阅 is_in 字段变化，使 Modal 标题随操作类型切换实时更新
+  // 订阅 is_in 字段变化，使 Modal 标题与批次输入区随操作类型切换
   const isInWatch = Form.useWatch('is_in', form);
 
   const handleSubmit = async () => {
@@ -128,10 +224,14 @@ export default function InventoryPage() {
         message.warning('数量必须大于 0');
         return;
       }
-      // 出库预校验：前端先检查库存余量，避免等后端拒绝
-      if (!values.is_in && values.change > target.quantity) {
-        message.warning(`库存不足，当前库存 ${target.quantity} ${target.unit || 'g'}`);
-        return;
+      // 出库预校验：检查该药材跨批次总库存（FEFO 会跨批次扣减）
+      if (!values.is_in) {
+        const summary = medicineSummary.get(target.medicine_id);
+        const totalQty = summary?.totalQty ?? 0;
+        if (values.change > totalQty) {
+          message.warning(`库存不足，当前总库存 ${totalQty} ${target.unit || 'g'}`);
+          return;
+        }
       }
       mutation.mutate({ medicineId: target.medicine_id, form: values });
     } catch {
@@ -140,18 +240,50 @@ export default function InventoryPage() {
   };
 
   const columns: ColumnsType<Inventory> = [
-    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 140 },
+    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 130, fixed: 'left' },
     {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      width: 100,
+      width: 90,
       render: (c: string) => (c ? <Tag color="blue">{c}</Tag> : '-'),
+    },
+    {
+      title: '批次号',
+      dataIndex: 'batch_no',
+      key: 'batch_no',
+      width: 130,
+      render: (b: string) => b || <Text type="secondary">—</Text>,
+    },
+    {
+      title: '效期',
+      dataIndex: 'expiry_date',
+      key: 'expiry_date',
+      width: 130,
+      render: (d: string | null) => {
+        const st = expiryStatus(d);
+        if (st === 'none') return <Text type="secondary">—</Text>;
+        if (st === 'expired') {
+          return (
+            <Tooltip title="已过期，请尽快处理">
+              <Tag color="red" icon={<ExclamationCircleOutlined />}>{d}</Tag>
+            </Tooltip>
+          );
+        }
+        if (st === 'near') {
+          return (
+            <Tooltip title={`${EXPIRY_WARN_DAYS} 天内到期`}>
+              <Tag color="orange" icon={<ClockCircleOutlined />}>{d}</Tag>
+            </Tooltip>
+          );
+        }
+        return <Text>{d}</Text>;
+      },
     },
     {
       title: '库存量',
       key: 'quantity',
-      width: 120,
+      width: 110,
       render: (_v, r) => {
         const low = r.quantity <= r.min_stock;
         return (
@@ -161,19 +293,19 @@ export default function InventoryPage() {
         );
       },
     },
-    { title: '最低库存', dataIndex: 'min_stock', key: 'min_stock', width: 110 },
+    { title: '最低库存', dataIndex: 'min_stock', key: 'min_stock', width: 100 },
     {
       title: '单价',
       dataIndex: 'price',
       key: 'price',
-      width: 100,
+      width: 90,
       align: 'right',
       render: (p: number) => `¥${p.toFixed(2)}`,
     },
     {
-      title: '库存价值',
+      title: '批次价值',
       key: 'value',
-      width: 120,
+      width: 110,
       align: 'right',
       render: (_v, r) => `¥${(r.quantity * r.price).toFixed(2)}`,
     },
@@ -181,7 +313,7 @@ export default function InventoryPage() {
     {
       title: '操作',
       key: 'action',
-      width: 220,
+      width: 200,
       fixed: 'right',
       render: (_v, record) => (
         <Space size="small">
@@ -252,8 +384,35 @@ export default function InventoryPage() {
     <div className="page-container">
       <div className="page-header">
         <h1 className="page-title">库存管理</h1>
-        <p className="page-subtitle">查看库存状态，进行入库 / 出库操作，低库存自动预警</p>
+        <p className="page-subtitle">
+          按批次管理库存，入库录入批次号与效期，出库按近效期优先（FEFO）自动扣减
+        </p>
       </div>
+
+      {/* 效期预警横幅 */}
+      {expiringData && expiringData.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<ClockCircleOutlined />}
+          style={{ marginBottom: 16 }}
+          message={`${expiringData.length} 个批次即将到期或已过期`}
+          description={
+            <Space size={[8, 4]} wrap>
+              {expiringData.slice(0, 5).map((b) => (
+                <Tag
+                  key={b.id}
+                  color={expiryStatus(b.expiry_date) === 'expired' ? 'red' : 'orange'}
+                >
+                  {b.medicine_name} · {b.batch_no} · {b.expiry_date} · {b.quantity}
+                  {b.unit}
+                </Tag>
+              ))}
+              {expiringData.length > 5 && <Text type="secondary">等 {expiringData.length} 项…</Text>}
+            </Space>
+          }
+        />
+      )}
 
       {/* 库存概览统计卡片 */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
@@ -261,7 +420,7 @@ export default function InventoryPage() {
           <Card size="small">
             <Statistic
               title="在库品种"
-              value={stats.total}
+              value={stats.totalKinds}
               prefix={<DatabaseOutlined />}
             />
           </Card>
@@ -310,12 +469,13 @@ export default function InventoryPage() {
               { label: '全部', value: 'all' },
               { label: `低库存${stats.lowCount > 0 ? ` (${stats.lowCount})` : ''}`, value: 'low' },
               { label: `零库存${stats.zeroCount > 0 ? ` (${stats.zeroCount})` : ''}`, value: 'zero' },
+              { label: `近效期${expiringCount > 0 ? ` (${expiringCount})` : ''}`, value: 'expiring' },
             ]}
           />
           <Input.Search
-            placeholder="搜索药材名或分类"
+            placeholder="搜索药材名 / 分类 / 批次号"
             allowClear
-            style={{ width: 260 }}
+            style={{ width: 280 }}
             onSearch={setKeyword}
           />
         </Space>
@@ -324,11 +484,11 @@ export default function InventoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={filteredData}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1300 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           locale={{
             emptyText: `无${
-              filterMode === 'low' ? '低库存' : filterMode === 'zero' ? '零库存' : ''
+              filterMode === 'low' ? '低库存' : filterMode === 'zero' ? '零库存' : filterMode === 'expiring' ? '近效期' : ''
             }库存记录`,
           }}
         />
@@ -342,6 +502,7 @@ export default function InventoryPage() {
         confirmLoading={mutation.isPending}
         okText="确认"
         cancelText="取消"
+        width={480}
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="is_in" label="操作类型">
@@ -359,6 +520,37 @@ export default function InventoryPage() {
           >
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>
+
+          {/* 入库时录入批次信息；出库时按 FEFO 自动扣减，无需填写 */}
+          {isInWatch && (
+            <>
+              <Form.Item name="batch_no" label="批次号" tooltip="留空将自动按时间戳生成批次号；同批次号入库会合并数量">
+                <Input placeholder="如 BATCH-20260723-01，留空自动生成" />
+              </Form.Item>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="production_date" label="生产日期">
+                    <DatePicker style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="expiry_date" label="效期" tooltip="近效期批次出库时优先扣减">
+                    <DatePicker style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {!isInWatch && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="出库按近效期优先（FEFO）自动跨批次扣减"
+            />
+          )}
+
           <Form.Item name="operator" label="操作人">
             <Input placeholder="操作人姓名" />
           </Form.Item>
@@ -381,7 +573,8 @@ export default function InventoryPage() {
               <Text type="secondary">
                 当前库存：
                 <Text strong style={{ fontSize: 16 }}>
-                  {historyTarget.quantity} {historyTarget.unit}
+                  {medicineSummary.get(historyTarget.medicine_id)?.totalQty ?? historyTarget.quantity}{' '}
+                  {historyTarget.unit}
                 </Text>
               </Text>
               <Text type="secondary">

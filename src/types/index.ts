@@ -21,6 +21,12 @@ export interface Medicine {
 export interface Inventory {
   id: number | null;
   medicine_id: number;
+  /** 批次号（008 迁移新增；空字符串表示默认批次） */
+  batch_no: string;
+  /** 生产日期 YYYY-MM-DD（可为空） */
+  production_date?: string | null;
+  /** 效期 YYYY-MM-DD（可为空） */
+  expiry_date?: string | null;
   quantity: number;
   unit: string;
   price: number;
@@ -53,6 +59,8 @@ export interface PrescriptionItem {
   unit: string;
   price: number;
   amount: number;
+  /** 扣减的批次 ID（008 迁移新增；删除处方时按此精确回扣） */
+  batch_id?: number | null;
 }
 
 export interface CreatePrescriptionInput extends Prescription {
@@ -74,6 +82,20 @@ export interface InventoryHistory {
   operator?: string;
   notes?: string;
   created_at?: string | null;
+  /** 关联批次 ID（008 迁移新增；按批次追溯） */
+  batch_id?: number | null;
+}
+
+/** 效期预警批次（008 迁移新增） */
+export interface ExpiringBatch {
+  id: number;
+  medicine_id: number;
+  medicine_name: string;
+  batch_no: string;
+  expiry_date: string;
+  quantity: number;
+  unit: string;
+  price: number;
 }
 
 export interface OperationLog {

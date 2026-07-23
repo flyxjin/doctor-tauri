@@ -36,11 +36,20 @@ pub struct Medicine {
     pub updated_at: Option<String>,
 }
 
-/// 库存（列表查询时携带药材名与分类）
+/// 库存（一批次一行；列表查询时携带药材名与分类）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Inventory {
     pub id: Option<i64>,
     pub medicine_id: i64,
+    /// 批次号（空字符串表示默认批次）
+    #[serde(default)]
+    pub batch_no: String,
+    /// 生产日期 YYYY-MM-DD（可为空）
+    #[serde(default)]
+    pub production_date: Option<String>,
+    /// 效期 YYYY-MM-DD（可为空）
+    #[serde(default)]
+    pub expiry_date: Option<String>,
     #[serde(default)]
     pub quantity: f64,
     #[serde(default = "default_unit")]
@@ -102,6 +111,9 @@ pub struct PrescriptionItem {
     pub price: f64,
     #[serde(default)]
     pub amount: f64,
+    /// 扣减的批次 ID（008 迁移新增；删除处方时按此精确回扣）
+    #[serde(default)]
+    pub batch_id: Option<i64>,
 }
 
 /// 创建处方入参：处方头 + 明细列表
@@ -140,6 +152,9 @@ pub struct InventoryHistory {
     pub notes: String,
     #[serde(default)]
     pub created_at: Option<String>,
+    /// 关联批次 ID（008 迁移新增；按批次追溯）
+    #[serde(default)]
+    pub batch_id: Option<i64>,
 }
 
 /// 操作日志
@@ -281,6 +296,21 @@ pub struct BatchImportResult {
     pub inserted: u32,
     pub updated: u32,
     pub errors: Vec<String>,
+}
+
+// ==================== 批次与效期 ====================
+
+/// 效期预警批次
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpiringBatch {
+    pub id: i64,
+    pub medicine_id: i64,
+    pub medicine_name: String,
+    pub batch_no: String,
+    pub expiry_date: String,
+    pub quantity: f64,
+    pub unit: String,
+    pub price: f64,
 }
 
 // ==================== 自动更新 ====================
