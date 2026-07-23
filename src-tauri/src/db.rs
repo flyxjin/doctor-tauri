@@ -26,6 +26,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "005_redesign_prices",
         include_str!("../migrations/005_redesign_prices.sql"),
     ),
+    (
+        "006_fix_price_unit",
+        include_str!("../migrations/006_fix_price_unit.sql"),
+    ),
 ];
 
 /// 数据库状态：持有单个 SQLite 连接，通过 Mutex 序列化访问
@@ -127,7 +131,7 @@ mod tests {
         db
     }
 
-    /// 测试 run_migrations 创建所有 7 张业务表 + schema_migrations 追踪表
+    /// 测试 run_migrations 创建所有 8 张业务表 + schema_migrations 追踪表
     #[test]
     fn test_run_migrations_creates_all_tables() {
         let db = setup_in_memory();
@@ -156,14 +160,14 @@ mod tests {
         }
         // 迁移追踪表
         assert!(tables.contains(&"schema_migrations".to_string()));
-        // 业务表数量至少 7 张
+        // 业务表数量至少 8 张
         let business_tables: Vec<_> = tables
             .iter()
             .filter(|t| !t.starts_with("sqlite_") && t.as_str() != "schema_migrations")
             .collect();
         assert!(
-            business_tables.len() >= 7,
-            "业务表数量不足 7 张: {business_tables:?}"
+            business_tables.len() >= 8,
+            "业务表数量不足 8 张: {business_tables:?}"
         );
     }
 
