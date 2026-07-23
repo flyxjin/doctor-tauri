@@ -38,6 +38,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "008_batch_expiry",
         include_str!("../migrations/008_batch_expiry.sql"),
     ),
+    (
+        "009_prescription_item_batches",
+        include_str!("../migrations/009_prescription_item_batches.sql"),
+    ),
 ];
 
 /// 数据库状态：持有单个 SQLite 连接，通过 Mutex 序列化访问

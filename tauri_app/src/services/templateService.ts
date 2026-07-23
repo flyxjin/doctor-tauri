@@ -18,8 +18,12 @@ export interface PrescriptionTemplate {
 // 静态导入 JSON（Vite 支持）
 import templatesData from '@/data/prescription_templates.json';
 
+interface TemplatesFile {
+  templates: PrescriptionTemplate[];
+}
+
 const templates: PrescriptionTemplate[] =
-  (templatesData as any).templates ?? templatesData;
+  (templatesData as TemplatesFile).templates ?? (templatesData as unknown as PrescriptionTemplate[]);
 
 /** 返回全部方剂模板 */
 export function getTemplates(): PrescriptionTemplate[] {
