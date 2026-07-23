@@ -20,7 +20,7 @@ const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.5';
+const CURRENT_VERSION = '0.3.6';
 
 /** 侧边栏导航项 */
 const NAV_ITEMS = [
