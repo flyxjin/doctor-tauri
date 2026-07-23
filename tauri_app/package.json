@@ -1,7 +1,7 @@
 {
   "name": "medicine-system-tauri",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "中药材销售管理系统 - Tauri 2.x + React + TypeScript 重写版",
   "scripts": {
