@@ -191,6 +191,20 @@ export interface DownloadProgress {
   total: number;
 }
 
+/**
+ * 启动时静默检查 + 下载的结果
+ *
+ * - `has_update=true` 且 `downloaded_path` 非空：已下载完成，前端弹窗引导用户立即安装
+ * - `has_update=true` 且 `downloaded_path` 为空：发现新版本但下载失败或无 .exe 资源
+ * - `has_update=false`：当前已是最新版本
+ */
+export interface SilentUpdateResult {
+  has_update: boolean;
+  info: UpdateInfo;
+  /** 已下载到本地的安装包路径；空字符串表示未下载 */
+  downloaded_path: string;
+}
+
 // ==================== 数据备份与恢复 ====================
 
 /** 单次备份结果 */

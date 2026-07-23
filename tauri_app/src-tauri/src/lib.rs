@@ -75,6 +75,7 @@ pub fn run() {
             updater::check_for_update,
             updater::download_update,
             updater::install_update,
+            updater::check_and_download_silently,
         ])
         .run(tauri::generate_context!())
         .expect("运行 Tauri 应用时发生错误");

@@ -302,6 +302,21 @@ pub struct DownloadProgress {
     pub total: u64,
 }
 
+/// 启动时静默检查 + 下载的结果
+///
+/// - `has_update=true` 且 `downloaded_path` 非空：已下载完成，前端弹窗引导用户立即安装
+/// - `has_update=true` 且 `downloaded_path` 为空：发现新版本但下载失败或无 .exe 资源，
+///   前端可引导用户到 Settings 页手动重试
+/// - `has_update=false`：当前已是最新版本
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SilentUpdateResult {
+    pub has_update: bool,
+    pub info: UpdateInfo,
+    /// 已下载到本地的安装包路径；空字符串表示未下载
+    #[serde(default)]
+    pub downloaded_path: String,
+}
+
 // ==================== 数据备份与恢复 ====================
 
 /// 单次备份结果

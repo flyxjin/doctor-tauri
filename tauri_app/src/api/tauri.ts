@@ -19,6 +19,7 @@ import type {
   PatientStatistics,
   Prescription,
   PrescriptionWithItems,
+  SilentUpdateResult,
   StatisticsData,
   UpdateInfo,
 } from '@/types';
@@ -270,6 +271,24 @@ export async function downloadUpdate(
 }
 
 /** 启动下载好的安装程序 */
-export async function installUpdate(exePath: string): Promise<void> {
-  return invoke<void>('install_update', { exePath });
+export async function installUpdate(
+  exePath: string,
+  silent?: boolean,
+): Promise<void> {
+  return invoke<void>('install_update', { exePath, silent });
+}
+
+/**
+ * 启动时后台静默检查 + 下载
+ *
+ * - 内部完成版本比较，仅当 `remote > currentVersion` 时下载
+ * - 下载失败时 `has_update=true` 但 `downloaded_path` 为空，前端可降级到手动重试
+ * - 网络错误等异常会以 reject 形式抛出，前端需 try/catch
+ */
+export async function checkAndDownloadSilently(
+  currentVersion: string,
+): Promise<SilentUpdateResult> {
+  return invoke<SilentUpdateResult>('check_and_download_silently', {
+    currentVersion,
+  });
 }
