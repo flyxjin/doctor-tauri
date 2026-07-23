@@ -2,26 +2,24 @@
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#1E4530"/>
-      <stop offset="1" stop-color="#152D20"/>
+      <stop offset="1" stop-color="#122A1E"/>
     </linearGradient>
   </defs>
   <rect x="8" y="8" width="240" height="240" rx="44" fill="url(#bg)"/>
-  <!-- 左下叶子 -->
-  <g transform="translate(70,180) rotate(-40)">
-    <ellipse cx="0" cy="0" rx="46" ry="18" fill="#5A8C3C"/>
-    <line x1="-42" y1="0" x2="42" y2="0" stroke="#78B450" stroke-width="2.5"/>
+  <rect x="123" y="30" width="10" height="20" rx="3" fill="#C83C2D"/>
+  <ellipse cx="128" cy="32" rx="8" ry="5" fill="#C83C2D"/>
+  <ellipse cx="128" cy="88" rx="35" ry="35" fill="#FDFAF5"/>
+  <ellipse cx="128" cy="160" rx="53" ry="53" fill="#FDFAF5"/>
+  <polygon points="98,104 158,104 150,132 106,132" fill="#FDFAF5"/>
+  <ellipse cx="106" cy="78" rx="10" ry="7" fill="#FFFFFF" opacity="0.5"/>
+  <ellipse cx="98" cy="142" rx="13" ry="9" fill="#FFFFFF" opacity="0.3"/>
+  <g transform="translate(95,129) rotate(-25)">
+    <ellipse cx="0" cy="0" rx="26" ry="9" fill="#5AA046"/>
+    <line x1="-24" y1="0" x2="24" y2="0" stroke="#82C85A" stroke-width="2"/>
   </g>
-  <!-- 右上叶子 -->
-  <g transform="translate(186,76) rotate(140)">
-    <ellipse cx="0" cy="0" rx="46" ry="18" fill="#5A8C3C"/>
-    <line x1="-42" y1="0" x2="42" y2="0" stroke="#78B450" stroke-width="2.5"/>
+  <g transform="translate(161,124) rotate(20)">
+    <ellipse cx="0" cy="0" rx="19" ry="7" fill="#82C85A"/>
+    <line x1="-17" y1="0" x2="17" y2="0" stroke="#5AA046" stroke-width="2"/>
   </g>
-  <!-- 朱砂印章 -->
-  <rect x="72" y="72" width="112" height="112" rx="14" fill="#C83C2D"/>
-  <rect x="78" y="78" width="100" height="100" rx="10" fill="none" stroke="#8A2418" stroke-width="3"/>
-  <!-- "本"字 -->
-  <text x="128" y="128" font-family="'Microsoft YaHei','SimHei',sans-serif" font-size="92"
-        font-weight="bold" fill="#FDFAF5" text-anchor="middle" dominant-baseline="central">本</text>
-  <!-- 底部金色弧线 -->
-  <path d="M 36 220 Q 128 260 220 220" stroke="#C8A550" stroke-width="3" fill="none" opacity="0.7"/>
+  <path d="M 36 215 Q 128 255 220 215" stroke="#CDAA55" stroke-width="3.5" fill="none" opacity="0.7"/>
 </svg>
