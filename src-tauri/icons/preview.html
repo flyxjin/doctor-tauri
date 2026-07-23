@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>图标预览</title>
+<style>
+  body { background: #2a2a2a; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; gap: 24px; font-family: system-ui; color: #fff; }
+  .row { display: flex; gap: 32px; align-items: center; }
+  .icon { border-radius: 22%; box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: block; }
+  .label { font-size: 12px; opacity: 0.7; margin-top: 8px; text-align: center; }
+  .item { display: flex; flex-direction: column; align-items: center; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="item">
+      <img src="128x128@2x.png" class="icon" style="width:256px;height:256px" />
+      <div class="label">256×256</div>
+    </div>
+    <div class="item">
+      <img src="128x128.png" class="icon" style="width:128px;height:128px" />
+      <div class="label">128×128</div>
+    </div>
+    <div class="item">
+      <img src="32x32.png" class="icon" style="width:32px;height:32px" />
+      <div class="label">32×32</div>
+    </div>
+  </div>
+</body>
+</html>

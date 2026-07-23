@@ -13,6 +13,7 @@
 
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { App } from 'antd';
+import { formatError } from '@/utils/formatError';
 
 interface CrudOptions<T> {
   /** 主缓存键（创建/更新/删除后均失效） */
@@ -62,7 +63,7 @@ export function useCrudMutations<T extends { id?: number | null }>(
       invalidateAll();
       options.onClose?.();
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   const update = useMutation({
@@ -75,7 +76,7 @@ export function useCrudMutations<T extends { id?: number | null }>(
       invalidateAll();
       options.onClose?.();
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   const remove = useMutation({
@@ -87,7 +88,7 @@ export function useCrudMutations<T extends { id?: number | null }>(
       if (options.messages?.deleted) message.success(options.messages.deleted);
       invalidateAll();
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   return { create, update, remove };

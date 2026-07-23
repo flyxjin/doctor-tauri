@@ -32,11 +32,6 @@ export async function listMedicines(
   return invoke<Medicine[]>('list_medicines', { keyword, category });
 }
 
-/** 获取单条药材 */
-export async function getMedicine(id: number): Promise<Medicine> {
-  return invoke<Medicine>('get_medicine', { id });
-}
-
 /** 新增药材，返回新 ID */
 export async function createMedicine(medicine: Medicine): Promise<number> {
   return invoke<number>('create_medicine', { medicine });
@@ -201,11 +196,6 @@ export async function generatePrescriptionHtml(
 /** 患者列表（支持按姓名/电话搜索） */
 export async function listPatients(keyword?: string): Promise<Patient[]> {
   return invoke<Patient[]>('list_patients', { keyword: keyword ?? null });
-}
-
-/** 获取单条患者档案 */
-export async function getPatient(id: number): Promise<Patient> {
-  return invoke<Patient>('get_patient', { id });
 }
 
 /** 新增患者档案，返回新 ID */

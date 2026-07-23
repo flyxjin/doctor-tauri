@@ -25,7 +25,11 @@ function PageLoading() {
   );
 }
 
-/** 东方本草主题：深草本绿 + 朱砂点缀 */
+/** 东方本草主题：深草本绿 + 朱砂点缀
+ *
+ * 提升到模块顶层作为常量，避免 App 每次渲染都重建对象引用，
+ * 减少 ConfigProvider 不必要的主题重计算。
+ */
 const theme = {
   token: {
     colorPrimary: '#2D5F3F',

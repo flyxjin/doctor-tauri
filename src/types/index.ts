@@ -86,14 +86,6 @@ export interface OperationLog {
   created_at?: string | null;
 }
 
-export interface DataVersion {
-  id: number | null;
-  version: string;
-  medicine_count: number;
-  checksum?: string | null;
-  created_at?: string | null;
-}
-
 // ==================== 看板与统计 ====================
 
 export interface CompatibilityConflict {

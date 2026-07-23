@@ -14,12 +14,13 @@ import {
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { checkAndDownloadSilently, installUpdate } from '@/api/tauri';
 import { formatFileSize } from '@/utils/format';
+import { formatError } from '@/utils/formatError';
 
 const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.2';
+const CURRENT_VERSION = '0.3.3';
 
 /** 侧边栏导航项 */
 const NAV_ITEMS = [
@@ -90,7 +91,7 @@ export default function MainLayout() {
                   message.info('正在静默安装并退出，请稍候...');
                 } catch (e) {
                   setInstalling(false);
-                  message.error(`启动安装失败：${String(e)}`);
+                  message.error(`启动安装失败：${formatError(e)}`);
                 }
               },
             });

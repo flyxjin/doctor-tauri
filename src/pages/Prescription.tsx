@@ -27,6 +27,7 @@ import {
 import EmptyState from '@/components/EmptyState';
 import TemplateSelector from '@/components/TemplateSelector';
 import { printHtmlInIframe } from '@/utils/print';
+import { formatError } from '@/utils/formatError';
 import type { Inventory, Medicine, PrescriptionItem } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
 
@@ -97,7 +98,7 @@ export default function PrescriptionPage() {
       setItems([]);
       setCreatedDate(dayjs());
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   const handlePrint = async (id: number) => {
@@ -107,7 +108,7 @@ export default function PrescriptionPage() {
       printHtmlInIframe(html);
       message.success('已发送至打印预览');
     } catch (e) {
-      message.error(String(e));
+      message.error(formatError(e));
     } finally {
       setPrinting(false);
     }

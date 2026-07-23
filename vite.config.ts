@@ -41,6 +41,8 @@ export default defineConfig({
           'antd-vendor': ['antd'],
           'icons-vendor': ['@ant-design/icons'],
           'query-vendor': ['@tanstack/react-query'],
+          // dayjs 独立分包，长期稳定无需随业务 chunk 变化失效缓存
+          'date-vendor': ['dayjs'],
         },
       },
     },

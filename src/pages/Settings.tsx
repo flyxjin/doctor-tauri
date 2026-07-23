@@ -36,12 +36,13 @@ import {
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
 import { compareVersions, formatFileSize } from '@/utils/format';
+import { formatError } from '@/utils/formatError';
 import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/types';
 
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.2';
+const CURRENT_VERSION = '0.3.3';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -122,7 +123,7 @@ export default function SettingsPage() {
         message.success(`当前已是最新版本（v${CURRENT_VERSION}）`);
       }
     },
-    onError: (e: unknown) => message.error(`检查更新失败：${String(e)}`),
+    onError: (e: unknown) => message.error(`检查更新失败：${formatError(e)}`),
     onSettled: () => setChecking(false),
   });
 
@@ -133,7 +134,7 @@ export default function SettingsPage() {
       setDownloadedPath(path);
       message.success(`下载完成：${path}`);
     },
-    onError: (e: unknown) => message.error(`下载失败：${String(e)}`),
+    onError: (e: unknown) => message.error(`下载失败：${formatError(e)}`),
     onSettled: () => setDownloading(false),
   });
 
@@ -143,16 +144,18 @@ export default function SettingsPage() {
       message.success(`备份成功：${info.backup_path}`);
       queryClient.invalidateQueries({ queryKey: ['backups'] });
     },
-    onError: (e: unknown) => message.error(`备份失败：${String(e)}`),
+    onError: (e: unknown) => message.error(`备份失败：${formatError(e)}`),
   });
 
   const restoreMutation = useMutation({
     mutationFn: restoreBackup,
     onSuccess: () => {
-      message.success('还原成功，建议重启应用以确保数据加载一致');
-      queryClient.invalidateQueries();
+      message.success('还原成功，正在刷新应用...');
+      // 强制整体刷新，比 invalidateQueries 更安全：
+      // 避免组件持有旧引用导致新旧数据混合状态
+      setTimeout(() => window.location.reload(), 800);
     },
-    onError: (e: unknown) => message.error(`还原失败：${String(e)}`),
+    onError: (e: unknown) => message.error(`还原失败：${formatError(e)}`),
   });
 
   const installMutation = useMutation({
@@ -161,7 +164,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       message.success('安装程序已启动，请按安装向导完成升级');
     },
-    onError: (e: unknown) => message.error(`启动安装程序失败：${String(e)}`),
+    onError: (e: unknown) => message.error(`启动安装程序失败：${formatError(e)}`),
   });
 
   const handleCheckUpdate = () => {

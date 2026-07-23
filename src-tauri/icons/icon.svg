@@ -1,39 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1e3c32"/>
-      <stop offset="1" stop-color="#152d28"/>
-    </linearGradient>
-    <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c83c2d"/>
-      <stop offset="1" stop-color="#8a2418"/>
-    </linearGradient>
-    <linearGradient id="pestle" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a07846"/>
-      <stop offset="1" stop-color="#6e4f30"/>
+      <stop offset="0" stop-color="#1E4530"/>
+      <stop offset="1" stop-color="#152D20"/>
     </linearGradient>
   </defs>
-  <rect x="8" y="8" width="240" height="240" rx="40" fill="url(#bg)"/>
-  <!-- 叶子 -->
-  <g transform="translate(100,108) rotate(-75)">
-    <ellipse cx="0" cy="0" rx="30" ry="11" fill="#5a8c3c"/>
-    <line x1="-28" y1="0" x2="28" y2="0" stroke="#78b450" stroke-width="1.5"/>
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="url(#bg)"/>
+  <!-- 左下叶子 -->
+  <g transform="translate(70,180) rotate(-40)">
+    <ellipse cx="0" cy="0" rx="46" ry="18" fill="#5A8C3C"/>
+    <line x1="-42" y1="0" x2="42" y2="0" stroke="#78B450" stroke-width="2.5"/>
   </g>
-  <g transform="translate(92,112) rotate(-60)">
-    <ellipse cx="0" cy="0" ry="26" rx="9" fill="#78b450"/>
-    <line x1="-24" y1="0" x2="24" y2="0" stroke="#8ccc64" stroke-width="1.5"/>
+  <!-- 右上叶子 -->
+  <g transform="translate(186,76) rotate(140)">
+    <ellipse cx="0" cy="0" rx="46" ry="18" fill="#5A8C3C"/>
+    <line x1="-42" y1="0" x2="42" y2="0" stroke="#78B450" stroke-width="2.5"/>
   </g>
-  <!-- 研杵 -->
-  <rect x="130" y="36" width="9" height="86" rx="4" fill="url(#pestle)"/>
-  <ellipse cx="134.5" cy="38" rx="5" ry="4" fill="#aa8256"/>
-  <!-- 研钵 -->
-  <path d="M 76 134 L 180 134 L 164 200 L 92 200 Z" fill="url(#bowl)"/>
-  <ellipse cx="128" cy="134" rx="52" ry="8" fill="#641812"/>
-  <ellipse cx="128" cy="133" rx="46" ry="5" fill="#3a0e0a"/>
-  <!-- 底部装饰弧 -->
-  <path d="M 36 220 Q 128 260 220 220" stroke="#c8a550" stroke-width="3" fill="none" opacity="0.6"/>
-  <!-- 药材颗粒 -->
-  <circle cx="160" cy="56" r="3" fill="#d4b45a" opacity="0.8"/>
-  <circle cx="176" cy="72" r="2.5" fill="#b89438" opacity="0.7"/>
-  <circle cx="148" cy="44" r="2" fill="#e6be64" opacity="0.6"/>
+  <!-- 朱砂印章 -->
+  <rect x="72" y="72" width="112" height="112" rx="14" fill="#C83C2D"/>
+  <rect x="78" y="78" width="100" height="100" rx="10" fill="none" stroke="#8A2418" stroke-width="3"/>
+  <!-- "本"字 -->
+  <text x="128" y="128" font-family="'Microsoft YaHei','SimHei',sans-serif" font-size="92"
+        font-weight="bold" fill="#FDFAF5" text-anchor="middle" dominant-baseline="central">本</text>
+  <!-- 底部金色弧线 -->
+  <path d="M 36 220 Q 128 260 220 220" stroke="#C8A550" stroke-width="3" fill="none" opacity="0.7"/>
 </svg>

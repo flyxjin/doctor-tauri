@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { listInventory, listInventoryHistory, updateStock } from '@/api/tauri';
+import { formatError } from '@/utils/formatError';
 import type { Inventory, InventoryHistory } from '@/types';
 
 const { Text } = Typography;
@@ -106,7 +107,7 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setModalOpen(false);
     },
-    onError: (e: unknown) => message.error(String(e)),
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   const openModal = (record: Inventory, isIn: boolean) => {
@@ -116,12 +117,20 @@ export default function InventoryPage() {
     setModalOpen(true);
   };
 
+  // 订阅 is_in 字段变化，使 Modal 标题随操作类型切换实时更新
+  const isInWatch = Form.useWatch('is_in', form);
+
   const handleSubmit = async () => {
     if (!target) return;
     try {
       const values = await form.validateFields();
       if (values.change <= 0) {
         message.warning('数量必须大于 0');
+        return;
+      }
+      // 出库预校验：前端先检查库存余量，避免等后端拒绝
+      if (!values.is_in && values.change > target.quantity) {
+        message.warning(`库存不足，当前库存 ${target.quantity} ${target.unit || 'g'}`);
         return;
       }
       mutation.mutate({ medicineId: target.medicine_id, form: values });
@@ -326,7 +335,7 @@ export default function InventoryPage() {
       </div>
 
       <Modal
-        title={`${target?.medicine_name ?? ''} - ${form.getFieldValue('is_in') ? '入库' : '出库'}`}
+        title={`${target?.medicine_name ?? ''} - ${isInWatch ? '入库' : '出库'}`}
         open={modalOpen}
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
