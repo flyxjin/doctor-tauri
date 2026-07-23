@@ -34,6 +34,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "007_expand_herbs",
         include_str!("../migrations/007_expand_herbs.sql"),
     ),
+    (
+        "008_batch_expiry",
+        include_str!("../migrations/008_batch_expiry.sql"),
+    ),
 ];
 
 /// 数据库状态：持有单个 SQLite 连接，通过 Mutex 序列化访问
@@ -341,7 +345,7 @@ mod tests {
             .unwrap();
         assert!(
             inventory_count >= 400,
-            "库存记录至少 400 条，实际: {inventory_count}"
+            "库存记录至少 400 条（008 批次改造后每味药材至少 1 个批次），实际: {inventory_count}"
         );
         // 验证特定药材存在
         let exists: i64 = conn

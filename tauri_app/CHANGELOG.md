@@ -2,6 +2,36 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.5] - 2026-07-23
+
+### 新增
+
+- **批次 + 效期管理**：库存表从「一药一行」改为「一批次一行」，支持同药材多批次、生产日期与效期录入。新增 `008_batch_expiry.sql` 迁移，重建 inventory 表（移除 medicine_id UNIQUE 约束，新增 batch_no/production_date/expiry_date 字段 + 联合唯一索引），存量数据自动转为 batch_no='初始库存'、效期为 NULL
+- **FEFO 近效期优先出库**：出库时自动按「近效期 → 无效期 → 入库时间」顺序跨批次扣减，新增 `select_batches_fefo` 辅助函数遍历累加直至满足需求量，库存不足时返回错误
+- **效期预警查询**：新增 `list_expiring_batches` 后端命令，查询指定天数内到期且库存 > 0 的批次，按效期升序返回
+- **库存页面效期预警横幅**：Inventory 页顶部展示近 30 天到期/已过期批次，红色标签标已过期、橙色标签标近效期，前 5 项预览
+- **批次筛选模式**：库存表新增「近效期」筛选标签，与原有「全部/低库存/零库存」并列
+- **入库批次录入**：入库 Modal 新增批次号、生产日期、效期三个输入项（出库时隐藏，显示 FEFO 提示）；批次号留空自动按时间戳生成，同批次号入库自动合并数量
+
+### 优化
+
+- **处方扣库存改为 FEFO 跨批次**：`create_prescription` 从单行 UPDATE 改为调用 `select_batches_fefo` 逐批次扣减，`prescription_items` 记录 `batch_id` 用于精确回扣
+- **删除处方精确回扣**：`delete_prescription` 优先回扣到原 `batch_id`，批次不存在则回扣到该药材的「初始库存」或第一个批次
+- **看板低库存统计聚合**：`get_dashboard_data` 的低库存判断从单行 `quantity <= min_stock` 改为按药材 `SUM(quantity) <= MIN(min_stock)` 聚合，避免一药多批时误报
+- **批量导入新批次语义**：`batch_import_medicines` 已有药材不再覆盖库存，改为新建批次行（batch_no='导入批次-{时间戳}'），保留历史批次
+- **库存列表按批次行返回**：`list_inventory` ORDER BY 改为 `medicine_id ASC, batch_no ASC`，前端表格新增批次号、效期列
+- **库存统计按药材去重**：前端 Inventory 页「在库品种」「低库存」「零库存」统计改为按 medicine_id 聚合，不因多批次重复计数
+- **出库预校验改为总库存**：前端出库前检查该药材跨批次总库存，而非单批次余量
+
+### 测试
+
+- 后端：52 → 60 个测试（+8 个批次专项测试：FEFO 顺序、无效期排后、库存不足报错、同批合并、新批新建、跨批扣减、效期预警查询、低库存聚合）
+- 修复 `get_quantity` 测试辅助函数为 `SUM(quantity)` 聚合，适配一药多批
+- `cargo test --lib` 全部通过
+- 前端：35 个测试（不变），TypeScript 0 错误，ESLint 0 错误
+
+---
+
 ## [0.3.4] - 2026-07-23
 
 ### 新增

@@ -224,16 +224,18 @@ pub fn delete_medicine(id: i64, state: State<'_, DbState>) -> Result<(), String>
 
 // ==================== 库存管理 ====================
 
-/// 库存列表（联表药材名与分类）
+/// 库存列表（按批次行返回，联表药材名与分类）
 #[tauri::command]
 pub fn list_inventory(state: State<'_, DbState>) -> Result<Vec<Inventory>, String> {
     let conn = state.lock()?;
     let list: Vec<Inventory> = {
         let mut stmt = conn.prepare(
-            "SELECT i.id, i.medicine_id, i.quantity, i.unit, i.price, i.min_stock, i.notes, i.created_at, i.updated_at, m.name, m.category
+            "SELECT i.id, i.medicine_id, i.batch_no, i.production_date, i.expiry_date,
+                    i.quantity, i.unit, i.price, i.min_stock, i.notes, i.created_at, i.updated_at,
+                    m.name, m.category
              FROM inventory i
              LEFT JOIN medicines m ON i.medicine_id = m.id
-             ORDER BY i.medicine_id ASC",
+             ORDER BY i.medicine_id ASC, i.batch_no ASC",
         )
         .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -241,17 +243,20 @@ pub fn list_inventory(state: State<'_, DbState>) -> Result<Vec<Inventory>, Strin
                 Ok(Inventory {
                     id: row.get(0)?,
                     medicine_id: row.get(1)?,
-                    quantity: row.get::<_, Option<f64>>(2)?.unwrap_or(0.0),
+                    batch_no: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                    production_date: row.get(3)?,
+                    expiry_date: row.get(4)?,
+                    quantity: row.get::<_, Option<f64>>(5)?.unwrap_or(0.0),
                     unit: row
-                        .get::<_, Option<String>>(3)?
+                        .get::<_, Option<String>>(6)?
                         .unwrap_or_else(|| "g".to_string()),
-                    price: row.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
-                    min_stock: row.get::<_, Option<f64>>(5)?.unwrap_or(0.0),
-                    notes: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
-                    created_at: row.get(7)?,
-                    updated_at: row.get(8)?,
-                    medicine_name: row.get::<_, Option<String>>(9)?.unwrap_or_default(),
-                    category: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
+                    price: row.get::<_, Option<f64>>(7)?.unwrap_or(0.0),
+                    min_stock: row.get::<_, Option<f64>>(8)?.unwrap_or(0.0),
+                    notes: row.get::<_, Option<String>>(9)?.unwrap_or_default(),
+                    created_at: row.get(10)?,
+                    updated_at: row.get(11)?,
+                    medicine_name: row.get::<_, Option<String>>(12)?.unwrap_or_default(),
+                    category: row.get::<_, Option<String>>(13)?.unwrap_or_default(),
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -264,11 +269,14 @@ pub fn list_inventory(state: State<'_, DbState>) -> Result<Vec<Inventory>, Strin
     Ok(list)
 }
 
-/// 入库 / 出库
+/// 入库 / 出库（批次版）
 ///
 /// - `medicine_id`：药材 ID
 /// - `change`：变更数量（正数）
 /// - `is_in`：true=入库，false=出库
+/// - `batch_no`：批次号（入库时指定，为空则自动生成；出库时忽略，按 FEFO 自动选批次）
+/// - `production_date`：生产日期 YYYY-MM-DD（入库时录入，可选）
+/// - `expiry_date`：效期 YYYY-MM-DD（入库时录入，可选）
 #[tauri::command]
 pub fn update_stock(
     medicine_id: i64,
@@ -276,6 +284,9 @@ pub fn update_stock(
     is_in: bool,
     operator: Option<String>,
     notes: Option<String>,
+    batch_no: Option<String>,
+    production_date: Option<String>,
+    expiry_date: Option<String>,
     state: State<'_, DbState>,
 ) -> Result<(), String> {
     if change <= 0.0 {
@@ -292,68 +303,167 @@ pub fn update_stock(
         )
         .map_err(|e| format!("药材不存在: {e}"))?;
 
-    // 取当前库存（无记录则创建）
-    let row: Option<(i64, f64, f64, String)> = tx
-        .query_row(
-            "SELECT id, quantity, price, unit FROM inventory WHERE medicine_id=?1",
-            params![medicine_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    let hist_type = if is_in { "入库" } else { "出库" };
+    let operator_str = operator.unwrap_or_default();
+    let notes_str = notes.unwrap_or_default();
+
+    if is_in {
+        // ========== 入库逻辑 ==========
+        let batch = batch_no.unwrap_or_default();
+        let batch = if batch.trim().is_empty() {
+            // 自动生成批次号：时间戳
+            format!("BATCH-{}", chrono::Local::now().format("%Y%m%d%H%M%S"))
+        } else {
+            batch.trim().to_string()
+        };
+        let prod = production_date.filter(|s| !s.is_empty());
+        let exp = expiry_date.filter(|s| !s.is_empty());
+
+        // 查是否已有同批次
+        let row: Option<(i64, f64, f64, String)> = tx
+            .query_row(
+                "SELECT id, quantity, price, unit FROM inventory WHERE medicine_id=?1 AND batch_no=?2",
+                params![medicine_id, &batch],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+
+        let (inv_id, _old_qty, price, unit) = match row {
+            Some(r) => {
+                // 同批次已存在 → 合并入库（累加数量）
+                let (id, qty, price, unit) = r;
+                tx.execute(
+                    "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+                    params![qty + change, id],
+                )
+                .map_err(|e| e.to_string())?;
+                (id, qty, price, unit)
+            }
+            None => {
+                // 新批次 → 新建 inventory 行
+                // 默认单价/单位取该药材已有任意批次，无则 0/'g'
+                let (price, unit): (f64, String) = tx
+                    .query_row(
+                        "SELECT price, unit FROM inventory WHERE medicine_id=?1 LIMIT 1",
+                        params![medicine_id],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    )
+                    .optional()
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or((0.0, "g".to_string()));
+                tx.execute(
+                    "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1,?2,?3,?4,?5,?6,?7,0)",
+                    params![medicine_id, &batch, &prod, &exp, change, &unit, price],
+                )
+                .map_err(|e| e.to_string())?;
+                (tx.last_insert_rowid(), 0.0, price, unit)
+            }
+        };
+
+        let total_amount = change * price;
+        tx.execute(
+            "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![medicine_id, &medicine_name, hist_type, change, price, total_amount, &operator_str, &notes_str, inv_id],
         )
-        .optional()
         .map_err(|e| e.to_string())?;
-    let (inv_id, old_qty, price, unit) = match row {
-        Some(r) => r,
-        None => {
+
+        log_operation(
+            &tx,
+            "STOCK",
+            "inventory",
+            inv_id,
+            &format!("{}: {} {}{} (批次:{})", hist_type, medicine_name, change, unit, batch),
+        )?;
+    } else {
+        // ========== 出库逻辑（FEFO 近效期优先） ==========
+        let batches = select_batches_fefo(&tx, medicine_id, change)?;
+        let mut remaining = change;
+        for (batch_id, batch_qty, deduct, price, unit, batch_no) in &batches {
             tx.execute(
-                "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock) VALUES (?1, 0, 'g', 0, 0)",
-                params![medicine_id],
+                "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+                params![batch_qty - deduct, batch_id],
             )
             .map_err(|e| e.to_string())?;
-            (tx.last_insert_rowid(), 0.0, 0.0, "g".to_string())
+            let total_amount = deduct * price;
+            tx.execute(
+                "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![medicine_id, &medicine_name, hist_type, deduct, price, total_amount, &operator_str, &notes_str, batch_id],
+            )
+            .map_err(|e| e.to_string())?;
+            log_operation(
+                &tx,
+                "STOCK",
+                "inventory",
+                *batch_id,
+                &format!("{}: {} {}{} (批次:{})", hist_type, medicine_name, deduct, unit, batch_no),
+            )?;
+            remaining -= deduct;
         }
-    };
-
-    let delta = if is_in { change } else { -change };
-    let new_qty = old_qty + delta;
-    if new_qty < 0.0 {
-        return Err(format!(
-            "库存不足，当前 {}，尝试出库 {}",
-            old_qty, change
-        ));
+        if remaining > 0.001 {
+            return Err(format!(
+                "库存不足，仍需 {}，请检查库存",
+                remaining
+            ));
+        }
     }
-    tx.execute(
-        "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-        params![new_qty, inv_id],
-    )
-    .map_err(|e| e.to_string())?;
 
-    // 记录库存变更历史
-    let hist_type = if is_in { "入库" } else { "出库" };
-    let total_amount = change * price;
-    tx.execute(
-        "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
-        params![
-            medicine_id,
-            &medicine_name,
-            hist_type,
-            change,
-            price,
-            total_amount,
-            operator.unwrap_or_default(),
-            notes.unwrap_or_default(),
-        ],
-    )
-    .map_err(|e| e.to_string())?;
-
-    log_operation(
-        &tx,
-        "STOCK",
-        "inventory",
-        inv_id,
-        &format!("{}: {} {}{}", hist_type, medicine_name, change, unit),
-    )?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// FEFO 批次选择：近效期优先出库，无效期的最后出库
+///
+/// 返回 Vec<(batch_id, 当前库存, 本次扣减量, 单价, 单位, 批次号)>
+fn select_batches_fefo(
+    tx: &Connection,
+    medicine_id: i64,
+    needed: f64,
+) -> Result<Vec<(i64, f64, f64, f64, String, String)>, String> {
+    let mut stmt = tx
+        .prepare(
+            "SELECT id, batch_no, quantity, price, unit FROM inventory
+             WHERE medicine_id=?1 AND quantity > 0
+             ORDER BY
+                CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END,
+                expiry_date ASC,
+                created_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![medicine_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, f64>(2)?,
+                row.get::<_, f64>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    let mut remaining = needed;
+    for r in rows {
+        let (batch_id, batch_no, qty, price, unit) = r.map_err(|e| e.to_string())?;
+        if remaining <= 0.0 {
+            break;
+        }
+        let deduct = if qty >= remaining {
+            remaining
+        } else {
+            qty
+        };
+        result.push((batch_id, qty, deduct, price, unit, batch_no));
+        remaining -= deduct;
+    }
+    if remaining > 0.001 {
+        return Err(format!(
+            "库存不足，需要 {}，可用库存不足",
+            needed
+        ));
+    }
+    Ok(result)
 }
 
 /// 库存变更历史查询（支持按药材、类型、日期范围筛选）
@@ -370,7 +480,7 @@ pub fn list_inventory_history(
     let limit = limit.unwrap_or(200).clamp(1, 2000);
 
     let mut sql = String::from(
-        "SELECT id, medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, created_at FROM inventory_history WHERE 1=1",
+        "SELECT id, medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, created_at, batch_id FROM inventory_history WHERE 1=1",
     );
     let mut pv: Vec<SqlValue> = Vec::new();
     if let Some(mid) = medicine_id {
@@ -413,6 +523,7 @@ pub fn list_inventory_history(
                     operator: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
                     notes: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
                     created_at: row.get(9)?,
+                    batch_id: row.get(10)?,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -423,6 +534,52 @@ pub fn list_inventory_history(
         out
     };
     Ok(list)
+}
+
+/// 效期预警：查询指定天数内到期的批次（默认 30 天）
+#[tauri::command]
+pub fn list_expiring_batches(
+    days: Option<i64>,
+    state: State<'_, DbState>,
+) -> Result<Vec<ExpiringBatch>, String> {
+    let conn = state.lock()?;
+    let days = days.unwrap_or(30).clamp(1, 365);
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT i.id, i.medicine_id, m.name, i.batch_no, i.expiry_date,
+                    i.quantity, i.unit, i.price
+             FROM inventory i
+             JOIN medicines m ON i.medicine_id = m.id
+             WHERE i.expiry_date IS NOT NULL
+               AND i.expiry_date != ''
+               AND date(i.expiry_date) <= date('now', ?1)
+               AND i.quantity > 0
+             ORDER BY i.expiry_date ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let days_str = format!("+{days} days");
+    let rows = stmt
+        .query_map(params![&days_str], |row| {
+            Ok(ExpiringBatch {
+                id: row.get(0)?,
+                medicine_id: row.get(1)?,
+                medicine_name: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                batch_no: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                expiry_date: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                quantity: row.get::<_, Option<f64>>(5)?.unwrap_or(0.0),
+                unit: row
+                    .get::<_, Option<String>>(6)?
+                    .unwrap_or_else(|| "g".to_string()),
+                price: row.get::<_, Option<f64>>(7)?.unwrap_or(0.0),
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
 }
 
 // ==================== 处方管理 ====================
@@ -487,7 +644,7 @@ pub fn list_prescriptions(
     // 一次性查询所有处方明细（IN 批量查询，消除 N+1）
     let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
     let items_sql = format!(
-        "SELECT id, prescription_id, medicine_id, medicine_name, quantity, unit, price, amount FROM prescription_items WHERE prescription_id IN ({placeholders}) ORDER BY id ASC"
+        "SELECT id, prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id FROM prescription_items WHERE prescription_id IN ({placeholders}) ORDER BY id ASC"
     );
     let id_params: Vec<SqlValue> = ids.iter().map(|id| SqlValue::Integer(*id)).collect();
     let all_items: Vec<PrescriptionItem> = {
@@ -575,8 +732,15 @@ pub fn create_prescription(
     let prescription_id = tx.last_insert_rowid();
 
     for item in &input.items {
+        // FEFO 跨批次扣减库存
+        let batches = select_batches_fefo(&tx, item.medicine_id, item.quantity)
+            .map_err(|e| format!("药材 '{}' {}", item.medicine_name, e))?;
+
+        // 取第一个扣减批次作为处方明细的 batch_id（主要批次，用于回扣参考）
+        let primary_batch_id = batches.first().map(|b| b.0);
+
         tx.execute(
-            "INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            "INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             params![
                 prescription_id,
                 item.medicine_id,
@@ -585,36 +749,35 @@ pub fn create_prescription(
                 &item.unit,
                 item.price,
                 item.amount,
+                primary_batch_id,
             ],
         )
         .map_err(|e| format!("写入处方明细失败: {e}"))?;
 
-        // 原子扣减库存（quantity >= change 才更新，避免负库存）
-        let affected = tx
-            .execute(
-                "UPDATE inventory SET quantity = quantity - ?1, updated_at=CURRENT_TIMESTAMP WHERE medicine_id=?2 AND quantity >= ?1",
-                params![item.quantity, item.medicine_id],
+        // 逐批次扣减库存 + 写出库历史
+        for (batch_id, batch_qty, deduct, batch_price, _unit, _batch_no) in &batches {
+            tx.execute(
+                "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+                params![batch_qty - deduct, batch_id],
             )
             .map_err(|e| format!("扣减库存失败: {e}"))?;
-        if affected == 0 {
-            return Err(format!("药材 '{}' 库存不足或无库存记录", item.medicine_name));
-        }
 
-        // 记录库存出库历史
-        tx.execute(
-            "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
-            params![
-                item.medicine_id,
-                &item.medicine_name,
-                "出库",
-                item.quantity,
-                item.price,
-                item.quantity * item.price,
-                &p.created_by,
-                "处方出库",
-            ],
-        )
-        .map_err(|e| e.to_string())?;
+            tx.execute(
+                "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![
+                    item.medicine_id,
+                    &item.medicine_name,
+                    "出库",
+                    deduct,
+                    batch_price,
+                    deduct * batch_price,
+                    &p.created_by,
+                    "处方出库",
+                    batch_id,
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        }
     }
 
     log_operation(
@@ -634,11 +797,11 @@ pub fn delete_prescription(id: i64, state: State<'_, DbState>) -> Result<(), Str
     let conn = state.lock()?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    // 查询处方明细，用于回扣库存
-    let items: Vec<(i64, String, f64)> = {
+    // 查询处方明细，用于回扣库存（含 batch_id）
+    let items: Vec<(i64, String, f64, Option<i64>)> = {
         let mut stmt = tx
             .prepare(
-                "SELECT medicine_id, medicine_name, quantity FROM prescription_items WHERE prescription_id=?1",
+                "SELECT medicine_id, medicine_name, quantity, batch_id FROM prescription_items WHERE prescription_id=?1",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -647,6 +810,7 @@ pub fn delete_prescription(id: i64, state: State<'_, DbState>) -> Result<(), Str
                     row.get::<_, i64>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, f64>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
                 ))
             })
             .map_err(|e| e.to_string())?;
@@ -657,16 +821,53 @@ pub fn delete_prescription(id: i64, state: State<'_, DbState>) -> Result<(), Str
         out
     };
 
-    // 回扣库存 + 记录退库历史
-    for (medicine_id, medicine_name, quantity) in &items {
+    // 回扣库存 + 记录退库历史（优先回扣到原 batch_id，批次不存在则找该药材的任意批次）
+    for (medicine_id, medicine_name, quantity, batch_id) in &items {
+        let target_batch: i64 = if let Some(bid) = batch_id {
+            // 尝试回扣到原批次
+            let exists: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM inventory WHERE id=?1",
+                    params![bid],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?;
+            if exists.is_some() {
+                *bid
+            } else {
+                // 原批次已删，找该药材的任意批次（取"初始库存"或第一个）
+                tx.query_row(
+                    "SELECT id FROM inventory WHERE medicine_id=?1 ORDER BY CASE WHEN batch_no='初始库存' THEN 0 ELSE 1 END, id ASC LIMIT 1",
+                    params![medicine_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+                .unwrap_or(0)
+            }
+        } else {
+            // 无 batch_id（老数据），找该药材的任意批次
+            tx.query_row(
+                "SELECT id FROM inventory WHERE medicine_id=?1 ORDER BY CASE WHEN batch_no='初始库存' THEN 0 ELSE 1 END, id ASC LIMIT 1",
+                params![medicine_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .unwrap_or(0)
+        };
+
+        if target_batch > 0 {
+            tx.execute(
+                "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+                params![quantity, target_batch],
+            )
+            .map_err(|e| format!("回扣库存失败: {e}"))?;
+        }
         tx.execute(
-            "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE medicine_id=?2",
-            params![quantity, medicine_id],
-        )
-        .map_err(|e| format!("回扣库存失败: {e}"))?;
-        tx.execute(
-            "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
-            params![medicine_id, medicine_name, "退库", quantity, 0.0, 0.0, "", "删除处方回扣"],
+            "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![medicine_id, medicine_name, "退库", quantity, 0.0, 0.0, "", "删除处方回扣", if target_batch > 0 { Some(target_batch) } else { None }],
         )
         .map_err(|e| e.to_string())?;
     }
@@ -899,7 +1100,12 @@ pub fn get_dashboard_data(
         .map_err(|e| e.to_string())?;
     let low_stock_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM inventory WHERE quantity <= min_stock",
+            // 按药材聚合后比较总库存与最低库存阈值（取该药材所有批次的最小 min_stock）
+            "SELECT COUNT(*) FROM (
+                SELECT medicine_id, SUM(quantity) as total_qty, MIN(min_stock) as min_threshold
+                FROM inventory GROUP BY medicine_id
+                HAVING total_qty <= min_threshold
+            )",
             (),
             |row| row.get(0),
         )
@@ -907,10 +1113,11 @@ pub fn get_dashboard_data(
 
     let low_stock_list: Vec<LowStockItem> = {
         let mut stmt = conn.prepare(
-            "SELECT i.medicine_id, m.name, i.quantity, i.min_stock, i.unit
+            "SELECT i.medicine_id, m.name, SUM(i.quantity) as total_qty, MIN(i.min_stock) as min_threshold, i.unit
              FROM inventory i JOIN medicines m ON i.medicine_id=m.id
-             WHERE i.quantity <= i.min_stock
-             ORDER BY (i.quantity - i.min_stock) ASC LIMIT 20",
+             GROUP BY i.medicine_id, m.name, i.unit
+             HAVING total_qty <= min_threshold
+             ORDER BY (total_qty - min_threshold) ASC LIMIT 20",
         )
         .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -1154,7 +1361,7 @@ pub fn batch_import_medicines(
         let existing_id: Option<i64> = existing_map.get(&name).copied();
 
         let result = if let Some(id) = existing_id {
-            // UPSERT：更新药材
+            // UPSERT：更新药材信息
             tx.execute(
                 "UPDATE medicines SET alias=?1, category=?2, nature=?3, taste=?4, meridian=?5, efficacy=?6, indications=?7, usage=?8, dosage=?9, contraindication=?10, notes=?11, updated_at=CURRENT_TIMESTAMP WHERE id=?12",
                 params![
@@ -1165,21 +1372,17 @@ pub fn batch_import_medicines(
             )
             .map_err(|e| format!("更新药材 '{name}' 失败: {e}"))
             .and_then(|_| {
-                // UPSERT：更新或新建库存
-                let affected = tx.execute(
-                    "UPDATE inventory SET quantity=?1, unit=?2, price=?3, min_stock=?4, updated_at=CURRENT_TIMESTAMP WHERE medicine_id=?5",
-                    params![quantity, &unit, price, min_stock, id],
-                ).map_err(|e| format!("更新库存失败: {e}"))?;
-                if affected == 0 {
-                    tx.execute(
-                        "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock) VALUES (?1,?2,?3,?4,?5)",
-                        params![id, quantity, &unit, price, min_stock],
-                    ).map_err(|e| format!("创建库存失败: {e}"))?;
-                }
-                Ok(())
+                // 批次改造：已有药材的新库存作为新批次入库（不再覆盖旧库存）
+                // 用"导入批次-{时间戳}"作为批次号，避免与已有批次冲突
+                let batch_no = format!("导入批次-{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+                tx.execute(
+                    "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1,?2,NULL,NULL,?3,?4,?5,?6)",
+                    params![id, &batch_no, quantity, &unit, price, min_stock],
+                ).map_err(|e| format!("创建库存批次失败: {e}"))
+                  .map(|_| ())
             })
         } else {
-            // 新建药材 + 库存
+            // 新建药材 + 库存（初始批次）
             tx.execute(
                 "INSERT INTO medicines (name, alias, category, nature, taste, meridian, efficacy, indications, usage, dosage, contraindication, notes) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
                 params![
@@ -1192,7 +1395,7 @@ pub fn batch_import_medicines(
             .and_then(|_| {
                 let new_id = tx.last_insert_rowid();
                 tx.execute(
-                    "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock) VALUES (?1,?2,?3,?4,?5)",
+                    "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1,'初始库存',NULL,NULL,?2,?3,?4,?5)",
                     params![new_id, quantity, &unit, price, min_stock],
                 ).map_err(|e| format!("创建库存失败: {e}"))?;
                 // 更新 HashMap，使同批次内重复名称走 UPDATE 而非重复 INSERT
@@ -1464,7 +1667,7 @@ pub fn generate_prescription_html(
     let items: Vec<PrescriptionItem> = {
         let mut stmt = conn
             .prepare(
-                "SELECT id, prescription_id, medicine_id, medicine_name, quantity, unit, price, amount
+                "SELECT id, prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id
                  FROM prescription_items WHERE prescription_id=?1 ORDER BY id ASC",
             )
             .map_err(|e| format!("准备明细查询失败: {e}"))?;
@@ -1841,6 +2044,7 @@ fn map_prescription_item_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Prescr
             .unwrap_or_else(|| "g".to_string()),
         price: row.get::<_, Option<f64>>(6)?.unwrap_or(0.0),
         amount: row.get::<_, Option<f64>>(7)?.unwrap_or(0.0),
+        batch_id: row.get(8)?,
     })
 }
 
@@ -1994,14 +2198,33 @@ mod tests {
         conn.last_insert_rowid()
     }
 
-    /// 查询某药材当前库存数量
+    /// 查询某药材当前库存总量（跨批次聚合）
+    ///
+    /// 008 迁移后一药多批，需用 SUM 聚合避免 query_row 返回多行报错
     fn get_quantity(conn: &Connection, medicine_id: i64) -> f64 {
         conn.query_row(
-            "SELECT quantity FROM inventory WHERE medicine_id=?1",
+            "SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE medicine_id=?1",
             params![medicine_id],
             |row| row.get::<_, f64>(0),
         )
         .unwrap_or(0.0)
+    }
+
+    /// 插入一条测试批次库存（指定批次号、效期）
+    fn insert_test_batch(
+        conn: &Connection,
+        medicine_id: i64,
+        batch_no: &str,
+        expiry_date: Option<&str>,
+        quantity: f64,
+        price: f64,
+    ) -> i64 {
+        conn.execute(
+            "INSERT INTO inventory (medicine_id, batch_no, expiry_date, quantity, unit, price, min_stock) VALUES (?1,?2,?3,?4,'g',?5,0)",
+            params![medicine_id, batch_no, expiry_date, quantity, price],
+        )
+        .expect("插入批次库存失败");
+        conn.last_insert_rowid()
     }
 
     #[test]
@@ -2491,5 +2714,302 @@ mod tests {
     #[test]
     fn _ensure_arc_used() {
         let _ = Arc::new(1);
+    }
+
+    // ---------- 批次 + 效期 + FEFO 出库测试 ----------
+    // 008 迁移后的核心新逻辑：一药多批、近效期优先、跨批次扣减
+
+    #[test]
+    fn test_fefo_selects_nearest_expiry_first() {
+        // 三批次效期不同，select_batches_fefo 应按近效期优先顺序返回
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "FEFO顺序测试");
+        insert_test_batch(&conn, mid, "B1", Some("2026-12-01"), 50.0, 10.0);
+        insert_test_batch(&conn, mid, "B2", Some("2026-08-01"), 30.0, 12.0);
+        insert_test_batch(&conn, mid, "B3", Some("2027-01-01"), 40.0, 11.0);
+
+        // 需要扣减 60，应先扣 B2（近效期 30）全部 30，再扣 B1 30
+        let tx = conn.unchecked_transaction().unwrap();
+        let batches = select_batches_fefo(&tx, mid, 60.0).expect("FEFO 应成功");
+        tx.commit().unwrap();
+
+        assert_eq!(batches.len(), 2, "应跨 2 个批次扣减");
+        // 第一扣减项应为 B2（效期最近）
+        assert_eq!(batches[0].5, "B2", "近效期批次应优先");
+        assert_eq!(batches[0].2, 30.0, "B2 应全部扣减");
+        // 第二扣减项应为 B1
+        assert_eq!(batches[1].5, "B1");
+        assert_eq!(batches[1].2, 30.0, "B1 应扣减剩余 30");
+    }
+
+    #[test]
+    fn test_fefo_null_expiry_goes_last() {
+        // 无效期的批次应排在最后出库
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "无效期排后测试");
+        insert_test_batch(&conn, mid, "无期", None, 100.0, 5.0);
+        insert_test_batch(&conn, mid, "有期", Some("2026-09-01"), 20.0, 8.0);
+
+        // 需要扣减 30，应优先扣"有期"批次 20，再扣"无期"批次 10
+        let tx = conn.unchecked_transaction().unwrap();
+        let batches = select_batches_fefo(&tx, mid, 30.0).expect("FEFO 应成功");
+        tx.commit().unwrap();
+
+        assert_eq!(batches.len(), 2);
+        assert_eq!(batches[0].5, "有期", "有效期批次应优先于无效期");
+        assert_eq!(batches[0].2, 20.0);
+        assert_eq!(batches[1].5, "无期", "无效期批次应最后扣减");
+        assert_eq!(batches[1].2, 10.0);
+    }
+
+    #[test]
+    fn test_fefo_insufficient_stock_returns_error() {
+        // 总库存不足时 select_batches_fefo 应返回错误
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "FEFO不足测试");
+        insert_test_batch(&conn, mid, "B1", Some("2026-09-01"), 30.0, 10.0);
+        insert_test_batch(&conn, mid, "B2", Some("2027-01-01"), 20.0, 11.0);
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let result = select_batches_fefo(&tx, mid, 100.0);
+        drop(tx); // 不 commit 即回滚
+        assert!(result.is_err(), "总库存 50 < 需求 100 应返回错误");
+    }
+
+    #[test]
+    fn test_batch_inbound_merges_same_batch() {
+        // 模拟 update_stock 入库逻辑：同批次已存在应合并数量
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "同批合并测试");
+        // 已存在批次 BATCH-A，库存 50
+        insert_test_batch(&conn, mid, "BATCH-A", Some("2027-06-01"), 50.0, 10.0);
+
+        // 模拟 update_stock 的入库合并路径（同 medicine_id + batch_no）
+        let tx = conn.unchecked_transaction().unwrap();
+        let change = 30.0_f64;
+        let existing: Option<(i64, f64)> = tx
+            .query_row(
+                "SELECT id, quantity FROM inventory WHERE medicine_id=?1 AND batch_no=?2",
+                params![mid, "BATCH-A"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .unwrap();
+        let (inv_id, old_qty) = existing.expect("应找到同批次");
+        tx.execute(
+            "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+            params![old_qty + change, inv_id],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        // 该批次库存应为 80
+        let qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE medicine_id=?1 AND batch_no=?2",
+                params![mid, "BATCH-A"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(qty, 80.0, "同批次入库应合并累加");
+        // inventory 表对该药材应只有 1 行
+        let cnt: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM inventory WHERE medicine_id=?1",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(cnt, 1, "同批次合并后应仅 1 行");
+    }
+
+    #[test]
+    fn test_batch_inbound_new_batch_creates_new_row() {
+        // 模拟 update_stock 入库逻辑：新批次应新建 inventory 行
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "新批新建测试");
+        insert_test_batch(&conn, mid, "BATCH-A", Some("2027-06-01"), 50.0, 10.0);
+
+        // 入库新批次 BATCH-B 30
+        let tx = conn.unchecked_transaction().unwrap();
+        let existing: Option<(i64, f64)> = tx
+            .query_row(
+                "SELECT id, quantity FROM inventory WHERE medicine_id=?1 AND batch_no=?2",
+                params![mid, "BATCH-B"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .unwrap();
+        assert!(existing.is_none(), "BATCH-B 应不存在");
+        tx.execute(
+            "INSERT INTO inventory (medicine_id, batch_no, expiry_date, quantity, unit, price, min_stock) VALUES (?1,?2,?3,?4,'g',?5,0)",
+            params![mid, "BATCH-B", "2028-01-01", 30.0, 10.0],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        // 总库存应为 80（50 + 30）
+        assert_eq!(get_quantity(&conn, mid), 80.0);
+        let cnt: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM inventory WHERE medicine_id=?1",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(cnt, 2, "新批次入库后应有 2 行");
+    }
+
+    #[test]
+    fn test_cross_batch_deduction_applies_correctly() {
+        // 模拟 update_stock 出库：select_batches_fefo 返回后逐批次扣减
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "跨批扣减测试");
+        let b1 = insert_test_batch(&conn, mid, "B1", Some("2026-09-01"), 30.0, 10.0);
+        let b2 = insert_test_batch(&conn, mid, "B2", Some("2027-01-01"), 50.0, 12.0);
+
+        // 出库 40：应扣 B1 全部 30 + B2 10
+        let tx = conn.unchecked_transaction().unwrap();
+        let batches = select_batches_fefo(&tx, mid, 40.0).expect("FEFO 应成功");
+        for (batch_id, batch_qty, deduct, _price, _unit, _batch_no) in &batches {
+            tx.execute(
+                "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+                params![batch_qty - deduct, batch_id],
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+
+        let b1_qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b1],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let b2_qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b2],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(b1_qty, 0.0, "B1 应被扣完");
+        assert_eq!(b2_qty, 40.0, "B2 应剩 40");
+        assert_eq!(get_quantity(&conn, mid), 40.0);
+    }
+
+    #[test]
+    fn test_list_expiring_batches_query() {
+        // 验证 list_expiring_batches 的 SQL 筛选逻辑：
+        // 仅返回有效期、quantity>0 且在 N 天内到期的批次，按效期升序
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "效期预警测试");
+        // 近效期（30天内）— 应命中
+        insert_test_batch(&conn, mid, "近效期", Some("2026-08-15"), 20.0, 10.0);
+        // 远效期（>30天）— 不应命中
+        insert_test_batch(&conn, mid, "远效期", Some("2027-12-31"), 50.0, 10.0);
+        // 已过期 — 应命中（date <= now+N 包含过去日期）
+        insert_test_batch(&conn, mid, "已过期", Some("2025-01-01"), 10.0, 10.0);
+        // 无效期 — 不应命中
+        insert_test_batch(&conn, mid, "无期", None, 100.0, 10.0);
+        // 效期在窗口内但库存为 0 — 不应命中
+        insert_test_batch(&conn, mid, "零库存", Some("2026-08-10"), 0.0, 10.0);
+
+        // 模拟 list_expiring_batches 的查询（30 天窗口）
+        let mut stmt = conn
+            .prepare(
+                "SELECT i.id, i.batch_no, i.expiry_date, i.quantity
+                 FROM inventory i
+                 JOIN medicines m ON i.medicine_id = m.id
+                 WHERE i.expiry_date IS NOT NULL
+                   AND i.expiry_date != ''
+                   AND date(i.expiry_date) <= date('now', ?1)
+                   AND i.quantity > 0
+                 ORDER BY i.expiry_date ASC",
+            )
+            .unwrap();
+        let rows = stmt
+            .query_map(params!["+30 days"], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, f64>(3)?,
+                ))
+            })
+            .unwrap();
+        let results: Vec<(i64, String, String, f64)> = rows.map(|r| r.unwrap()).collect();
+
+        // 应返回 2 条：已过期 + 近效期
+        assert_eq!(results.len(), 2, "应命中近效期和已过期 2 条");
+        // 按效期升序：已过期 < 近效期
+        assert_eq!(results[0].1, "已过期", "效期最早应排第一");
+        assert_eq!(results[1].1, "近效期");
+    }
+
+    #[test]
+    fn test_dashboard_low_stock_aggregates_across_batches() {
+        // 验证 get_dashboard_data 的低库存聚合：按 medicine_id SUM(quantity) 后比较 min_stock
+        // 注意：种子迁移 001/007 会插入约 400 味药材库存，本测试只验证聚合 SQL 语义
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "多批低库存测试");
+        // 两批次合计 80，min_stock 均为 100 → 聚合 MIN=100，80<=100 判为低库存
+        conn.execute(
+            "INSERT INTO inventory (medicine_id, batch_no, expiry_date, quantity, unit, price, min_stock) VALUES (?1,'B1','2026-12-01',30,'g',10,100)",
+            params![mid],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO inventory (medicine_id, batch_no, expiry_date, quantity, unit, price, min_stock) VALUES (?1,'B2','2027-06-01',50,'g',10,100)",
+            params![mid],
+        )
+        .unwrap();
+
+        // 模拟 get_dashboard_data 的低库存聚合 SQL，仅对测试药材统计
+        let is_low: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM (
+                    SELECT medicine_id, SUM(quantity) as total_qty, MIN(min_stock) as min_threshold
+                    FROM inventory
+                    WHERE medicine_id = ?1
+                    GROUP BY medicine_id
+                    HAVING total_qty <= min_threshold
+                )",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(is_low, 1, "合计 80 <= min_stock 100 应判为低库存");
+
+        // 验证非低库存场景：插入库存充足的药材（合计 500 > min_stock 100）
+        let mid2 = insert_test_medicine(&conn, "充足药材");
+        conn.execute(
+            "INSERT INTO inventory (medicine_id, batch_no, expiry_date, quantity, unit, price, min_stock) VALUES (?1,'B1','2027-06-01',500,'g',10,100)",
+            params![mid2],
+        )
+        .unwrap();
+        let is_low2: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM (
+                    SELECT medicine_id, SUM(quantity) as total_qty, MIN(min_stock) as min_threshold
+                    FROM inventory
+                    WHERE medicine_id = ?1
+                    GROUP BY medicine_id
+                    HAVING total_qty <= min_threshold
+                )",
+                params![mid2],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(is_low2, 0, "合计 500 > 100 不应判为低库存");
     }
 }
