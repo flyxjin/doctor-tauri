@@ -28,7 +28,7 @@ import EmptyState from '@/components/EmptyState';
 import TemplateSelector from '@/components/TemplateSelector';
 import { printHtmlInIframe } from '@/utils/print';
 import { formatError } from '@/utils/formatError';
-import type { Inventory, Medicine, PrescriptionItem } from '@/types';
+import type { Medicine, PrescriptionItem } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
 
 const { Title, Paragraph, Text } = Typography;
@@ -65,9 +65,17 @@ export default function PrescriptionPage() {
     queryFn: listInventory,
   });
 
+  // 库存按药材聚合（一药多批后取总量与首批次价格/单位）
   const inventoryMap = useMemo(() => {
-    const map = new Map<number, Inventory>();
-    inventory?.forEach((i) => map.set(i.medicine_id, i));
+    const map = new Map<number, { totalQty: number; price: number; unit: string }>();
+    inventory?.forEach((i) => {
+      const cur = map.get(i.medicine_id);
+      if (cur) {
+        cur.totalQty += i.quantity;
+      } else {
+        map.set(i.medicine_id, { totalQty: i.quantity, price: i.price, unit: i.unit });
+      }
+    });
     return map;
   }, [inventory]);
 
@@ -115,18 +123,20 @@ export default function PrescriptionPage() {
   };
 
   const addMedicine = (m: Medicine) => {
-    if (items.some((i) => i.medicine_id === m.id)) {
+    if (!m.id) return;
+    const mid = m.id;
+    if (items.some((i) => i.medicine_id === mid)) {
       message.warning(`${m.name} 已在处方中`);
       return;
     }
-    const inv = inventoryMap.get(m.id!);
+    const inv = inventoryMap.get(mid);
     const price = inv?.price ?? 0;
     const unit = inv?.unit ?? 'g';
     const quantity = 10;
     setItems((prev) => [
       ...prev,
       {
-        medicine_id: m.id!,
+        medicine_id: mid,
         medicine_name: m.name,
         quantity,
         unit,
@@ -161,19 +171,20 @@ export default function PrescriptionPage() {
       const existingIds = new Set(prev.map((i) => i.medicine_id));
       const additions: PrescriptionItem[] = [];
       for (const { medicine, quantity } of found) {
-        if (existingIds.has(medicine.id!)) continue;
-        const inv = inventoryMap.get(medicine.id!);
+        if (!medicine.id || existingIds.has(medicine.id)) continue;
+        const mid = medicine.id;
+        const inv = inventoryMap.get(mid);
         const price = inv?.price ?? 0;
         const unit = inv?.unit ?? 'g';
         additions.push({
-          medicine_id: medicine.id!,
+          medicine_id: mid,
           medicine_name: medicine.name,
           quantity,
           unit,
           price,
           amount: Number((quantity * price).toFixed(2)),
         });
-        existingIds.add(medicine.id!);
+        existingIds.add(mid);
       }
       return [...prev, ...additions];
     });
@@ -205,6 +216,18 @@ export default function PrescriptionPage() {
   const handleSubmit = async () => {
     if (items.length === 0) {
       message.warning('请至少添加一味药材');
+      return;
+    }
+    // 库存预校验：检查每味药跨批次总库存是否足够（FEFO 会跨批次扣减）
+    const insufficient = items
+      .map((i) => {
+        const stock = inventoryMap.get(i.medicine_id);
+        const totalQty = stock?.totalQty ?? 0;
+        return totalQty < i.quantity ? `${i.medicine_name}(需${i.quantity}${i.unit}，库存${totalQty}${i.unit})` : null;
+      })
+      .filter((s): s is string => s !== null);
+    if (insufficient.length > 0) {
+      message.error(`库存不足：${insufficient.join('、')}`);
       return;
     }
     try {

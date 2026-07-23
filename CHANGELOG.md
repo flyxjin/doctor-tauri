@@ -2,6 +2,32 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.7] - 2026-07-23
+
+### 修复
+
+- **严重 Bug：跨批次处方删除回扣错误** — 0.3.5 引入的 FEFO 跨批次扣减存在数据一致性缺陷：`prescription_items.batch_id` 仅记录首个扣减批次，删除处方时整量回扣到该批次，导致后续批次库存永久丢失。新增 `009_prescription_item_batches.sql` 迁移，建立处方明细与批次扣减的关联表，`create_prescription` 写入每批次扣减明细，`delete_prescription` 按明细逐批次精确回扣，老数据（无明细记录）回退为整量回扣到「初始库存」
+- **严重 Bug：处方页库存校验取错行** — `Prescription.tsx` 的 `inventoryMap` 直接以 `medicine_id` 为 key 存单行 `Inventory`，一药多批后只保留最后一条批次，导致库存校验与价格取值错误。改为按 `medicine_id` 聚合 `totalQty`，价格/单位取首批次
+- **新批次 min_stock 丢失** — `update_stock` 新建批次行时 `min_stock` 硬编码为 0，导致同药材新批次的低库存预警失效。改为从该药材已有任意批次复制 `min_stock`
+- **退库历史金额错误** — `delete_prescription` 写入 `inventory_history` 的 `price`/`total_amount` 使用处方明细均价，与原扣减批次价格不一致。改为使用关联表记录的原批次扣减价格
+- **批量导入批次号冲突** — `batch_import_medicines` 同一批次时间戳内多行导入会生成相同 `batch_no`，违反联合唯一约束。改为在批次号后追加 `row_no` 区分
+- **`distrib/install.bat` 语法错误** — 第 37 行注册卸载信息时 `DisplayVersion` 后缺失分号 `;`，导致 PowerShell 解析失败，卸载入口注册不完整
+- **`Prescription.tsx` 非空断言** — `m.id!` 强制断言绕过类型检查，存在运行时风险。改用局部变量 `mid` 配合 early return 实现类型收窄
+
+### 优化
+
+- **处方提交前库存预校验** — `handleSubmit` 新增跨批次总库存检查，库存不足时列出每味药的「需求量 vs 库存量」并阻止提交，避免后端报错回滚
+- **`update_stock` 死代码清理** — 移除 `remaining > 0.001` 的冗余校验（`select_batches_fefo` 内部已校验库存充足）
+- **`templateService.ts` 类型安全** — 用 `TemplatesFile` 接口替代 `as any`，消除 ESLint `no-explicit-any` 警告
+
+### 测试
+
+- 后端：60 → 61 个测试（+1 个 `test_cross_batch_prescription_delete_restores_each_batch`：验证 B1(30)+B2(50) 处方扣 40 后删除，B1 恢复 30、B2 恢复 50，非整量回扣到首批次）
+- `cargo test --lib` 全部通过
+- 前端：35 个测试（不变），TypeScript 0 错误，ESLint 0 错误
+
+---
+
 ## [0.3.6] - 2026-07-23
 
 ### 新增
