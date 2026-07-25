@@ -183,7 +183,7 @@ pub fn update_medicine(
 
 /// 删除药材（级联删除库存记录）
 ///
-/// 安全检查：若药材已被处方引用，禁止删除（保留审计轨迹）
+/// 安全检查：若药材已被处方引用或有库存历史，禁止删除（保留审计轨迹）
 #[tauri::command]
 pub fn delete_medicine(id: i64, state: State<'_, DbState>) -> Result<(), String> {
     let conn = state.lock()?;
@@ -198,7 +198,20 @@ pub fn delete_medicine(id: i64, state: State<'_, DbState>) -> Result<(), String>
         .map_err(|e| e.to_string())?;
     if ref_count > 0 {
         return Err(format!(
-            "该药材已被 {ref_count} 张处方引用，无法删除。建议禁用或清零库存而非删除"
+            "该药材已被 {ref_count} 张处方引用，无法删除。建议清零库存而非删除"
+        ));
+    }
+    // 检查是否有库存变更历史（inventory_history 外键无 ON DELETE CASCADE）
+    let hist_count: i64 = tx
+        .query_row(
+            "SELECT COUNT(*) FROM inventory_history WHERE medicine_id=?1",
+            params![id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if hist_count > 0 {
+        return Err(format!(
+            "该药材有 {hist_count} 条库存变更历史，无法删除（需保留审计轨迹）。建议清零库存而非删除"
         ));
     }
     let name: Option<String> = tx
@@ -418,7 +431,7 @@ fn select_batches_fefo(
             "SELECT id, batch_no, quantity, price, unit FROM inventory
              WHERE medicine_id=?1 AND quantity > 0
              ORDER BY
-                CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END,
+                CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END,
                 expiry_date ASC,
                 created_at ASC",
         )
@@ -684,6 +697,15 @@ pub fn create_prescription(
 ) -> Result<i64, String> {
     if input.items.is_empty() {
         return Err("处方至少需要一味药材".to_string());
+    }
+    // 校验每个明细的数量与价格合法性，防止前端传入 0/负数
+    for item in &input.items {
+        if item.quantity <= 0.0 {
+            return Err(format!("药材 '{}' 数量必须大于 0", item.medicine_name));
+        }
+        if item.price < 0.0 {
+            return Err(format!("药材 '{}' 单价不能为负", item.medicine_name));
+        }
     }
     let conn = state.lock()?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -1424,8 +1446,14 @@ pub fn batch_import_medicines(
                 tx.execute(
                     "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1,?2,NULL,NULL,?3,?4,?5,?6)",
                     params![id, &batch_no, quantity, &unit, price, min_stock],
-                ).map_err(|e| format!("创建库存批次失败: {e}"))
-                  .map(|_| ())
+                ).map_err(|e| format!("创建库存批次失败: {e}"))?;
+                let inv_id = tx.last_insert_rowid();
+                // 写入库历史，保持审计轨迹完整
+                tx.execute(
+                    "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                    params![id, &name, "入库", quantity, price, quantity * price, "批量导入", &batch_no, inv_id],
+                ).map_err(|e| format!("写入导入历史失败: {e}"))?;
+                Ok(())
             })
         } else {
             // 新建药材 + 库存（初始批次）
@@ -1444,6 +1472,12 @@ pub fn batch_import_medicines(
                     "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1,'初始库存',NULL,NULL,?2,?3,?4,?5)",
                     params![new_id, quantity, &unit, price, min_stock],
                 ).map_err(|e| format!("创建库存失败: {e}"))?;
+                let inv_id = tx.last_insert_rowid();
+                // 写入库历史，保持审计轨迹完整
+                tx.execute(
+                    "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                    params![new_id, &name, "入库", quantity, price, quantity * price, "批量导入", "初始库存", inv_id],
+                ).map_err(|e| format!("写入导入历史失败: {e}"))?;
                 // 更新 HashMap，使同批次内重复名称走 UPDATE 而非重复 INSERT
                 existing_map.insert(name.clone(), new_id);
                 Ok(())
@@ -1868,14 +1902,14 @@ pub fn create_backup(
     let backup_path = backup_dir.join(&backup_filename);
 
     // 备份数据库前先做一次 checkpoint，避免 WAL 模式下数据未落盘
+    // 在锁作用域内完成 checkpoint + 文件复制，防止并发写入导致备份不一致
     {
         let conn = state.lock()?;
         conn.execute_batch("PRAGMA wal_checkpoint(FULL);")
             .map_err(|e| format!("数据库 checkpoint 失败: {e}"))?;
+        std::fs::copy(&db_path, &backup_path)
+            .map_err(|e| format!("复制数据库失败: {e}"))?;
     }
-
-    std::fs::copy(&db_path, &backup_path)
-        .map_err(|e| format!("复制数据库失败: {e}"))?;
 
     let file_size = std::fs::metadata(&backup_path)
         .map(|m| m.len())
@@ -2341,6 +2375,38 @@ mod tests {
             .unwrap();
         assert_eq!(affected, 0, "库存不足时不应更新");
         assert_eq!(get_quantity(&conn, mid), 50.0, "库存应保持不变");
+    }
+
+    #[test]
+    fn test_delete_medicine_rejected_when_history_exists() {
+        // 有库存变更历史的药材应禁止删除（保留审计轨迹，避免外键约束失败）
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "有历史药材");
+        conn.execute(
+            "INSERT INTO inventory (medicine_id, batch_no, quantity, unit, price, min_stock) VALUES (?1, '初始库存', 50, 'g', 10, 5)",
+            params![mid],
+        )
+        .unwrap();
+        let inv_id = conn.last_insert_rowid();
+        // 写一条入库历史
+        conn.execute(
+            "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, batch_id) VALUES (?1, '有历史药材', '入库', 50, 10, 500, ?2)",
+            params![mid, inv_id],
+        )
+        .unwrap();
+        // 此时删除药材应被拒绝（inventory_history 有引用）
+        let hist_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM inventory_history WHERE medicine_id=?1",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(hist_count > 0, "应有历史记录");
+        // 尝试直接 DELETE 会触发外键约束失败（验证 bug 复现路径）
+        let result = conn.execute("DELETE FROM medicines WHERE id=?1", params![mid]);
+        assert!(result.is_err(), "删除有历史引用的药材应失败");
     }
 
     #[test]

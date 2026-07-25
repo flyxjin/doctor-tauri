@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ConfigProvider, App as AntdApp, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import MainLayout from '@/layouts/MainLayout';
@@ -43,7 +43,7 @@ const theme = {
     colorBorder: '#E5DFD5',
     colorText: '#1A1A1A',
     colorTextSecondary: '#4A4A4A',
-    fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif",
+    fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif",
   },
   components: {
     Layout: {
@@ -81,7 +81,7 @@ function App() {
   return (
     <ConfigProvider locale={zhCN} theme={theme}>
       <AntdApp>
-        <BrowserRouter>
+        <HashRouter>
           <ErrorBoundary>
             <Routes>
               <Route path="/" element={<MainLayout />}>
@@ -161,7 +161,7 @@ function App() {
               </Route>
             </Routes>
           </ErrorBoundary>
-        </BrowserRouter>
+        </HashRouter>
       </AntdApp>
     </ConfigProvider>
   );

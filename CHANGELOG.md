@@ -2,6 +2,32 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.9] - 2026-07-25
+
+### 修复
+
+- **处方页清空按钮不重置开方日期与 lastCreatedId** — 清空操作仅重置表单与药材列表，开方日期保留旧值、`lastCreatedId` 仍指向上一张已保存处方，可能导致用户误打印。改为同步重置 `createdDate` 为当前时间、`lastCreatedId` 为 null
+- **处方页开方日期清空时静默保留旧值** — `DatePicker` 的 `onChange` 使用 `v && setCreatedDate(v)`，用户清空日期后状态不更新，仍提交旧时间。改为 `setCreatedDate(v ?? dayjs())`，清空时回退到当前时间
+- **处方复制时未重置 lastCreatedId** — 从历史页复制处方到处方页后，`lastCreatedId` 仍指向原方，可能误导用户打印错处方。`processCopyData` 中显式调用 `setLastCreatedId(null)`
+- **处方复制静默覆盖用户工作** — 从历史页复制到处方页时，若当前已有未保存内容（药材或患者姓名），直接覆盖造成数据丢失。新增 `modal.confirm` 确认对话框，用户可选「覆盖」或「取消」
+- **处方复制后保存被库存预校验误判** — 复制处方后首次点保存时，`inventory` 可能尚未完成加载，`inventoryMap` 为空导致所有药材被误报库存不足。`handleSubmit` 中检测到 `inventory` 未加载时通过 `queryClient.fetchQuery` 预加载，并基于返回值构建临时 `invMap` 进行校验
+- **清空按钮误操作风险** — 「清空」按钮无二次确认，误点会丢失全部输入。改为 `Popconfirm` 二次确认，并在无内容时禁用
+
+### 优化
+
+- **侧边栏支持折叠** — `MainLayout` 的 `Sider` 新增 `collapsible` 折叠能力，顶栏左侧新增折叠按钮（`MenuFoldOutlined`/`MenuUnfoldOutlined`），折叠态宽度 64px、展开 208px，节省横向空间
+- **侧边栏菜单分组** — 9 项扁平菜单按业务重组为「首页概览 / 业务（开处方·客户管理·处方历史）/ 数据（药材管理·库存管理·销售统计·批量导入）/ 系统设置」四段，默认展开业务与数据分组，选中项所在分组自动展开
+- **Statistics 快捷范围选中态** — 「近 7/30/90 天」按钮原先无选中态，用户无法识别当前范围。改为根据 `quickSelected` 状态切换 `type="primary"`，RangePicker 自定义选择后若匹配快捷范围则同步高亮，否则清除高亮
+- **History 表格处方号列固定** — 表格横向滚动时处方号列随之滚走，对照困难。为「处方号」列添加 `fixed: 'left'`，与右侧固定的「操作」列形成两侧固定
+- **History 删除确认增强** — `Popconfirm` 增加 `description`（"将回扣库存，此操作不可撤销"）与 `okButtonProps={{ danger: true }}`，明确告知用户删除影响
+
+### 测试
+
+- 前端：35 个测试（不变），TypeScript 0 错误，ESLint 0 错误
+- 后端：61 个测试（不变，本次纯前端改动）
+
+---
+
 ## [0.3.8] - 2026-07-23
 
 ### 新增

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Layout, Menu, Tag, Typography, Spin } from 'antd';
+import { App, Button, Layout, Menu, Tag, Typography, Spin } from 'antd';
 import {
   DashboardOutlined,
   MedicineBoxOutlined,
@@ -10,7 +10,10 @@ import {
   BarChartOutlined,
   ImportOutlined,
   SettingOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { checkAndDownloadSilently, installUpdate } from '@/api/tauri';
 import { formatFileSize } from '@/utils/format';
@@ -20,10 +23,12 @@ const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.8';
+const CURRENT_VERSION = '0.3.9';
 
-/** 侧边栏导航项 */
-const NAV_ITEMS = [
+type NavItem = { key: string; icon: React.ReactNode; label: string };
+
+/** 侧边栏导航项（扁平定义，用于选中态匹配与标题回显） */
+const NAV_ITEMS: NavItem[] = [
   { key: '/', icon: <DashboardOutlined />, label: '首页概览' },
   { key: '/medicines', icon: <MedicineBoxOutlined />, label: '药材管理' },
   { key: '/prescription', icon: <FileTextOutlined />, label: '开处方' },
@@ -42,10 +47,27 @@ function formatToday(): string {
   return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekdays[now.getDay()]}`;
 }
 
+/** 菜单分组定义：首页独立 + 业务组 + 数据组 + 系统设置独立 */
+const MENU_GROUPS = [
+  {
+    key: 'grp-business',
+    label: '业务',
+    children: ['/prescription', '/patients', '/history'],
+  },
+  {
+    key: 'grp-data',
+    label: '数据',
+    children: ['/medicines', '/inventory', '/statistics', '/batch-import'],
+  },
+] as const;
+
 export default function MainLayout() {
   const location = useLocation();
   const { message, modal } = App.useApp();
   const [installing, setInstalling] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  // 默认展开所有分组，便于用户发现功能
+  const [openKeys, setOpenKeys] = useState<string[]>(['grp-business', 'grp-data']);
 
   // 启动时静默检查更新：仅触发一次，失败不提示
   useEffect(() => {
@@ -123,36 +145,94 @@ export default function MainLayout() {
     return matched.length > 0 ? matched[matched.length - 1].key : '/';
   }, [location.pathname]);
 
-  const menuItems = NAV_ITEMS.map((item) => ({
-    key: item.key,
-    icon: item.icon,
-    label: <Link to={item.key}>{item.label}</Link>,
-  }));
+  // 根据选中项自动展开所属分组
+  useEffect(() => {
+    const groupOfSelected = MENU_GROUPS.find((g) =>
+      g.children.some((c) => c === selectedKey),
+    );
+    if (groupOfSelected && !openKeys.includes(groupOfSelected.key)) {
+      setOpenKeys((prev) => [...prev, groupOfSelected.key]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
+
+  const buildMenuItems = (): MenuProps['items'] => {
+    const findItem = (key: string) => NAV_ITEMS.find((i) => i.key === key)!;
+    const linkLabel = (key: string) => {
+      const item = findItem(key);
+      return <Link to={item.key}>{item.label}</Link>;
+    };
+
+    const items: NonNullable<MenuProps['items']> = [
+      {
+        key: '/',
+        icon: findItem('/').icon,
+        label: linkLabel('/'),
+      },
+      ...MENU_GROUPS.map((g) => ({
+        key: g.key,
+        label: g.label,
+        children: g.children.map((k) => ({
+          key: k,
+          icon: findItem(k).icon,
+          label: linkLabel(k),
+        })),
+      })),
+      {
+        key: '/settings',
+        icon: findItem('/settings').icon,
+        label: linkLabel('/settings'),
+      },
+    ];
+    return items;
+  };
 
   const currentLabel = NAV_ITEMS.find((item) => item.key === selectedKey)?.label ?? '首页概览';
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={208} theme="dark" className="tcm-sider">
-        <div className="tcm-logo">
+      <Sider
+        width={208}
+        collapsedWidth={64}
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        trigger={null}
+        theme="dark"
+        className="tcm-sider"
+      >
+        <div className={`tcm-logo${collapsed ? ' tcm-logo-collapsed' : ''}`}>
           <div className="tcm-logo-icon">本</div>
-          <div className="tcm-logo-text">
-            中药材
-            <br />
-            销售管理系统
-          </div>
+          {!collapsed && (
+            <div className="tcm-logo-text">
+              中药材
+              <br />
+              销售管理系统
+            </div>
+          )}
         </div>
         <Menu
           mode="inline"
           theme="dark"
           selectedKeys={[selectedKey]}
-          items={menuItems}
+          openKeys={collapsed ? [] : openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys as string[])}
+          items={buildMenuItems()}
           style={{ borderRight: 0 }}
+          inlineCollapsed={collapsed}
         />
       </Sider>
       <Layout>
         <Header className="tcm-header">
-          <span className="tcm-header-title">{currentLabel}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              className="tcm-collapse-btn"
+            />
+            <span className="tcm-header-title">{currentLabel}</span>
+          </div>
           <span className="tcm-header-date">{formatToday()}</span>
         </Header>
         <Content style={{ overflow: 'auto' }}>

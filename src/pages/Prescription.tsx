@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -44,7 +45,7 @@ interface PatientForm {
 
 export default function PrescriptionPage() {
   const queryClient = useQueryClient();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [form] = Form.useForm<PatientForm>();
 
   const [keyword, setKeyword] = useState('');
@@ -80,18 +81,11 @@ export default function PrescriptionPage() {
     return map;
   }, [inventory]);
 
-  // 挂载时检测 sessionStorage 是否有待复制的处方（来自 History 页「复制到处方」）
-  //
-  // 设计要点：
-  // - 空依赖数组，仅在挂载时执行一次
-  // - 读取后立即清除 key，避免刷新页面重复预填
-  // - 沿用原方价格（医生可在处方页手动调整，符合复诊实际）
+  // 处理复制的处方数据预填
   // - 表单头字段通过 form.setFieldsValue 预填，明细通过 setItems 预填
   // - 开方日期重置为当前时间（新处方）
-  useEffect(() => {
-    const raw = sessionStorage.getItem(PRESCRIPTION_COPY_KEY);
-    if (!raw) return;
-    sessionStorage.removeItem(PRESCRIPTION_COPY_KEY);
+  // - 重置 lastCreatedId，避免用户误打印上一张已保存处方
+  const processCopyData = (raw: string) => {
     try {
       const payload = JSON.parse(raw) as {
         patient_name: string;
@@ -126,9 +120,36 @@ export default function PrescriptionPage() {
         })),
       );
       setCreatedDate(dayjs());
+      setLastCreatedId(null);
       message.success(`已加载原方 ${payload.items.length} 味药材，请核对后保存`);
     } catch {
       message.error('复制的处方数据解析失败，请重试');
+    }
+  };
+
+  // 挂载时检测 sessionStorage 是否有待复制的处方（来自 History 页「复制到处方」）
+  //
+  // 设计要点：
+  // - 空依赖数组，仅在挂载时执行一次
+  // - 读取后立即清除 key，避免刷新页面重复预填
+  // - 沿用原方价格（医生可在处方页手动调整，符合复诊实际）
+  // - 若当前已有未保存内容，弹窗确认是否覆盖，避免静默丢失用户工作
+  useEffect(() => {
+    const raw = sessionStorage.getItem(PRESCRIPTION_COPY_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(PRESCRIPTION_COPY_KEY);
+
+    const hasUnsavedContent = items.length > 0 || form.getFieldValue('patient_name');
+    if (hasUnsavedContent) {
+      modal.confirm({
+        title: '检测到待复制的处方',
+        content: '当前已有未保存的处方内容，是否覆盖？',
+        okText: '覆盖',
+        cancelText: '取消',
+        onOk: () => processCopyData(raw),
+      });
+    } else {
+      processCopyData(raw);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -272,11 +293,28 @@ export default function PrescriptionPage() {
       message.warning('请至少添加一味药材');
       return;
     }
+    // 确保库存数据已加载（复制处方后首次提交时可能尚未完成加载）
+    let invData = inventory;
+    if (!invData) {
+      try {
+        message.loading({ content: '库存数据加载中...', key: 'inv-loading' });
+        invData = await queryClient.fetchQuery({ queryKey: ['inventory'] });
+      } catch {
+        message.error('库存数据加载失败，请稍后重试');
+        return;
+      } finally {
+        message.destroy('inv-loading');
+      }
+    }
+    // 构建 inventoryMap（按药材聚合跨批次总库存）
+    const invMap = new Map<number, number>();
+    invData?.forEach((i) => {
+      invMap.set(i.medicine_id, (invMap.get(i.medicine_id) ?? 0) + i.quantity);
+    });
     // 库存预校验：检查每味药跨批次总库存是否足够（FEFO 会跨批次扣减）
     const insufficient = items
       .map((i) => {
-        const stock = inventoryMap.get(i.medicine_id);
-        const totalQty = stock?.totalQty ?? 0;
+        const totalQty = invMap.get(i.medicine_id) ?? 0;
         return totalQty < i.quantity ? `${i.medicine_name}(需${i.quantity}${i.unit}，库存${totalQty}${i.unit})` : null;
       })
       .filter((s): s is string => s !== null);
@@ -453,7 +491,7 @@ export default function PrescriptionPage() {
                 <DatePicker
                   showTime
                   value={createdDate}
-                  onChange={(v) => v && setCreatedDate(v)}
+                  onChange={(v) => setCreatedDate(v ?? dayjs())}
                 />
               </Form.Item>
             </Space>
@@ -480,9 +518,26 @@ export default function PrescriptionPage() {
 
           <div style={{ marginTop: 16, textAlign: 'right' }}>
             <Space>
-              <Button onClick={() => { form.resetFields(); setItems([]); }}>
-                清空
-              </Button>
+              <Popconfirm
+                title="确认清空当前处方？"
+                description="将清空所有药材与表单内容，此操作不可撤销"
+                okText="清空"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => {
+                  form.resetFields();
+                  setItems([]);
+                  setCreatedDate(dayjs());
+                  setLastCreatedId(null);
+                }}
+                disabled={items.length === 0 && !form.getFieldValue('patient_name')}
+              >
+                <Button
+                  disabled={items.length === 0 && !form.getFieldValue('patient_name')}
+                >
+                  清空
+                </Button>
+              </Popconfirm>
               <Button
                 type="primary"
                 loading={createMutation.isPending}
