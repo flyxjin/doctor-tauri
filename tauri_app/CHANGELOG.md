@@ -2,6 +2,26 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.12] - 2026-07-25
+
+### 新增
+
+- **患者过敏史预警**（临床安全）— Prescription 页患者姓名改为 AutoComplete，选中已有患者后自动回填年龄/性别/过敏史；开方时实时校验处方药材与患者过敏史，命中时显示红色"过敏史冲突预警"（区分药材名直接匹配与禁忌字段提及），未命中时显示过敏史提示，避免给过敏患者误开禁忌药材
+- **默认剂量解析** — Prescription 页添加药材到处方时，从 `Medicine.dosage` 字段（如"3-9g"）解析推荐起始用量取下限（保守起始剂量，符合 TCM 先小量后加量原则），无法解析时回退 10g，替代原有硬编码默认值
+- **查询错误重试按钮** — 新建 `QueryErrorAlert` 组件，Dashboard/Statistics 数据加载失败时显示错误信息 + "重试"按钮，无需刷新整页
+- **staleTime 分级缓存** — 按数据更新频率配置缓存：药材/患者 5 分钟、库存/处方历史 1 分钟、看板 30 秒、统计 2 分钟，减少不必要的重复请求
+
+### 优化
+
+- **抽取重复代码**（代码质量）— 新建 `utils/inventory.ts`（aggregateInventory + expiryStatus）、`hooks/useCopyToPrescription.ts`、扩展 `utils/csv.ts`（escapeCsvField + rowsToCsv），替换 History/Patients/Inventory/Prescription 四处重复实现，统一 CSV 转义口径
+
+### 测试
+
+- 前端：53 个测试（+18：allergy 11 + dosage 7），TypeScript 0 错误，ESLint 0 错误
+- 后端：62 个测试（不变，本次纯前端改动）
+
+---
+
 ## [0.3.11] - 2026-07-25
 
 ### 新增

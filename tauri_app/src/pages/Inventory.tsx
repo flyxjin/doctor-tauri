@@ -33,7 +33,6 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
-import dayjs from 'dayjs';
 import {
   listExpiringBatches,
   listInventory,
@@ -42,6 +41,12 @@ import {
   updateStock,
 } from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
+import {
+  EXPIRY_WARN_DAYS,
+  aggregateInventory,
+  expiryStatus,
+} from '@/utils/inventory';
+import { rowsToCsv } from '@/utils/csv';
 import type { Inventory, InventoryHistory } from '@/types';
 
 const { Text } = Typography;
@@ -58,20 +63,6 @@ interface StockForm {
 
 type FilterMode = 'all' | 'low' | 'zero' | 'expiring';
 
-/** 距效期多少天开始标黄预警 */
-const EXPIRY_WARN_DAYS = 30;
-
-/** 判断批次效期状态：expired=已过期，near=近效期，ok=正常，none=无期 */
-function expiryStatus(dateStr?: string | null): 'expired' | 'near' | 'ok' | 'none' {
-  if (!dateStr) return 'none';
-  const d = dayjs(dateStr);
-  if (!d.isValid()) return 'none';
-  const today = dayjs().startOf('day');
-  if (d.isBefore(today)) return 'expired';
-  if (d.isBefore(today.add(EXPIRY_WARN_DAYS, 'day'))) return 'near';
-  return 'ok';
-}
-
 export default function InventoryPage() {
   const queryClient = useQueryClient();
   const { message } = App.useApp();
@@ -85,12 +76,15 @@ export default function InventoryPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['inventory'],
     queryFn: listInventory,
+    // 库存变更频率中等，缓存 1 分钟；出入库后由 mutation 失效
+    staleTime: 60 * 1000,
   });
 
   // 效期预警批次（30 天内到期或已过期）
   const { data: expiringData } = useQuery({
     queryKey: ['expiring-batches', EXPIRY_WARN_DAYS],
     queryFn: () => listExpiringBatches(EXPIRY_WARN_DAYS),
+    staleTime: 60 * 1000,
   });
 
   // 库存变更历史（仅当选择某药材时查询）
@@ -101,25 +95,7 @@ export default function InventoryPage() {
   });
 
   // 按药材聚合的汇总（一药多批后统计口径需跨批次合并）
-  const medicineSummary = useMemo(() => {
-    const list = data ?? [];
-    const map = new Map<number, { totalQty: number; minStock: number; name: string; category: string }>();
-    for (const i of list) {
-      const cur = map.get(i.medicine_id);
-      if (cur) {
-        cur.totalQty += i.quantity;
-        cur.minStock = Math.min(cur.minStock, i.min_stock);
-      } else {
-        map.set(i.medicine_id, {
-          totalQty: i.quantity,
-          minStock: i.min_stock,
-          name: i.medicine_name ?? '',
-          category: i.category ?? '',
-        });
-      }
-    }
-    return map;
-  }, [data]);
+  const medicineSummary = useMemo(() => aggregateInventory(data ?? []), [data]);
 
   // 统计：总品种数（按药材去重）、低库存数、零库存数、总价值
   const stats = useMemo(() => {
@@ -222,43 +198,25 @@ export default function InventoryPage() {
       message.warning('没有可导出的数据');
       return;
     }
-    const header = [
-      '药材',
-      '分类',
-      '批次号',
-      '生产日期',
-      '效期',
-      '库存量',
-      '单位',
-      '最低库存',
-      '单价',
-      '批次价值',
-      '备注',
+    const rows: (string | number | null | undefined)[][] = [
+      ['药材', '分类', '批次号', '生产日期', '效期', '库存量', '单位', '最低库存', '单价', '批次价值', '备注'],
     ];
-    const escape = (v: string | number | null | undefined) => {
-      const s = v == null ? '' : String(v);
-      // 含逗号/引号/换行的字段用双引号包裹并转义内部引号
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = [header.join(',')];
     for (const i of list) {
-      lines.push(
-        [
-          escape(i.medicine_name),
-          escape(i.category),
-          escape(i.batch_no),
-          escape(i.production_date),
-          escape(i.expiry_date),
-          i.quantity,
-          escape(i.unit),
-          i.min_stock,
-          i.price.toFixed(2),
-          (i.quantity * i.price).toFixed(2),
-          escape(i.notes),
-        ].join(','),
-      );
+      rows.push([
+        i.medicine_name,
+        i.category,
+        i.batch_no,
+        i.production_date,
+        i.expiry_date,
+        i.quantity,
+        i.unit,
+        i.min_stock,
+        i.price.toFixed(2),
+        (i.quantity * i.price).toFixed(2),
+        i.notes,
+      ]);
     }
-    const csv = '\uFEFF' + lines.join('\n');
+    const csv = rowsToCsv(rows, '\n');
     try {
       const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const path = await saveTextToDownloads(`inventory_export_${ts}.csv`, csv);
