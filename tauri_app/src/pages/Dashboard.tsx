@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Space, Table, Tag } from 'antd';
+import { Button, Space, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   DatabaseOutlined,
@@ -12,12 +12,14 @@ import { getDashboardData } from '@/api/tauri';
 import type { LowStockItem, Prescription } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardData,
+    staleTime: 30 * 1000,
   });
 
   const lowStockColumns: ColumnsType<LowStockItem> = [
@@ -72,14 +74,33 @@ export default function Dashboard() {
       </div>
 
       {isError && (
-        <Alert
-          type="error"
-          showIcon
+        <QueryErrorAlert
+          error={error}
+          onRetry={refetch}
+          retrying={isFetching}
           message="加载看板数据失败"
-          description={String(error)}
-          style={{ marginBottom: 16 }}
         />
       )}
+
+      {/* 今日概览：突出展示当日业绩 */}
+      <div className="today-banner">
+        <div className="today-banner-label">今日概览</div>
+        <div className="today-banner-stats">
+          <div className="today-banner-item">
+            <span className="today-banner-num">
+              {data?.today_prescription_count ?? 0}
+            </span>
+            <span className="today-banner-unit">张处方</span>
+          </div>
+          <div className="today-banner-divider" />
+          <div className="today-banner-item">
+            <span className="today-banner-num">
+              ¥{(data?.today_revenue ?? 0).toFixed(2)}
+            </span>
+            <span className="today-banner-unit">销售收入</span>
+          </div>
+        </div>
+      </div>
 
       <div className="stat-grid">
         <StatCard

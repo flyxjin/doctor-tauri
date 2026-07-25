@@ -1224,6 +1224,20 @@ pub fn get_dashboard_data(
         out
     };
 
+    // 今日开方数与销售收入（按本地日期匹配，与前端 dayjs 本地时间一致）
+    let (today_prescription_count, today_revenue): (i64, f64) = {
+        let mut stmt = conn.prepare(
+            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0)
+             FROM prescriptions
+             WHERE date(created_at) = date('now', 'localtime')",
+        )
+        .map_err(|e| e.to_string())?;
+        stmt.query_row((), |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?))
+        })
+        .map_err(|e| e.to_string())?
+    };
+
     Ok(DashboardData {
         medicine_count,
         prescription_count,
@@ -1231,6 +1245,8 @@ pub fn get_dashboard_data(
         low_stock_count,
         low_stock_list,
         recent_prescriptions,
+        today_prescription_count,
+        today_revenue,
     })
 }
 

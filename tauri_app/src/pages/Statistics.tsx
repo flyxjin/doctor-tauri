@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Alert,
+  App,
   Button,
   DatePicker,
   Space,
@@ -9,17 +9,22 @@ import {
   Tag,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { ExportOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import { getStatistics } from '@/api/tauri';
+import { getStatistics, saveTextToDownloads } from '@/api/tauri';
 import type { DailyTrend, TopMedicine } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import TrendChart from '@/components/TrendChart';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
+import { rowsToCsv } from '@/utils/csv';
+import { formatError } from '@/utils/formatError';
 
 const { RangePicker } = DatePicker;
 
 export default function StatisticsPage() {
+  const { message } = App.useApp();
   const [range, setRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(29, 'day'),
     dayjs(),
@@ -30,9 +35,10 @@ export default function StatisticsPage() {
   const startDate = range[0].format('YYYY-MM-DD');
   const endDate = range[1].format('YYYY-MM-DD');
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['statistics', startDate, endDate],
     queryFn: () => getStatistics(startDate, endDate),
+    staleTime: 2 * 60 * 1000,
   });
 
   const quickRange = (days: number) => {
@@ -53,6 +59,48 @@ export default function StatisticsPage() {
         }
       }
       setQuickSelected(null);
+    }
+  };
+
+  // 导出每日销售趋势 CSV（含汇总信息头 + 趋势明细 + 热销药材）
+  const handleExportCsv = async () => {
+    const trend = data?.daily_trend ?? [];
+    const top = data?.top_medicines ?? [];
+    if (trend.length === 0 && top.length === 0) {
+      message.warning('没有可导出的数据');
+      return;
+    }
+    const rows: (string | number | null | undefined)[][] = [];
+    // 汇总信息头
+    rows.push(['中药材销售统计报表']);
+    rows.push([`统计区间：${startDate} 至 ${endDate}`]);
+    rows.push([
+      `处方数：${data?.summary.prescription_count ?? 0}`,
+      `销售总额：${(data?.summary.total_amount ?? 0).toFixed(2)}`,
+      `涉及药材味数：${data?.summary.medicine_kinds ?? 0}`,
+      `客单价：${(data?.summary.avg_amount ?? 0).toFixed(2)}`,
+    ]);
+    rows.push([]);
+    // 每日趋势明细
+    rows.push(['【每日销售趋势】']);
+    rows.push(['日期', '处方数', '销售额']);
+    for (const t of trend) {
+      rows.push([t.date, t.prescription_count, t.total_amount.toFixed(2)]);
+    }
+    rows.push([]);
+    // 热销药材 TOP 10
+    rows.push(['【热销药材 TOP 10】']);
+    rows.push(['排名', '药材', '销售数量', '销售金额']);
+    top.forEach((m, i) => {
+      rows.push([i + 1, m.medicine_name, m.total_quantity.toFixed(0), m.total_amount.toFixed(2)]);
+    });
+    const csv = rowsToCsv(rows);
+    try {
+      const ts = dayjs().format('YYYYMMDD_HHmmss');
+      const path = await saveTextToDownloads(`statistics_${ts}.csv`, csv);
+      message.success(`已导出到：${path}`);
+    } catch (e) {
+      message.error(formatError(e));
     }
   };
 
@@ -130,15 +178,21 @@ export default function StatisticsPage() {
         >
           近 90 天
         </Button>
+        <Button
+          icon={<ExportOutlined />}
+          onClick={handleExportCsv}
+          disabled={!data || (data.daily_trend.length === 0 && data.top_medicines.length === 0)}
+        >
+          导出 CSV
+        </Button>
       </Space>
 
       {isError && (
-        <Alert
-          type="error"
-          showIcon
+        <QueryErrorAlert
+          error={error}
+          onRetry={refetch}
+          retrying={isFetching}
           message="加载统计数据失败"
-          description={String(error)}
-          style={{ marginBottom: 16 }}
         />
       )}
 

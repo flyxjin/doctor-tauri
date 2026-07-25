@@ -44,7 +44,7 @@ import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.12';
+const CURRENT_VERSION = '0.3.13';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();

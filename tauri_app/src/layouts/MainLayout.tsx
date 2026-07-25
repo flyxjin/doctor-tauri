@@ -23,7 +23,7 @@ const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.12';
+const CURRENT_VERSION = '0.3.13';
 
 type NavItem = { key: string; icon: React.ReactNode; label: string };
 

@@ -197,7 +197,7 @@ doctor/
 │   │   └── utils/           # CSV / 格式化 / 打印工具
 │   ├── src-tauri/           # Rust 后端
 │   │   ├── src/             # commands / db / models / compatibility / updater
-│   │   ├── migrations/      # SQL 迁移脚本（5 个）
+│   │   ├── migrations/      # SQL 迁移脚本（9 个）
 │   │   └── tauri.conf.json  # Tauri 配置
 │   ├── distrib/             # 便携版分发目录
 │   ├── CHANGELOG.md         # 更新日志
@@ -255,8 +255,8 @@ mypy core/                # 类型检查
 
 # 方案 B (Tauri)
 cd tauri_app
-npx vitest run            # 35 个前端测试
-cargo test --manifest-path src-tauri/Cargo.toml   # 46 个后端测试
+npx vitest run            # 53 个前端测试
+cargo test --manifest-path src-tauri/Cargo.toml   # 62 个后端测试
 npx tsc --noEmit          # 类型检查
 npx eslint src            # lint
 ```
@@ -316,9 +316,22 @@ npx eslint src            # lint
 
 ### 方案 B (Tauri)
 
+- **v0.3.13**（2026-07-25）：Dashboard 今日概览横幅、Statistics/Patients/MedicineList 三页 CSV 导出
+- **v0.3.12**（2026-07-25）：患者过敏史预警、默认剂量解析、查询错误重试按钮、staleTime 分级缓存
+- **v0.3.11**（2026-07-25）：销售趋势 SVG 折线图、库存余量提示、处方明细库存预警、患者详情处方复制
+- **v0.3.10**（2026-07-25）：Dashboard 快捷操作入口、药材详情 Drawer、备份删除功能、库存导出 CSV
+- **v0.3.9**（2026-07-25）：6 个处方页 Bug 修复、侧边栏折叠、菜单分组、History 列固定
+- **v0.3.8**（2026-07-23）：处方复制/再来一剂功能（sessionStorage 跨页面传输）
+- **v0.3.7**（2026-07-23）：修复跨批次处方删除回扣严重 Bug（新增 `009_prescription_item_batches.sql`）、处方页库存校验聚合修正
+- **v0.3.6**（2026-07-23）：桌面图标重新设计「悬壶本草」药葫芦
+- **v0.3.5**（2026-07-23）：批次 + 效期管理、FEFO 近效期优先出库、效期预警查询
+- **v0.3.4**（2026-07-23）：药材库扩充至 400 味
+- **v0.3.3**（2026-07-23）：桌面图标重新设计、`formatError` 统一错误提示、出库预校验
+- **v0.3.2**（2026-07-23）：快速无感更新（启动后台静默下载 + NSIS 静默安装）
+- **v0.3.1**（2026-07-22）：修复价格单位错误（元/100g → 元/g），金额不再放大 100 倍
 - **v0.3.0**（2026-07-22）：库存变更历史、操作日志查询、batch_import N+1 优化、6 个 CRUD 事务原子化、WAL 模式、路径遍历防护
 - **v0.2.0**（2026-07-21）：319 味药材、32 张方剂模板、真实市场价、自定义图标
-- **v0.1.0**（2026-07-20）：初始版本
+- **v0.1.0**（2026-07-20）：初始版本（Tauri + React + Rust + SQLite）
 
 详见 [`tauri_app/CHANGELOG.md`](tauri_app/CHANGELOG.md)。
 
