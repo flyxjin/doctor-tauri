@@ -19,6 +19,7 @@ import {
   CheckCircleOutlined,
   CloudDownloadOutlined,
   DatabaseOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   FileSearchOutlined,
   ReloadOutlined,
@@ -28,6 +29,7 @@ import {
 import {
   checkForUpdate,
   createBackup,
+  deleteBackup,
   downloadUpdate,
   installUpdate,
   listBackups,
@@ -42,7 +44,7 @@ import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/
 const { Paragraph, Text } = Typography;
 
 /** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.9';
+const CURRENT_VERSION = '0.3.10';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -158,6 +160,15 @@ export default function SettingsPage() {
     onError: (e: unknown) => message.error(`还原失败：${formatError(e)}`),
   });
 
+  const deleteBackupMutation = useMutation({
+    mutationFn: deleteBackup,
+    onSuccess: () => {
+      message.success('备份已删除');
+      queryClient.invalidateQueries({ queryKey: ['backups'] });
+    },
+    onError: (e: unknown) => message.error(`删除备份失败：${formatError(e)}`),
+  });
+
   const installMutation = useMutation({
     // 手动安装路径：显式 silent=false，走 NSIS 安装向导 UI（非静默）
     mutationFn: (path: string) => installUpdate(path, false),
@@ -230,20 +241,41 @@ export default function SettingsPage() {
     {
       title: '操作',
       key: 'action',
-      width: 110,
+      width: 170,
       fixed: 'right',
       render: (_v, r) => (
-        <Popconfirm
-          title="确认还原此备份？"
-          description="当前数据库将被覆盖，建议先创建新备份"
-          onConfirm={() => restoreMutation.mutate(r.backup_path)}
-          okText="还原"
-          cancelText="取消"
-        >
-          <Button type="link" size="small" icon={<RollbackOutlined />} loading={restoreMutation.isPending}>
-            还原
-          </Button>
-        </Popconfirm>
+        <Space size="small">
+          <Popconfirm
+            title="确认还原此备份？"
+            description="当前数据库将被覆盖，建议先创建新备份"
+            onConfirm={() => restoreMutation.mutate(r.backup_path)}
+            okText="还原"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button type="link" size="small" icon={<RollbackOutlined />} loading={restoreMutation.isPending}>
+              还原
+            </Button>
+          </Popconfirm>
+          <Popconfirm
+            title="确认删除此备份？"
+            description="删除后无法恢复，建议保留近期至少一份备份"
+            onConfirm={() => deleteBackupMutation.mutate(r.backup_path)}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button
+              type="link"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleteBackupMutation.isPending}
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];

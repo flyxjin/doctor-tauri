@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   App,
   Button,
@@ -33,6 +33,7 @@ const { Title } = Typography;
 export default function HistoryPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
@@ -47,6 +48,19 @@ export default function HistoryPage() {
     queryKey: ['prescriptions', keyword, startDate, endDate],
     queryFn: () => listPrescriptions(keyword || undefined, startDate, endDate, 500),
   });
+
+  // 从 Dashboard 跳转而来时，自动定位并打开对应处方详情
+  const focusId = (location.state as { focusId?: number } | null)?.focusId;
+  useEffect(() => {
+    if (!focusId || !data || detail) return;
+    const target = data.find((p) => p.id === focusId);
+    if (target) {
+      setDetail(target);
+      // 消费后清除 location.state，避免返回时重复触发
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, data]);
 
   // 汇总统计
   const summary = useMemo(() => {

@@ -1,12 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Table } from 'antd';
+import { Alert, Button, Space, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import {
+  DatabaseOutlined,
+  FileTextOutlined,
+  MedicineBoxOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { getDashboardData } from '@/api/tauri';
 import type { LowStockItem, Prescription } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardData,
@@ -25,6 +33,20 @@ export default function Dashboard() {
       ),
     },
     { title: '最低库存', dataIndex: 'min_stock', key: 'min_stock' },
+    {
+      title: '',
+      key: 'action',
+      width: 90,
+      render: () => (
+        <Button
+          type="link"
+          size="small"
+          onClick={() => navigate('/inventory')}
+        >
+          去入库
+        </Button>
+      ),
+    },
   ];
 
   const recentColumns: ColumnsType<Prescription> = [
@@ -87,9 +109,52 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* 快捷操作入口 */}
+      <div className="quick-actions">
+        <div className="quick-actions-title">快捷操作</div>
+        <Space size={[12, 12]} wrap>
+          <Button
+            type="primary"
+            size="large"
+            icon={<FileTextOutlined />}
+            onClick={() => navigate('/prescription')}
+          >
+            开处方
+          </Button>
+          <Button
+            size="large"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/medicines')}
+          >
+            新增药材
+          </Button>
+          <Button
+            size="large"
+            icon={<DatabaseOutlined />}
+            onClick={() => navigate('/inventory')}
+          >
+            库存管理
+          </Button>
+          <Button
+            size="large"
+            icon={<MedicineBoxOutlined />}
+            onClick={() => navigate('/batch-import')}
+          >
+            批量导入
+          </Button>
+        </Space>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="table-card">
-          <div className="table-title">低库存预警</div>
+          <div className="table-title">
+            低库存预警
+            {data && data.low_stock_count > 0 && (
+              <Tag color="orange" style={{ marginLeft: 8 }}>
+                {data.low_stock_count} 种
+              </Tag>
+            )}
+          </div>
           <Table<LowStockItem>
             rowKey="medicine_id"
             size="small"
@@ -103,7 +168,17 @@ export default function Dashboard() {
           />
         </div>
         <div className="table-card">
-          <div className="table-title">最近处方</div>
+          <div className="table-title">
+            最近处方
+            <Button
+              type="link"
+              size="small"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => navigate('/history')}
+            >
+              查看全部
+            </Button>
+          </div>
           <Table<Prescription>
             rowKey="id"
             size="small"
@@ -111,6 +186,10 @@ export default function Dashboard() {
             columns={recentColumns}
             dataSource={data?.recent_prescriptions ?? []}
             pagination={false}
+            onRow={(record) => ({
+              onDoubleClick: () => navigate('/history', { state: { focusId: record.id } }),
+              style: { cursor: 'pointer' },
+            })}
             locale={{
               emptyText: <EmptyState title="暂无处方" description="系统启动后开方记录将显示在此处" />,
             }}

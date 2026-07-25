@@ -72,6 +72,7 @@ pub fn run() {
             commands::create_backup,
             commands::list_backups,
             commands::restore_backup,
+            commands::delete_backup,
             // 自动更新
             updater::check_for_update,
             updater::download_update,

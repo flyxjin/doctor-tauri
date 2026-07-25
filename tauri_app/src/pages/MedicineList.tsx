@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
+  Descriptions,
+  Drawer,
   Form,
   Input,
   Modal,
@@ -10,9 +12,10 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   createMedicine,
   deleteMedicine,
@@ -23,6 +26,8 @@ import type { Medicine } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
+
+const { Text } = Typography;
 
 const { TextArea } = Input;
 
@@ -56,6 +61,8 @@ export default function MedicineList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Medicine | null>(null);
   const [form] = Form.useForm<Medicine>();
+  // 详情 Drawer 状态
+  const [detailMedicine, setDetailMedicine] = useState<Medicine | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['medicines', keyword, category],
@@ -121,10 +128,18 @@ export default function MedicineList() {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 200,
       fixed: 'right',
       render: (_v, record) => (
         <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => setDetailMedicine(record)}
+          >
+            详情
+          </Button>
           <Button
             type="link"
             size="small"
@@ -139,6 +154,7 @@ export default function MedicineList() {
             onConfirm={() => deleteMutation.mutate(record.id!)}
             okText="删除"
             cancelText="取消"
+            okButtonProps={{ danger: true }}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               删除
@@ -185,8 +201,11 @@ export default function MedicineList() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1200 }}
             pagination={{ pageSize: 15, showSizeChanger: true }}
+            onRow={(record) => ({
+              onDoubleClick: () => setDetailMedicine(record),
+            })}
             locale={{
               emptyText: (
                 <EmptyState
@@ -275,6 +294,88 @@ export default function MedicineList() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 药材详情 Drawer（只读） */}
+      <Drawer
+        title={detailMedicine ? `药材详情：${detailMedicine.name}` : '药材详情'}
+        open={!!detailMedicine}
+        onClose={() => setDetailMedicine(null)}
+        width={560}
+      >
+        {detailMedicine && (
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="名称">
+              <Text strong>{detailMedicine.name}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="别名">
+              {detailMedicine.alias || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="分类">
+              {detailMedicine.category ? (
+                <Tag color="blue">{detailMedicine.category}</Tag>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="性味">
+              {[detailMedicine.nature, detailMedicine.taste]
+                .filter(Boolean)
+                .join(' ') || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="归经">
+              {detailMedicine.meridian || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="功效">
+              {detailMedicine.efficacy ? (
+                <Text style={{ whiteSpace: 'pre-wrap' }}>
+                  {detailMedicine.efficacy}
+                </Text>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="主治">
+              {detailMedicine.indications ? (
+                <Text style={{ whiteSpace: 'pre-wrap' }}>
+                  {detailMedicine.indications}
+                </Text>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="用法">
+              {detailMedicine.usage || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="用量">
+              {detailMedicine.dosage || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="禁忌">
+              {detailMedicine.contraindication ? (
+                <Text type="danger" style={{ whiteSpace: 'pre-wrap' }}>
+                  {detailMedicine.contraindication}
+                </Text>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="备注">
+              {detailMedicine.notes ? (
+                <Text style={{ whiteSpace: 'pre-wrap' }}>
+                  {detailMedicine.notes}
+                </Text>
+              ) : (
+                '-'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="创建时间">
+              {detailMedicine.created_at || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="更新时间">
+              {detailMedicine.updated_at || '-'}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Drawer>
     </div>
   );
 }

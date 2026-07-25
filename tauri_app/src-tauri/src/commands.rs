@@ -2077,6 +2077,57 @@ pub fn restore_backup(
     Ok(())
 }
 
+/// 删除指定备份文件及其清单
+///
+/// 安全检查：禁止删除当前数据库文件（medicine_system.db）
+#[tauri::command]
+pub fn delete_backup(
+    backup_path: String,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    let src = PathBuf::from(&backup_path);
+    if !src.exists() {
+        return Err(format!("备份文件不存在: {backup_path}"));
+    }
+    // 禁止删除当前数据库文件
+    let file_name = src
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if file_name == "medicine_system.db" {
+        return Err("不能删除当前数据库文件".to_string());
+    }
+    // 仅允许删除 backups 目录下的文件，避免任意文件删除
+    let parent = src
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if parent != "backups" {
+        return Err("仅允许删除 backups 目录下的备份文件".to_string());
+    }
+
+    // 删除备份文件
+    std::fs::remove_file(&src)
+        .map_err(|e| format!("删除备份文件失败: {e}"))?;
+    // 删除对应清单文件（如果存在）
+    let manifest_path = src.with_extension("json");
+    if manifest_path.exists() {
+        let _ = std::fs::remove_file(&manifest_path);
+    }
+
+    let conn = state.lock()?;
+    log_operation(
+        &conn,
+        "DELETE",
+        "backup",
+        0,
+        &format!("删除备份: {}", src.display()),
+    )?;
+
+    Ok(())
+}
+
 // ==================== 行映射辅助函数 ====================
 
 fn map_medicine_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Medicine> {
