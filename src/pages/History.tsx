@@ -20,6 +20,8 @@ import { CopyOutlined, DeleteOutlined, ExportOutlined, PrinterOutlined } from '@
 import dayjs, { type Dayjs } from 'dayjs';
 import { deletePrescription, generatePrescriptionHtml, listPrescriptions } from '@/api/tauri';
 import { printHtmlInIframe } from '@/utils/print';
+import { rowsToCsv } from '@/utils/csv';
+import { useCopyToPrescription } from '@/hooks/useCopyToPrescription';
 import type { PrescriptionItem, PrescriptionWithItems } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import { formatError } from '@/utils/formatError';
@@ -47,6 +49,8 @@ export default function HistoryPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['prescriptions', keyword, startDate, endDate],
     queryFn: () => listPrescriptions(keyword || undefined, startDate, endDate, 500),
+    // 处方历史变更频率中等，缓存 1 分钟；新建/删除后由 mutation 失效
+    staleTime: 60 * 1000,
   });
 
   // 从 Dashboard 跳转而来时，自动定位并打开对应处方详情
@@ -89,42 +93,23 @@ export default function HistoryPage() {
       message.warning('没有可导出的数据');
       return;
     }
-    const header = [
-      '处方号',
-      '患者姓名',
-      '性别',
-      '年龄',
-      '诊断',
-      '味数',
-      '金额',
-      '开方人',
-      '开方时间',
+    const rows: (string | number | null | undefined)[][] = [
+      ['处方号', '患者姓名', '性别', '年龄', '诊断', '味数', '金额', '开方人', '开方时间'],
     ];
-    const lines = [header.join(',')];
     for (const p of list) {
-      const row = [
-        String(p.id ?? ''),
+      rows.push([
+        p.id ?? '',
         p.patient_name,
         p.patient_gender,
-        p.patient_age != null ? String(p.patient_age) : '',
+        p.patient_age ?? '',
         p.diagnosis,
-        String(p.items.length),
+        p.items.length,
         p.total_amount.toFixed(2),
         p.created_by,
         p.created_at ?? '',
-      ];
-      // 用双引号包裹含逗号的字段
-      const escaped = row.map((f) => {
-        const s = String(f);
-        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-          return `"${s.replace(/"/g, '""')}"`;
-        }
-        return s;
-      });
-      lines.push(escaped.join(','));
+      ]);
     }
-    // UTF-8 BOM，便于 Excel 正确识别中文
-    const csv = '\uFEFF' + lines.join('\r\n');
+    const csv = rowsToCsv(rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -148,33 +133,10 @@ export default function HistoryPage() {
     }
   };
 
-  /** 复制到处方：把处方头+明细存入 sessionStorage，跳转到处方页预填
-   *
-   * 设计要点：
-   * - 沿用原方价格（复诊常沿用原价，医生可在处方页手动调整）
-   * - 不复制 created_at（新处方用当前时间）
-   * - 不复制 id/prescription_id/batch_id（新处方为新行）
-   */
+  /** 复制到处方：复用通用 hook，关闭详情 Drawer 后跳转 */
+  const { copyToPrescription } = useCopyToPrescription(() => setDetail(null));
   const handleCopyToPrescription = (record: PrescriptionWithItems) => {
-    const payload = {
-      patient_name: record.patient_name,
-      patient_age: record.patient_age ?? null,
-      patient_gender: record.patient_gender,
-      diagnosis: record.diagnosis,
-      created_by: record.created_by,
-      items: record.items.map((i) => ({
-        medicine_id: i.medicine_id,
-        medicine_name: i.medicine_name,
-        quantity: i.quantity,
-        unit: i.unit,
-        price: i.price,
-        amount: Number((i.quantity * i.price).toFixed(2)),
-      })),
-    };
-    sessionStorage.setItem(PRESCRIPTION_COPY_KEY, JSON.stringify(payload));
-    setDetail(null);
-    navigate('/prescription');
-    message.success(`已加载处方 #${record.id} 的 ${record.items.length} 味药材，请核对后保存`);
+    copyToPrescription(record);
   };
 
   const columns: ColumnsType<PrescriptionWithItems> = [

@@ -2,6 +2,27 @@
 import type { MedicineImportRecord } from '@/types';
 
 /**
+ * 转义单个 CSV 字段：含逗号/引号/换行的字段用双引号包裹，内部双引号用 "" 转义。
+ *
+ * 统一了原 Inventory.tsx 与 History.tsx 中两处不一致的转义实现。
+ */
+export function escapeCsvField(v: string | number | null | undefined): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * 将二维数组转为 CSV 字符串（自动加 UTF-8 BOM，便于 Excel 正确识别中文）。
+ *
+ * @param rows 第一行为表头，后续为数据行
+ * @param lineSeparator 行分隔符，默认 `\r\n`（Excel 友好）
+ */
+export function rowsToCsv(rows: (string | number | null | undefined)[][], lineSeparator = '\r\n'): string {
+  const lines = rows.map((row) => row.map(escapeCsvField).join(','));
+  return '\uFEFF' + lines.join(lineSeparator);
+}
+
+/**
  * 简易 CSV 行解析：支持双引号转义。
  * 兼容 RFC 4180 基本场景：含 , " \n 的字段用双引号包裹，内部双引号用 "" 转义。
  */

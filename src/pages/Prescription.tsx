@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   App,
+  AutoComplete,
   Button,
   DatePicker,
   Divider,
@@ -13,10 +14,11 @@ import {
   Select,
   Space,
   Table,
+  Tag,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { BookOutlined, DeleteOutlined, PrinterOutlined } from '@ant-design/icons';
+import { BookOutlined, DeleteOutlined, PrinterOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   checkCompatibility,
@@ -24,12 +26,16 @@ import {
   generatePrescriptionHtml,
   listInventory,
   listMedicines,
+  listPatients,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
 import TemplateSelector from '@/components/TemplateSelector';
 import { printHtmlInIframe } from '@/utils/print';
 import { formatError } from '@/utils/formatError';
-import type { Medicine, PrescriptionItem } from '@/types';
+import { aggregateInventory } from '@/utils/inventory';
+import { checkAllergy } from '@/utils/allergy';
+import { parseDefaultDosage } from '@/utils/dosage';
+import type { Medicine, Patient, PrescriptionItem } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
 import { PRESCRIPTION_COPY_KEY } from '@/pages/History';
 
@@ -54,32 +60,79 @@ export default function PrescriptionPage() {
   const [lastCreatedId, setLastCreatedId] = useState<number | null>(null);
   const [printing, setPrinting] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
+  // 当前选中患者的过敏史（用于开方时过敏预警）
+  const [patientAllergy, setPatientAllergy] = useState<string | null>(null);
+
+  // 患者档案列表（用于患者姓名 AutoComplete 与过敏史回填）
+  const { data: patients } = useQuery({
+    queryKey: ['patients', ''],
+    queryFn: () => listPatients(undefined),
+    staleTime: 5 * 60 * 1000,
+  });
 
   // 药材搜索
   const { data: medicines } = useQuery({
     queryKey: ['medicines', keyword, undefined],
     queryFn: () => listMedicines(keyword || undefined, undefined),
+    staleTime: 5 * 60 * 1000,
   });
 
   // 库存（用于取价格/单位与库存校验）
   const { data: inventory } = useQuery({
     queryKey: ['inventory'],
     queryFn: listInventory,
+    staleTime: 60 * 1000,
   });
 
   // 库存按药材聚合（一药多批后取总量与首批次价格/单位）
-  const inventoryMap = useMemo(() => {
-    const map = new Map<number, { totalQty: number; price: number; unit: string }>();
-    inventory?.forEach((i) => {
-      const cur = map.get(i.medicine_id);
-      if (cur) {
-        cur.totalQty += i.quantity;
-      } else {
-        map.set(i.medicine_id, { totalQty: i.quantity, price: i.price, unit: i.unit });
-      }
-    });
+  const inventoryMap = useMemo(() => aggregateInventory(inventory ?? []), [inventory]);
+
+  // 患者姓名 AutoComplete 选项（显示姓名+年龄，选中后回填年龄/性别/过敏史）
+  const patientOptions = useMemo(() => {
+    return (patients ?? []).map((p) => ({
+      value: p.name,
+      label: (
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span>{p.name}</span>
+          <span style={{ color: '#8B8580', fontSize: 12 }}>
+            {[p.gender, p.age != null ? `${p.age}岁` : ''].filter(Boolean).join(' · ')}
+            {p.allergy ? ' · ⚠过敏' : ''}
+          </span>
+        </div>
+      ),
+      patient: p,
+    }));
+  }, [patients]);
+
+  // 药材库 Map（用于过敏史校验时按 medicine_id 查 contraindication）
+  const medicineMap = useMemo(() => {
+    const map = new Map<number, Medicine>();
+    for (const m of medicines ?? []) {
+      if (m.id) map.set(m.id, m);
+    }
     return map;
-  }, [inventory]);
+  }, [medicines]);
+
+  // 过敏史冲突检测（患者有过敏史且处方非空时计算）
+  const allergyConflicts = useMemo(() => {
+    if (!patientAllergy || items.length === 0) return [];
+    return checkAllergy(items, medicineMap, patientAllergy);
+  }, [items, medicineMap, patientAllergy]);
+
+  // 选中患者后回填年龄/性别/过敏史
+  const handlePatientSelect = (value: string, option: { patient?: Patient }) => {
+    const p = option.patient;
+    if (!p) {
+      setPatientAllergy(null);
+      return;
+    }
+    form.setFieldsValue({
+      patient_name: value,
+      patient_age: p.age ?? undefined,
+      patient_gender: p.gender ?? '',
+    });
+    setPatientAllergy(p.allergy ?? null);
+  };
 
   // 处理复制的处方数据预填
   // - 表单头字段通过 form.setFieldsValue 预填，明细通过 setItems 预填
@@ -180,6 +233,7 @@ export default function PrescriptionPage() {
       form.resetFields();
       setItems([]);
       setCreatedDate(dayjs());
+      setPatientAllergy(null);
     },
     onError: (e: unknown) => message.error(formatError(e)),
   });
@@ -207,7 +261,8 @@ export default function PrescriptionPage() {
     const inv = inventoryMap.get(mid);
     const price = inv?.price ?? 0;
     const unit = inv?.unit ?? 'g';
-    const quantity = 10;
+    // 从药材 dosage 字段解析推荐起始用量（如"3-9g"取 3），无法解析时回退 10
+    const quantity = parseDefaultDosage(m.dosage) ?? 10;
     setItems((prev) => [
       ...prev,
       {
@@ -447,6 +502,46 @@ export default function PrescriptionPage() {
         />
       )}
 
+      {/* 患者过敏史提示与冲突预警 */}
+      {patientAllergy && allergyConflicts.length === 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ marginBottom: 12 }}
+          message={
+            <span>
+              患者过敏史：
+              <Tag color="red" style={{ marginLeft: 4 }}>
+                {patientAllergy}
+              </Tag>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                当前处方药材未命中过敏原
+              </Text>
+            </span>
+          }
+        />
+      )}
+      {allergyConflicts.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          icon={<WarningOutlined />}
+          style={{ marginBottom: 12 }}
+          message="过敏史冲突预警"
+          description={
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {allergyConflicts.map((c, i) => (
+                <li key={i}>
+                  处方含「{c.medicine_name}」— 患者对「{c.allergen}」过敏
+                  {c.matchType === 'contraindication' && '（药材禁忌字段提及）'}
+                </li>
+              ))}
+            </ul>
+          }
+        />
+      )}
+
       <div className="prescription-layout">
         {/* 左侧：药材检索 */}
         <div className="prescription-search-panel">
@@ -495,7 +590,19 @@ export default function PrescriptionPage() {
                 rules={[{ required: true, message: '请输入患者姓名' }]}
                 style={{ flex: 1, minWidth: 140 }}
               >
-                <Input placeholder="如：张三" />
+                <AutoComplete
+                  placeholder="输入姓名可选择已有患者"
+                  options={patientOptions}
+                  filterOption={(input, option) =>
+                    String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  onSelect={handlePatientSelect}
+                  onChange={(v) => {
+                    // 手动输入但未选中患者时，清除过敏史
+                    const matched = patients?.find((p) => p.name === v);
+                    setPatientAllergy(matched?.allergy ?? null);
+                  }}
+                />
               </Form.Item>
               <Form.Item name="patient_age" label="年龄" style={{ width: 100 }}>
                 <InputNumber min={0} max={150} style={{ width: '100%' }} />
@@ -554,6 +661,7 @@ export default function PrescriptionPage() {
                   setItems([]);
                   setCreatedDate(dayjs());
                   setLastCreatedId(null);
+                  setPatientAllergy(null);
                 }}
                 disabled={items.length === 0 && !form.getFieldValue('patient_name')}
               >
