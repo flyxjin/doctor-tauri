@@ -17,17 +17,14 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { CopyOutlined, DeleteOutlined, ExportOutlined, PrinterOutlined } from '@ant-design/icons';
-import dayjs, { type Dayjs } from 'dayjs';
+import { type Dayjs } from 'dayjs';
 import { deletePrescription, generatePrescriptionHtml, listPrescriptions } from '@/api/tauri';
 import { printHtmlInIframe } from '@/utils/print';
-import { rowsToCsv } from '@/utils/csv';
 import { useCopyToPrescription } from '@/hooks/useCopyToPrescription';
+import { useCsvExport } from '@/hooks/useCsvExport';
 import type { PrescriptionItem, PrescriptionWithItems } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import { formatError } from '@/utils/formatError';
-
-/** sessionStorage key：用于 History → Prescription 跨页面传递待复制的处方 */
-export const PRESCRIPTION_COPY_KEY = 'prescription_copy_data';
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
@@ -41,6 +38,9 @@ export default function HistoryPage() {
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [detail, setDetail] = useState<PrescriptionWithItems | null>(null);
   const [printingId, setPrintingId] = useState<number | null>(null);
+
+  // CSV 导出：复用统一 hook（统一保存机制、时间戳格式、提示文案）
+  const { exportCsv } = useCsvExport({ filenamePrefix: '处方历史', label: '处方记录' });
 
   // 后端日期筛选：将日期范围传入 SQL 查询，避免拉取全量再前端过滤
   const startDate = dateRange?.[0]?.format('YYYY-MM-DD');
@@ -86,13 +86,9 @@ export default function HistoryPage() {
     onError: (e: unknown) => message.error(formatError(e)),
   });
 
-  // 导出当前筛选结果为 CSV 并触发下载
+  // 导出当前筛选结果为 CSV（统一走 saveTextToDownloads，与其它页面行为一致）
   const handleExportCsv = () => {
     const list = data ?? [];
-    if (list.length === 0) {
-      message.warning('没有可导出的数据');
-      return;
-    }
     const rows: (string | number | null | undefined)[][] = [
       ['处方号', '患者姓名', '性别', '年龄', '诊断', '味数', '金额', '开方人', '开方时间'],
     ];
@@ -109,15 +105,7 @@ export default function HistoryPage() {
         p.created_at ?? '',
       ]);
     }
-    const csv = rowsToCsv(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `处方历史_${dayjs().format('YYYYMMDD_HHmmss')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    message.success(`已导出 ${list.length} 条处方记录`);
+    void exportCsv(rows, list.length);
   };
 
   const handlePrint = async (id: number) => {

@@ -6,7 +6,7 @@
 import { useNavigate } from 'react-router-dom';
 import { App } from 'antd';
 import type { PrescriptionWithItems } from '@/types';
-import { PRESCRIPTION_COPY_KEY } from '@/pages/History';
+import { PRESCRIPTION_COPY_KEY } from '@/constants/prescription';
 
 /**
  * 复制处方到处方页。

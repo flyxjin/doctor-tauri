@@ -12,14 +12,13 @@ import type { ColumnsType } from 'antd/es/table';
 import { ExportOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import { getStatistics, saveTextToDownloads } from '@/api/tauri';
+import { getStatistics } from '@/api/tauri';
 import type { DailyTrend, TopMedicine } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import TrendChart from '@/components/TrendChart';
 import QueryErrorAlert from '@/components/QueryErrorAlert';
-import { rowsToCsv } from '@/utils/csv';
-import { formatError } from '@/utils/formatError';
+import { useCsvExport } from '@/hooks/useCsvExport';
 
 const { RangePicker } = DatePicker;
 
@@ -31,6 +30,9 @@ export default function StatisticsPage() {
   ]);
   // 当前快捷范围选中态：null 表示用户自定义了 RangePicker
   const [quickSelected, setQuickSelected] = useState<number | null>(30);
+
+  // CSV 导出：复用统一 hook
+  const { exportCsv } = useCsvExport({ filenamePrefix: 'statistics', label: '统计报表' });
 
   const startDate = range[0].format('YYYY-MM-DD');
   const endDate = range[1].format('YYYY-MM-DD');
@@ -94,14 +96,7 @@ export default function StatisticsPage() {
     top.forEach((m, i) => {
       rows.push([i + 1, m.medicine_name, m.total_quantity.toFixed(0), m.total_amount.toFixed(2)]);
     });
-    const csv = rowsToCsv(rows);
-    try {
-      const ts = dayjs().format('YYYYMMDD_HHmmss');
-      const path = await saveTextToDownloads(`statistics_${ts}.csv`, csv);
-      message.success(`已导出到：${path}`);
-    } catch (e) {
-      message.error(formatError(e));
-    }
+    await exportCsv(rows);
   };
 
   const topColumns: ColumnsType<TopMedicine> = [

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  App,
   Button,
   Descriptions,
   Drawer,
@@ -21,15 +20,13 @@ import {
   createMedicine,
   deleteMedicine,
   listMedicines,
-  saveTextToDownloads,
   updateMedicine,
 } from '@/api/tauri';
 import type { Medicine } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
-import { rowsToCsv } from '@/utils/csv';
-import { formatError } from '@/utils/formatError';
+import { useCsvExport } from '@/hooks/useCsvExport';
 
 const { Text } = Typography;
 
@@ -60,7 +57,6 @@ const CATEGORY_OPTIONS = [
 ].map((c) => ({ label: c, value: c }));
 
 export default function MedicineList() {
-  const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [modalOpen, setModalOpen] = useState(false);
@@ -68,6 +64,9 @@ export default function MedicineList() {
   const [form] = Form.useForm<Medicine>();
   // 详情 Drawer 状态
   const [detailMedicine, setDetailMedicine] = useState<Medicine | null>(null);
+
+  // CSV 导出：复用统一 hook
+  const { exportCsv } = useCsvExport({ filenamePrefix: 'medicines_export', label: '药材记录' });
 
   const { data, isLoading } = useQuery({
     queryKey: ['medicines', keyword, category],
@@ -108,10 +107,6 @@ export default function MedicineList() {
   // 导出药材库 CSV（含完整字段，便于备份或外部维护）
   const handleExportCsv = async () => {
     const list = data ?? [];
-    if (list.length === 0) {
-      message.warning('没有可导出的数据');
-      return;
-    }
     const rows: (string | number | null | undefined)[][] = [
       ['名称', '别名', '分类', '性', '味', '归经', '功效', '主治', '用法', '用量', '禁忌', '备注'],
     ];
@@ -131,14 +126,7 @@ export default function MedicineList() {
         m.notes ?? '',
       ]);
     }
-    const csv = rowsToCsv(rows);
-    try {
-      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const path = await saveTextToDownloads(`medicines_export_${ts}.csv`, csv);
-      message.success(`已导出 ${list.length} 条药材记录到：${path}`);
-    } catch (e) {
-      message.error(formatError(e));
-    }
+    await exportCsv(rows, list.length);
   };
 
   const handleSubmit = async () => {

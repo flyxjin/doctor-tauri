@@ -18,12 +18,10 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { checkAndDownloadSilently, installUpdate } from '@/api/tauri';
 import { formatFileSize } from '@/utils/format';
 import { formatError } from '@/utils/formatError';
+import { APP_VERSION } from '@/constants/version';
 
 const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
-
-/** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.13';
 
 type NavItem = { key: string; icon: React.ReactNode; label: string };
 
@@ -74,7 +72,7 @@ export default function MainLayout() {
     let cancelled = false;
     // 延迟 1.5s，避免与首屏数据请求争抢网络
     const timer = setTimeout(() => {
-      checkAndDownloadSilently(CURRENT_VERSION)
+      checkAndDownloadSilently(APP_VERSION)
         .then((result) => {
           if (cancelled) return;
           if (!result.has_update) return;
@@ -90,7 +88,7 @@ export default function MainLayout() {
                     <Text strong>新版本：</Text>
                     <Tag color="blue">v{info.version}</Tag>
                     <Text type="secondary" style={{ marginLeft: 8 }}>
-                      当前 v{CURRENT_VERSION}
+                      当前 v{APP_VERSION}
                     </Text>
                   </Paragraph>
                   {info.file_size > 0 && (

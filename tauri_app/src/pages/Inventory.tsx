@@ -37,7 +37,6 @@ import {
   listExpiringBatches,
   listInventory,
   listInventoryHistory,
-  saveTextToDownloads,
   updateStock,
 } from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
@@ -46,7 +45,7 @@ import {
   aggregateInventory,
   expiryStatus,
 } from '@/utils/inventory';
-import { rowsToCsv } from '@/utils/csv';
+import { useCsvExport } from '@/hooks/useCsvExport';
 import type { Inventory, InventoryHistory } from '@/types';
 
 const { Text } = Typography;
@@ -72,6 +71,9 @@ export default function InventoryPage() {
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [keyword, setKeyword] = useState('');
   const [historyTarget, setHistoryTarget] = useState<Inventory | null>(null);
+
+  // CSV 导出：复用统一 hook（统一用 \r\n 行分隔符，避免 Excel 兼容性问题）
+  const { exportCsv } = useCsvExport({ filenamePrefix: 'inventory_export', label: '库存记录' });
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory'],
@@ -191,13 +193,9 @@ export default function InventoryPage() {
     setModalOpen(true);
   };
 
-  // 导出当前筛选后的库存为 CSV（含 BOM 以兼容 Excel）
+  // 导出当前筛选后的库存为 CSV（行分隔符由 hook 统一为 \r\n，Excel 友好）
   const handleExportCsv = async () => {
     const list = filteredData;
-    if (list.length === 0) {
-      message.warning('没有可导出的数据');
-      return;
-    }
     const rows: (string | number | null | undefined)[][] = [
       ['药材', '分类', '批次号', '生产日期', '效期', '库存量', '单位', '最低库存', '单价', '批次价值', '备注'],
     ];
@@ -216,14 +214,7 @@ export default function InventoryPage() {
         i.notes,
       ]);
     }
-    const csv = rowsToCsv(rows, '\n');
-    try {
-      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const path = await saveTextToDownloads(`inventory_export_${ts}.csv`, csv);
-      message.success(`已导出到：${path}`);
-    } catch (e) {
-      message.error(formatError(e));
-    }
+    await exportCsv(rows, list.length);
   };
 
   // 订阅 is_in 字段变化，使 Modal 标题与批次输入区随操作类型切换

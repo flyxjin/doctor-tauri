@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { formatFileSize, compareVersions } from './format';
 
+// 单位边界常量（与 format.ts 内部阈值一致）
+const KB = 1024;
+const MB = 1024 * 1024;
+
 describe('formatFileSize', () => {
   it('零或负数返回"未知"', () => {
     expect(formatFileSize(0)).toBe('未知');
@@ -10,19 +14,19 @@ describe('formatFileSize', () => {
   it('小于 1KB 显示字节', () => {
     expect(formatFileSize(1)).toBe('1 B');
     expect(formatFileSize(512)).toBe('512 B');
-    expect(formatFileSize(1023)).toBe('1023 B');
+    expect(formatFileSize(KB - 1)).toBe('1023 B');
   });
 
   it('1KB ~ 1MB 显示 KB', () => {
-    expect(formatFileSize(1024)).toBe('1.0 KB');
-    expect(formatFileSize(1536)).toBe('1.5 KB');
-    expect(formatFileSize(1024 * 1024 - 1)).toBe('1024.0 KB');
+    expect(formatFileSize(KB)).toBe('1.0 KB');
+    expect(formatFileSize(1.5 * KB)).toBe('1.5 KB');
+    expect(formatFileSize(MB - 1)).toBe('1024.0 KB');
   });
 
   it('大于等于 1MB 显示 MB', () => {
-    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
-    expect(formatFileSize(1024 * 1024 * 5)).toBe('5.0 MB');
-    expect(formatFileSize(1572864)).toBe('1.5 MB');
+    expect(formatFileSize(MB)).toBe('1.0 MB');
+    expect(formatFileSize(5 * MB)).toBe('5.0 MB');
+    expect(formatFileSize(1.5 * MB)).toBe('1.5 MB');
   });
 });
 
