@@ -15,6 +15,7 @@ import { getStatistics } from '@/api/tauri';
 import type { DailyTrend, TopMedicine } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
+import TrendChart from '@/components/TrendChart';
 
 const { RangePicker } = DatePicker;
 
@@ -192,6 +193,19 @@ export default function StatisticsPage() {
         </div>
         <div className="table-card">
           <div className="table-title">每日销售趋势</div>
+          {!isLoading && (data?.daily_trend ?? []).length > 0 ? (
+            <div style={{ marginBottom: 16 }}>
+              <TrendChart<DailyTrend>
+                data={data!.daily_trend}
+                xKey="date"
+                height={260}
+                lines={[
+                  { key: 'total_amount', name: '销售额', color: '#C8472C' },
+                  { key: 'prescription_count', name: '处方数', color: '#2D5F3F', area: false },
+                ]}
+              />
+            </div>
+          ) : null}
           <Table<DailyTrend>
             rowKey="date"
             size="small"

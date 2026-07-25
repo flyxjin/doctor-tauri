@@ -550,6 +550,13 @@ export default function InventoryPage() {
           dataSource={filteredData}
           scroll={{ x: 1300 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
+          rowClassName={(record) => {
+            const summary = medicineSummary.get(record.medicine_id);
+            const totalQty = summary?.totalQty ?? record.quantity;
+            if (totalQty <= 0) return 'row-zero-stock';
+            if (totalQty <= record.min_stock) return 'row-low-stock';
+            return '';
+          }}
           locale={{
             emptyText: `无${
               filterMode === 'low' ? '低库存' : filterMode === 'zero' ? '零库存' : filterMode === 'expiring' ? '近效期' : ''
@@ -568,6 +575,27 @@ export default function InventoryPage() {
         cancelText="取消"
         width={480}
       >
+        {target && (
+          <Alert
+            type={isInWatch ? 'info' : 'warning'}
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              <span>
+                当前总库存：
+                <Text strong style={{ fontSize: 16 }}>
+                  {medicineSummary.get(target.medicine_id)?.totalQty ?? target.quantity}{' '}
+                  {target.unit}
+                </Text>
+                {isInWatch ? (
+                  <Text type="secondary" style={{ marginLeft: 12 }}>
+                    批次余量：{target.quantity} {target.unit}
+                  </Text>
+                ) : null}
+              </span>
+            }
+          />
+        )}
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="is_in" label="操作类型">
             <Radio.Group
@@ -612,6 +640,7 @@ export default function InventoryPage() {
               showIcon
               style={{ marginBottom: 16 }}
               message="出库按近效期优先（FEFO）自动跨批次扣减"
+              description="若当前批次库存不足，系统将自动扣减最近效期的下一批次"
             />
           )}
 
