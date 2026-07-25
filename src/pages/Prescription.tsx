@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -30,6 +30,7 @@ import { printHtmlInIframe } from '@/utils/print';
 import { formatError } from '@/utils/formatError';
 import type { Medicine, PrescriptionItem } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
+import { PRESCRIPTION_COPY_KEY } from '@/pages/History';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -78,6 +79,59 @@ export default function PrescriptionPage() {
     });
     return map;
   }, [inventory]);
+
+  // 挂载时检测 sessionStorage 是否有待复制的处方（来自 History 页「复制到处方」）
+  //
+  // 设计要点：
+  // - 空依赖数组，仅在挂载时执行一次
+  // - 读取后立即清除 key，避免刷新页面重复预填
+  // - 沿用原方价格（医生可在处方页手动调整，符合复诊实际）
+  // - 表单头字段通过 form.setFieldsValue 预填，明细通过 setItems 预填
+  // - 开方日期重置为当前时间（新处方）
+  useEffect(() => {
+    const raw = sessionStorage.getItem(PRESCRIPTION_COPY_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(PRESCRIPTION_COPY_KEY);
+    try {
+      const payload = JSON.parse(raw) as {
+        patient_name: string;
+        patient_age?: number | null;
+        patient_gender?: string;
+        diagnosis?: string;
+        created_by?: string;
+        items: Array<{
+          medicine_id: number;
+          medicine_name: string;
+          quantity: number;
+          unit: string;
+          price: number;
+          amount: number;
+        }>;
+      };
+      form.setFieldsValue({
+        patient_name: payload.patient_name,
+        patient_age: payload.patient_age ?? undefined,
+        patient_gender: payload.patient_gender ?? '',
+        diagnosis: payload.diagnosis ?? '',
+        created_by: payload.created_by ?? '',
+      });
+      setItems(
+        payload.items.map((i) => ({
+          medicine_id: i.medicine_id,
+          medicine_name: i.medicine_name,
+          quantity: i.quantity,
+          unit: i.unit,
+          price: i.price,
+          amount: Number((i.quantity * i.price).toFixed(2)),
+        })),
+      );
+      setCreatedDate(dayjs());
+      message.success(`已加载原方 ${payload.items.length} 味药材，请核对后保存`);
+    } catch {
+      message.error('复制的处方数据解析失败，请重试');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 配伍禁忌检查（至少两味药才检查）
   const names = useMemo(() => items.map((i) => i.medicine_name), [items]);

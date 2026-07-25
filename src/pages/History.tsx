@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   App,
   Button,
@@ -15,7 +16,7 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, ExportOutlined, PrinterOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, ExportOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { deletePrescription, generatePrescriptionHtml, listPrescriptions } from '@/api/tauri';
 import { printHtmlInIframe } from '@/utils/print';
@@ -23,11 +24,15 @@ import type { PrescriptionItem, PrescriptionWithItems } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import { formatError } from '@/utils/formatError';
 
+/** sessionStorage key：用于 History → Prescription 跨页面传递待复制的处方 */
+export const PRESCRIPTION_COPY_KEY = 'prescription_copy_data';
+
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
 
 export default function HistoryPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
@@ -129,6 +134,35 @@ export default function HistoryPage() {
     }
   };
 
+  /** 复制到处方：把处方头+明细存入 sessionStorage，跳转到处方页预填
+   *
+   * 设计要点：
+   * - 沿用原方价格（复诊常沿用原价，医生可在处方页手动调整）
+   * - 不复制 created_at（新处方用当前时间）
+   * - 不复制 id/prescription_id/batch_id（新处方为新行）
+   */
+  const handleCopyToPrescription = (record: PrescriptionWithItems) => {
+    const payload = {
+      patient_name: record.patient_name,
+      patient_age: record.patient_age ?? null,
+      patient_gender: record.patient_gender,
+      diagnosis: record.diagnosis,
+      created_by: record.created_by,
+      items: record.items.map((i) => ({
+        medicine_id: i.medicine_id,
+        medicine_name: i.medicine_name,
+        quantity: i.quantity,
+        unit: i.unit,
+        price: i.price,
+        amount: Number((i.quantity * i.price).toFixed(2)),
+      })),
+    };
+    sessionStorage.setItem(PRESCRIPTION_COPY_KEY, JSON.stringify(payload));
+    setDetail(null);
+    navigate('/prescription');
+    message.success(`已加载处方 #${record.id} 的 ${record.items.length} 味药材，请核对后保存`);
+  };
+
   const columns: ColumnsType<PrescriptionWithItems> = [
     { title: '处方号', dataIndex: 'id', key: 'id', width: 80 },
     { title: '患者', dataIndex: 'patient_name', key: 'patient_name', width: 100 },
@@ -174,12 +208,20 @@ export default function HistoryPage() {
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 230,
       fixed: 'right',
       render: (_v, record) => (
         <Space size="small">
           <Button type="link" size="small" onClick={() => setDetail(record)}>
             详情
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={() => handleCopyToPrescription(record)}
+          >
+            复制
           </Button>
           <Button
             type="link"
@@ -286,7 +328,7 @@ export default function HistoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={data}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1150 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           locale={{
             emptyText: (
@@ -311,6 +353,13 @@ export default function HistoryPage() {
         extra={
           detail && (
             <Space size="small">
+              <Button
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={() => handleCopyToPrescription(detail)}
+              >
+                复制到处方
+              </Button>
               <Button
                 size="small"
                 icon={<PrinterOutlined />}
