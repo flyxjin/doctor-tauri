@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  App,
   Button,
   Card,
   Col,
@@ -22,21 +23,24 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   EyeOutlined,
   PlusOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import {
   createPatient,
   deletePatient,
-  getPatientPrescriptions,
   getPatientStatistics,
   listPatients,
+  listPrescriptions,
   updatePatient,
 } from '@/api/tauri';
-import type { Patient, Prescription } from '@/types';
+import type { Patient, PrescriptionWithItems } from '@/types';
+import { PRESCRIPTION_COPY_KEY } from '@/pages/History';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
@@ -303,9 +307,13 @@ interface PatientDetailDrawerProps {
 
 /** 患者详情 Drawer：展示基本信息、处方历史、统计数据 */
 function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
+  const navigate = useNavigate();
+  const { message } = App.useApp();
+
+  // 改用 listPrescriptions 获取带 items 的处方，以支持「复制到处方」
   const { data: prescriptions, isLoading: loadingPrescriptions } = useQuery({
     queryKey: ['patient-prescriptions', patient?.name],
-    queryFn: () => getPatientPrescriptions(patient!.name),
+    queryFn: () => listPrescriptions(patient!.name, undefined, undefined, 100),
     enabled: !!patient,
   });
 
@@ -315,7 +323,30 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
     enabled: !!patient,
   });
 
-  const prescriptionColumns: ColumnsType<Prescription> = [
+  // 复制处方到处方页（与 History 页逻辑一致）
+  const handleCopyToPrescription = (record: PrescriptionWithItems) => {
+    const payload = {
+      patient_name: record.patient_name,
+      patient_age: record.patient_age ?? null,
+      patient_gender: record.patient_gender,
+      diagnosis: record.diagnosis,
+      created_by: record.created_by,
+      items: record.items.map((i) => ({
+        medicine_id: i.medicine_id,
+        medicine_name: i.medicine_name,
+        quantity: i.quantity,
+        unit: i.unit,
+        price: i.price,
+        amount: Number((i.quantity * i.price).toFixed(2)),
+      })),
+    };
+    sessionStorage.setItem(PRESCRIPTION_COPY_KEY, JSON.stringify(payload));
+    onClose();
+    navigate('/prescription');
+    message.success(`已加载处方 #${record.id} 的 ${record.items.length} 味药材，请核对后保存`);
+  };
+
+  const prescriptionColumns: ColumnsType<PrescriptionWithItems> = [
     { title: '处方号', dataIndex: 'id', key: 'id', width: 80 },
     { title: '诊断', dataIndex: 'diagnosis', key: 'diagnosis', ellipsis: true },
     {
@@ -331,7 +362,22 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
       ),
     },
     { title: '开方人', dataIndex: 'created_by', key: 'created_by', width: 100 },
-    { title: '时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
+    { title: '时间', dataIndex: 'created_at', key: 'created_at', width: 160 },
+    {
+      title: '操作',
+      key: 'action',
+      width: 90,
+      render: (_v, record) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<CopyOutlined />}
+          onClick={() => handleCopyToPrescription(record)}
+        >
+          复制
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -424,13 +470,14 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
           <Title level={5} style={{ marginTop: 16 }}>
             处方历史
           </Title>
-          <Table<Prescription>
+          <Table<PrescriptionWithItems>
             rowKey="id"
             size="small"
             columns={prescriptionColumns}
             dataSource={prescriptions}
             loading={loadingPrescriptions}
             pagination={{ pageSize: 5, showSizeChanger: false }}
+            scroll={{ x: 620 }}
             locale={{
               emptyText: (
                 <Empty

@@ -341,7 +341,32 @@ export default function PrescriptionPage() {
   };
 
   const itemColumns: ColumnsType<PrescriptionItem> = [
-    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 120 },
+    {
+      title: '药材',
+      dataIndex: 'medicine_name',
+      key: 'medicine_name',
+      width: 140,
+      render: (name: string, r) => {
+        const stock = inventoryMap.get(r.medicine_id);
+        const totalQty = stock?.totalQty ?? 0;
+        const insufficient = totalQty < r.quantity;
+        return (
+          <div>
+            <div>{name}</div>
+            <div style={{ fontSize: 11, marginTop: 2 }}>
+              {totalQty > 0 ? (
+                <span style={{ color: insufficient ? '#B83A2E' : '#8B8580' }}>
+                  库存 {totalQty}{r.unit}
+                  {insufficient && ' · 不足'}
+                </span>
+              ) : (
+                <span style={{ color: '#B83A2E' }}>无库存</span>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
     {
       title: '数量',
       dataIndex: 'quantity',

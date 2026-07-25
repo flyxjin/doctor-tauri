@@ -547,6 +547,24 @@ body,
   background: var(--primary-light) !important;
 }
 
+/* 低库存行高亮（橙色背景） */
+.ant-table-tbody > tr.row-low-stock > td {
+  background: #FEF3C7 !important;
+}
+
+.ant-table-tbody > tr.row-low-stock:hover > td {
+  background: #FDE68A !important;
+}
+
+/* 零库存行高亮（红色背景） */
+.ant-table-tbody > tr.row-zero-stock > td {
+  background: #FEE2E2 !important;
+}
+
+.ant-table-tbody > tr.row-zero-stock:hover > td {
+  background: #FECACA !important;
+}
+
 /* 卡片 */
 .ant-card {
   border-radius: var(--radius-lg) !important;
