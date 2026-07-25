@@ -34,3 +34,9 @@ src-tauri/gen
 # 本地数据库文件（仅开发期生成）
 *.db
 *.db-journal
+
+# 二进制构建产物（不进 git，通过 Gitee Release 分发）
+distrib/*.exe
+distrib/*-setup.exe
+src-tauri/target/release/bundle/
+
