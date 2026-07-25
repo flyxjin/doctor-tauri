@@ -23,6 +23,8 @@ export default function StatisticsPage() {
     dayjs().subtract(29, 'day'),
     dayjs(),
   ]);
+  // 当前快捷范围选中态：null 表示用户自定义了 RangePicker
+  const [quickSelected, setQuickSelected] = useState<number | null>(30);
 
   const startDate = range[0].format('YYYY-MM-DD');
   const endDate = range[1].format('YYYY-MM-DD');
@@ -34,6 +36,23 @@ export default function StatisticsPage() {
 
   const quickRange = (days: number) => {
     setRange([dayjs().subtract(days - 1, 'day'), dayjs()]);
+    setQuickSelected(days);
+  };
+
+  const handleRangePickerChange = (v: [Dayjs, Dayjs] | null) => {
+    if (v && v[0] && v[1]) {
+      setRange([v[0], v[1]]);
+      // 判断是否匹配某个快捷范围（结束日期为今天）
+      const today = dayjs().startOf('day');
+      if (v[1].startOf('day').isSame(today)) {
+        const diff = v[0].startOf('day').diff(today, 'day') * -1 + 1;
+        if ([7, 30, 90].includes(diff)) {
+          setQuickSelected(diff);
+          return;
+        }
+      }
+      setQuickSelected(null);
+    }
   };
 
   const topColumns: ColumnsType<TopMedicine> = [
@@ -90,13 +109,26 @@ export default function StatisticsPage() {
       <Space style={{ marginBottom: 16 }} wrap>
         <RangePicker
           value={range}
-          onChange={(v) => {
-            if (v && v[0] && v[1]) setRange([v[0], v[1]]);
-          }}
+          onChange={(v) => handleRangePickerChange(v as [Dayjs, Dayjs] | null)}
         />
-        <Button onClick={() => quickRange(7)}>近 7 天</Button>
-        <Button onClick={() => quickRange(30)}>近 30 天</Button>
-        <Button onClick={() => quickRange(90)}>近 90 天</Button>
+        <Button
+          type={quickSelected === 7 ? 'primary' : 'default'}
+          onClick={() => quickRange(7)}
+        >
+          近 7 天
+        </Button>
+        <Button
+          type={quickSelected === 30 ? 'primary' : 'default'}
+          onClick={() => quickRange(30)}
+        >
+          近 30 天
+        </Button>
+        <Button
+          type={quickSelected === 90 ? 'primary' : 'default'}
+          onClick={() => quickRange(90)}
+        >
+          近 90 天
+        </Button>
       </Space>
 
       {isError && (

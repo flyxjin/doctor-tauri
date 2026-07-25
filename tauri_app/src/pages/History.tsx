@@ -164,7 +164,13 @@ export default function HistoryPage() {
   };
 
   const columns: ColumnsType<PrescriptionWithItems> = [
-    { title: '处方号', dataIndex: 'id', key: 'id', width: 80 },
+    {
+      title: '处方号',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      fixed: 'left',
+    },
     { title: '患者', dataIndex: 'patient_name', key: 'patient_name', width: 100 },
     {
       title: '性别',
@@ -234,9 +240,11 @@ export default function HistoryPage() {
           </Button>
           <Popconfirm
             title="确认删除该处方？"
+            description="将回扣库存，此操作不可撤销"
             onConfirm={() => deleteMutation.mutate(record.id!)}
             okText="删除"
             cancelText="取消"
+            okButtonProps={{ danger: true }}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               删除
@@ -370,9 +378,11 @@ export default function HistoryPage() {
               </Button>
               <Popconfirm
                 title="确认删除该处方？"
+                description="将回扣库存，此操作不可撤销"
                 onConfirm={() => deleteMutation.mutate(detail.id!)}
                 okText="删除"
                 cancelText="取消"
+                okButtonProps={{ danger: true }}
               >
                 <Button danger size="small">
                   删除处方
