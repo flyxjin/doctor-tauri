@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  App,
   Button,
   Card,
   Col,
@@ -37,7 +36,6 @@ import {
   getPatientStatistics,
   listPatients,
   listPrescriptions,
-  saveTextToDownloads,
   updatePatient,
 } from '@/api/tauri';
 import type { Patient, PrescriptionWithItems } from '@/types';
@@ -45,8 +43,7 @@ import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
 import { useCopyToPrescription } from '@/hooks/useCopyToPrescription';
-import { rowsToCsv } from '@/utils/csv';
-import { formatError } from '@/utils/formatError';
+import { useCsvExport } from '@/hooks/useCsvExport';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -59,7 +56,6 @@ const GENDER_OPTIONS = [
 ];
 
 export default function Patients() {
-  const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Patient | null>(null);
@@ -67,6 +63,9 @@ export default function Patients() {
 
   // 详情 Drawer 状态
   const [detailPatient, setDetailPatient] = useState<Patient | null>(null);
+
+  // CSV 导出：复用统一 hook
+  const { exportCsv } = useCsvExport({ filenamePrefix: 'patients_export', label: '患者档案' });
 
   const { data, isLoading } = useQuery({
     queryKey: ['patients', keyword],
@@ -105,10 +104,6 @@ export default function Patients() {
   // 导出患者档案 CSV（含基本信息与过敏史，便于备份或外部统计）
   const handleExportCsv = async () => {
     const list = data ?? [];
-    if (list.length === 0) {
-      message.warning('没有可导出的数据');
-      return;
-    }
     const rows: (string | number | null | undefined)[][] = [
       ['姓名', '性别', '年龄', '电话', '过敏史', '地址', '既往病史', '备注', '建档日期'],
     ];
@@ -125,14 +120,7 @@ export default function Patients() {
         p.created_at ?? '',
       ]);
     }
-    const csv = rowsToCsv(rows);
-    try {
-      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const path = await saveTextToDownloads(`patients_export_${ts}.csv`, csv);
-      message.success(`已导出 ${list.length} 条患者档案到：${path}`);
-    } catch (e) {
-      message.error(formatError(e));
-    }
+    await exportCsv(rows, list.length);
   };
 
   const handleSubmit = async () => {

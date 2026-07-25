@@ -2,6 +2,27 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.14] - 2026-07-25
+
+### 重构
+
+- **`delete_prescription` 长函数拆分**（代码质量）— 将 132 行、6 层嵌套的 `delete_prescription` 拆分为 7 个聚焦的私有函数：`fetch_prescription_items` / `fetch_batch_deductions`（查询）、`find_fallback_batch_id` / `batch_exists`（批次定位）、`restore_stock_to_batch` / `insert_refund_history`（写库存与历史）、`restore_old_data_stock` / `restore_new_data_stock`（两条回扣路径）。主函数降至 ~30 行、最深 2 层，可读性与可测试性显著提升
+- **版本号 SSOT 统一**（架构）— 新建 `src/constants/version.ts` 从 `package.json` 派生 `APP_VERSION`，新建 `scripts/sync-version.mjs` 自动同步版本号到 `Cargo.toml` / `install.bat` / `distrib/install.bat`。移除 `MainLayout.tsx` / `Settings.tsx` 中硬编码的 `CURRENT_VERSION` 常量与 `tauri.conf.json` 的 `version` 字段（Tauri 2 回退到 `Cargo.toml`），消除 8 处版本号手动维护风险
+- **CSV 导出重复消除**（代码质量）— 新建 `src/hooks/useCsvExport.ts` 封装 `rowsToCsv` + `saveTextToDownloads` + 时间戳生成 + 用户提示，统一 `History` / `Statistics` / `Patients` / `MedicineList` / `Inventory` 五处导出逻辑。修复 `History.tsx` 用 `Blob` 下载绕过下载目录、`Inventory.tsx` 行分隔符 `\n` 与其它页 `\r\n` 不一致两处缺陷
+- **Hook 逆向依赖修复**（架构）— 新建 `src/constants/prescription.ts` 下沉 `PRESCRIPTION_COPY_KEY` 常量，消除 `useCopyToPrescription.ts` → `History.tsx` 的逆向依赖，符合依赖倒置原则
+
+### 测试
+
+- **命令层可测试性提升** — 改写 `test_delete_prescription_restores_stock` 与 `test_cross_batch_prescription_delete_restores_each_batch` 两个测试，从"复制粘贴 SQL 重新实现删除逻辑"改为调用真实 helper（`fetch_prescription_items` / `restore_old_data_stock` / `restore_new_data_stock`），让测试验证真实代码路径而非副本。新增 `test_restore_new_data_stock_falls_back_when_batch_deleted` 覆盖原批次已删的 fallback 边界
+- **测试魔法数字消除** — `db.rs` 提取 `EXPECTED_MEDICINE_COUNT` 常量（300+19+81）替代硬编码 400；`format.test.ts` 提取 `KB` / `MB` 常量替代 `1024` / `1024*1024` / `1536` / `1572864` 等不透明字面量
+
+### 测试结果
+
+- 前端：53 个测试（不变），TypeScript 0 错误，ESLint 0 错误
+- 后端：62 → 63 个测试（+1 个 fallback 边界测试）
+
+---
+
 ## [0.3.13] - 2026-07-25
 
 ### 新增

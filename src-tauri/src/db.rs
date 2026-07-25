@@ -136,6 +136,12 @@ mod tests {
     use super::*;
     use rusqlite::params;
 
+    /// 种子药材期望总数 = 002(300) + 004(19) + 007(81)
+    ///
+    /// 001_init.sql 的 5 味与 002 重名，被 INSERT OR IGNORE 跳过，不计入。
+    /// 若迁移文件增减药材，更新此常量即可，无需改动测试断言。
+    const EXPECTED_MEDICINE_COUNT: i64 = 300 + 19 + 81;
+
     /// 辅助函数：打开内存数据库并执行所有迁移
     fn setup_in_memory() -> DbState {
         let db = DbState::new(Path::new(":memory:")).expect("打开内存数据库失败");
@@ -342,14 +348,20 @@ mod tests {
         let medicine_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM medicines", (), |row| row.get(0))
             .unwrap();
-        assert_eq!(medicine_count, 400, "种子+补充+扩充应共 400 味药材");
-        // 库存记录应至少 400 条（每味药材对应一条库存）
+        assert_eq!(
+            medicine_count,
+            EXPECTED_MEDICINE_COUNT,
+            "种子+补充+扩充应共 {} 味药材",
+            EXPECTED_MEDICINE_COUNT
+        );
+        // 库存记录应至少与药材数一致（每味药材对应一条库存）
         let inventory_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM inventory", (), |row| row.get(0))
             .unwrap();
         assert!(
-            inventory_count >= 400,
-            "库存记录至少 400 条（008 批次改造后每味药材至少 1 个批次），实际: {inventory_count}"
+            inventory_count >= EXPECTED_MEDICINE_COUNT,
+            "库存记录至少 {} 条（008 批次改造后每味药材至少 1 个批次），实际: {inventory_count}",
+            EXPECTED_MEDICINE_COUNT
         );
         // 验证特定药材存在
         let exists: i64 = conn

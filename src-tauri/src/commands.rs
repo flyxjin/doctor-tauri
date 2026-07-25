@@ -814,124 +814,197 @@ pub fn create_prescription(
     Ok(prescription_id)
 }
 
+// ---- delete_prescription 辅助函数 ----
+//
+// 将原 132 行、6 层嵌套的 delete_prescription 拆分为 7 个聚焦的小函数：
+// - fetch_prescription_items / fetch_batch_deductions：查询
+// - find_fallback_batch_id / batch_exists：批次定位
+// - restore_stock_to_batch / insert_refund_history：写库存与历史
+// - restore_old_data_stock / restore_new_data_stock：两条回扣路径
+// 主函数降为 ~25 行、最深 2 层（函数 → for → if/else → 调用 helper）。
+
+/// 查询处方明细列表：(medicine_id, medicine_name, quantity)
+fn fetch_prescription_items(
+    tx: &Connection,
+    prescription_id: i64,
+) -> Result<Vec<(i64, String, f64)>, String> {
+    let mut stmt = tx
+        .prepare(
+            "SELECT medicine_id, medicine_name, quantity FROM prescription_items WHERE prescription_id=?1",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![prescription_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, f64>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
+}
+
+/// 查询某处方明细的批次扣减明细：(batch_id, quantity, price)
+fn fetch_batch_deductions(
+    tx: &Connection,
+    prescription_id: i64,
+    medicine_id: i64,
+) -> Result<Vec<(i64, f64, f64)>, String> {
+    let mut stmt = tx
+        .prepare(
+            "SELECT pib.batch_id, pib.quantity, pib.price
+             FROM prescription_item_batches pib
+             JOIN prescription_items pi ON pib.prescription_item_id = pi.id
+             WHERE pi.prescription_id = ?1 AND pi.medicine_id = ?2",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![prescription_id, medicine_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
+}
+
+/// 查找回扣目标批次：优先"初始库存"，否则第一个批次
+fn find_fallback_batch_id(
+    tx: &Connection,
+    medicine_id: i64,
+) -> Result<Option<i64>, String> {
+    tx.query_row(
+        "SELECT id FROM inventory WHERE medicine_id=?1 ORDER BY CASE WHEN batch_no='初始库存' THEN 0 ELSE 1 END, id ASC LIMIT 1",
+        params![medicine_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+/// 检查指定批次是否仍存在
+fn batch_exists(tx: &Connection, batch_id: i64) -> Result<bool, String> {
+    let exists: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM inventory WHERE id=?1",
+            params![batch_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    Ok(exists.is_some())
+}
+
+/// 给指定批次加回库存
+fn restore_stock_to_batch(
+    tx: &Connection,
+    batch_id: i64,
+    qty: f64,
+) -> Result<(), String> {
+    tx.execute(
+        "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+        params![qty, batch_id],
+    )
+    .map_err(|e| format!("回扣库存失败: {e}"))?;
+    Ok(())
+}
+
+/// 写入一条退库历史（total_amount = qty * price）
+fn insert_refund_history(
+    tx: &Connection,
+    medicine_id: i64,
+    medicine_name: &str,
+    qty: f64,
+    price: f64,
+    notes: &str,
+    batch_id: Option<i64>,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![medicine_id, medicine_name, "退库", qty, price, qty * price, "", notes, batch_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 老数据回扣（009 迁移前无批次扣减明细）：整量回扣到"初始库存"或第一个批次
+///
+/// 退库历史 price/total_amount 记为 0（无原始价格信息），batch_id 记实际回扣目标
+fn restore_old_data_stock(
+    tx: &Connection,
+    medicine_id: i64,
+    medicine_name: &str,
+    total_qty: f64,
+) -> Result<(), String> {
+    let target_batch = find_fallback_batch_id(tx, medicine_id)?;
+    if let Some(bid) = target_batch {
+        restore_stock_to_batch(tx, bid, total_qty)?;
+    }
+    // 老数据无原始价格，记 0 以保持金额可追溯
+    tx.execute(
+        "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![medicine_id, medicine_name, "退库", total_qty, 0.0, 0.0, "", "删除处方回扣(老数据)", target_batch],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 新数据回扣：按批次扣减明细逐条精确回扣
+///
+/// 原批次仍存在则回扣到原批次；原批次已删则回扣到"初始库存"或第一个批次。
+/// 退库历史 batch_id 记原始扣减批次（即使实际回扣到 fallback），保持可追溯。
+fn restore_new_data_stock(
+    tx: &Connection,
+    medicine_id: i64,
+    medicine_name: &str,
+    pib_rows: &[(i64, f64, f64)],
+) -> Result<(), String> {
+    for (batch_id, qty, price) in pib_rows {
+        let target = if batch_exists(tx, *batch_id)? {
+            Some(*batch_id)
+        } else {
+            find_fallback_batch_id(tx, medicine_id)?
+        };
+        if let Some(bid) = target {
+            restore_stock_to_batch(tx, bid, *qty)?;
+        }
+        // 历史记录使用原扣减批次与价格，保持金额可追溯
+        insert_refund_history(
+            tx,
+            medicine_id,
+            medicine_name,
+            *qty,
+            *price,
+            "删除处方回扣",
+            Some(*batch_id),
+        )?;
+    }
+    Ok(())
+}
+
 /// 删除处方（事务：回扣库存 + 记录退库历史 + 级联删除明细）
 #[tauri::command]
 pub fn delete_prescription(id: i64, state: State<'_, DbState>) -> Result<(), String> {
     let conn = state.lock()?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    // 查询处方明细 ID 列表（用于关联表回扣）
-    let items: Vec<(i64, String, f64)> = {
-        let mut stmt = tx
-            .prepare(
-                "SELECT medicine_id, medicine_name, quantity FROM prescription_items WHERE prescription_id=?1",
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map(params![id], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, f64>(2)?,
-                ))
-            })
-            .map_err(|e| e.to_string())?;
-        let mut out = Vec::new();
-        for r in rows {
-            out.push(r.map_err(|e| e.to_string())?);
-        }
-        out
-    };
+    let items = fetch_prescription_items(&tx, id)?;
 
-    // 按关联表精确回扣：每个处方明细的各批次扣减量逐条回扣
     for (medicine_id, medicine_name, total_qty) in &items {
-        // 查该处方明细的批次扣减明细
-        let pib_rows: Vec<(i64, f64, f64)> = {
-            let mut stmt = tx
-                .prepare(
-                    "SELECT pib.batch_id, pib.quantity, pib.price
-                     FROM prescription_item_batches pib
-                     JOIN prescription_items pi ON pib.prescription_item_id = pi.id
-                     WHERE pi.prescription_id = ?1 AND pi.medicine_id = ?2",
-                )
-                .map_err(|e| e.to_string())?;
-            let rows = stmt
-                .query_map(params![id, medicine_id], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-                })
-                .map_err(|e| e.to_string())?;
-            let mut out = Vec::new();
-            for r in rows {
-                out.push(r.map_err(|e| e.to_string())?);
-            }
-            out
-        };
-
+        let pib_rows = fetch_batch_deductions(&tx, id, *medicine_id)?;
         if pib_rows.is_empty() {
-            // 老数据（009 迁移前创建的处方无关联表记录）：回扣整量到"初始库存"或第一个批次
-            let target_batch: Option<i64> = tx
-                .query_row(
-                    "SELECT id FROM inventory WHERE medicine_id=?1 ORDER BY CASE WHEN batch_no='初始库存' THEN 0 ELSE 1 END, id ASC LIMIT 1",
-                    params![medicine_id],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|e| e.to_string())?;
-            if let Some(bid) = target_batch {
-                tx.execute(
-                    "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-                    params![total_qty, bid],
-                )
-                .map_err(|e| format!("回扣库存失败: {e}"))?;
-            }
-            tx.execute(
-                "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-                params![medicine_id, medicine_name, "退库", total_qty, 0.0, 0.0, "", "删除处方回扣(老数据)", target_batch],
-            )
-            .map_err(|e| e.to_string())?;
+            // 老数据（009 迁移前无关联表记录）：整量回扣
+            restore_old_data_stock(&tx, *medicine_id, medicine_name, *total_qty)?;
         } else {
             // 新数据：按批次扣减明细精确回扣
-            for (batch_id, qty, price) in &pib_rows {
-                // 检查批次是否仍存在（可能已被单独删除）
-                let exists: Option<i64> = tx
-                    .query_row(
-                        "SELECT id FROM inventory WHERE id=?1",
-                        params![batch_id],
-                        |row| row.get(0),
-                    )
-                    .optional()
-                    .map_err(|e| e.to_string())?;
-                if exists.is_some() {
-                    tx.execute(
-                        "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-                        params![qty, batch_id],
-                    )
-                    .map_err(|e| format!("回扣库存失败: {e}"))?;
-                } else {
-                    // 原批次已删，回扣到该药材的"初始库存"或第一个批次
-                    let fallback: Option<i64> = tx
-                        .query_row(
-                            "SELECT id FROM inventory WHERE medicine_id=?1 ORDER BY CASE WHEN batch_no='初始库存' THEN 0 ELSE 1 END, id ASC LIMIT 1",
-                            params![medicine_id],
-                            |row| row.get(0),
-                        )
-                        .optional()
-                        .map_err(|e| e.to_string())?;
-                    if let Some(fid) = fallback {
-                        tx.execute(
-                            "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-                            params![qty, fid],
-                        )
-                        .map_err(|e| format!("回扣库存失败: {e}"))?;
-                    }
-                }
-                // 退库历史记录（使用原扣减价格，保持金额可追溯）
-                tx.execute(
-                    "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-                    params![medicine_id, medicine_name, "退库", qty, price, qty * price, "", "删除处方回扣", batch_id],
-                )
-                .map_err(|e| e.to_string())?;
-            }
+            restore_new_data_stock(&tx, *medicine_id, medicine_name, &pib_rows)?;
         }
     }
 
@@ -2528,18 +2601,18 @@ mod tests {
 
     #[test]
     fn test_delete_prescription_restores_stock() {
-        // 删除处方应回扣库存（验证 delete_prescription 的新逻辑）
+        // 删除处方应回扣库存（通过调用真实 helper 验证，而非复制粘贴 SQL）
+        // 本用例覆盖"老数据"路径：prescription_item_batches 无记录，走 restore_old_data_stock
         let db = setup_db();
         let conn = db.lock().unwrap();
         let mid = insert_test_medicine(&conn, "删除处方回扣测试");
 
-        // 初始库存 100，创建处方扣减 30，剩余 70
+        // 初始库存 70（处方扣减 30 后的余量），处方明细记录数量 30
         conn.execute(
-            "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock) VALUES (?1, 70, 'g', 20, 10)",
+            "INSERT INTO inventory (medicine_id, batch_no, quantity, unit, price, min_stock) VALUES (?1, '初始库存', 70, 'g', 20, 10)",
             params![mid],
         )
         .unwrap();
-        // 插入处方 + 明细
         conn.execute(
             "INSERT INTO prescriptions (patient_name, patient_gender, diagnosis, total_amount, created_by) VALUES ('测试患者', '男', '测试诊断', 600, '测试医生')",
             [],
@@ -2552,43 +2625,28 @@ mod tests {
         )
         .unwrap();
 
-        // 模拟 delete_prescription 的回扣逻辑
+        // 调用真实 helper：fetch_prescription_items + restore_old_data_stock
         let tx = conn.unchecked_transaction().unwrap();
-        // 查询明细
-        let items: Vec<(i64, String, f64)> = {
-            let mut stmt = tx
-                .prepare("SELECT medicine_id, medicine_name, quantity FROM prescription_items WHERE prescription_id=?1")
-                .unwrap();
-            let rows = stmt
-                .query_map(params![pid], |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, f64>(2)?,
-                    ))
-                })
-                .unwrap();
-            rows.map(|r| r.unwrap()).collect()
-        };
-        // 回扣库存
-        for (medicine_id, _name, quantity) in &items {
-            tx.execute(
-                "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE medicine_id=?2",
-                params![quantity, medicine_id],
-            )
-            .unwrap();
+        let items = fetch_prescription_items(&tx, pid).expect("查询处方明细应成功");
+        assert_eq!(items.len(), 1, "应有 1 条明细");
+        for (medicine_id, medicine_name, total_qty) in &items {
+            let pib_rows = fetch_batch_deductions(&tx, pid, *medicine_id).expect("查询批次扣减应成功");
+            assert!(pib_rows.is_empty(), "老数据无批次扣减明细");
+            restore_old_data_stock(&tx, *medicine_id, medicine_name, *total_qty)
+                .expect("老数据回扣应成功");
         }
-        // 删除明细与处方
         tx.execute(
-            "DELETE FROM prescription_items WHERE prescription_id=?1",
+            "DELETE FROM prescription_item_batches WHERE prescription_item_id IN (SELECT id FROM prescription_items WHERE prescription_id=?1)",
             params![pid],
         )
         .unwrap();
+        tx.execute("DELETE FROM prescription_items WHERE prescription_id=?1", params![pid])
+            .unwrap();
         tx.execute("DELETE FROM prescriptions WHERE id=?1", params![pid])
             .unwrap();
         tx.commit().unwrap();
 
-        // 库存应恢复为 100
+        // 库存应恢复为 100（70 + 30）
         assert_eq!(
             get_quantity(&conn, mid),
             100.0,
@@ -2611,6 +2669,15 @@ mod tests {
             )
             .unwrap();
         assert_eq!(icount, 0, "处方明细应已删除");
+        // 老数据回扣应写入一条退库历史（notes 标记"老数据"）
+        let hist_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM inventory_history WHERE medicine_id=?1 AND notes='删除处方回扣(老数据)'",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(hist_count, 1, "应写入 1 条老数据退库历史");
     }
 
     #[test]
@@ -2902,6 +2969,7 @@ mod tests {
     fn test_cross_batch_prescription_delete_restores_each_batch() {
         // 场景：药材有 B1(30,效期近) 和 B2(50,效期远)，处方扣 40（B1全扣30 + B2扣10）
         // 删除处方后，B1 应回到 30，B2 应回到 50（精确回扣，不是整量回扣到首批次）
+        // 通过调用真实 helper restore_new_data_stock 验证，而非复制粘贴 SQL
         let db = setup_db();
         let conn = db.lock().unwrap();
         let mid = insert_test_medicine(&conn, "跨批回扣测试");
@@ -2946,26 +3014,25 @@ mod tests {
         assert_eq!(b1_qty, 0.0, "B1 扣减后应为 0");
         assert_eq!(b2_qty, 40.0, "B2 扣减后应为 40");
 
-        // 模拟 delete_prescription 的精确回扣逻辑
+        // 调用真实 helper：fetch_prescription_items + fetch_batch_deductions + restore_new_data_stock
         let tx = conn.unchecked_transaction().unwrap();
-        let pib_rows: Vec<(i64, f64, f64)> = {
-            let mut stmt = tx.prepare(
-                "SELECT pib.batch_id, pib.quantity, pib.price FROM prescription_item_batches pib JOIN prescription_items pi ON pib.prescription_item_id = pi.id WHERE pi.prescription_id=?1",
-            ).unwrap();
-            let rows = stmt.query_map(params![pid], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap();
-            rows.map(|r| r.unwrap()).collect()
-        };
-        assert_eq!(pib_rows.len(), 2, "关联表应有 2 条扣减明细");
-        for (batch_id, qty, _price) in &pib_rows {
-            tx.execute(
-                "UPDATE inventory SET quantity = quantity + ?1 WHERE id=?2",
-                params![qty, batch_id],
-            )
-            .unwrap();
+        let items = fetch_prescription_items(&tx, pid).expect("查询处方明细应成功");
+        assert_eq!(items.len(), 1, "应有 1 条明细");
+        for (medicine_id, medicine_name, _total_qty) in &items {
+            let pib_rows = fetch_batch_deductions(&tx, pid, *medicine_id).expect("查询批次扣减应成功");
+            assert_eq!(pib_rows.len(), 2, "关联表应有 2 条扣减明细");
+            restore_new_data_stock(&tx, *medicine_id, medicine_name, &pib_rows)
+                .expect("新数据精确回扣应成功");
         }
-        tx.execute("DELETE FROM prescription_item_batches WHERE prescription_item_id IN (SELECT id FROM prescription_items WHERE prescription_id=?1)", params![pid]).unwrap();
-        tx.execute("DELETE FROM prescription_items WHERE prescription_id=?1", params![pid]).unwrap();
-        tx.execute("DELETE FROM prescriptions WHERE id=?1", params![pid]).unwrap();
+        tx.execute(
+            "DELETE FROM prescription_item_batches WHERE prescription_item_id IN (SELECT id FROM prescription_items WHERE prescription_id=?1)",
+            params![pid],
+        )
+        .unwrap();
+        tx.execute("DELETE FROM prescription_items WHERE prescription_id=?1", params![pid])
+            .unwrap();
+        tx.execute("DELETE FROM prescriptions WHERE id=?1", params![pid])
+            .unwrap();
         tx.commit().unwrap();
 
         // 验证回扣后：B1=30, B2=50（精确回扣到原批次，不是整量回扣到 B1）
@@ -2973,6 +3040,83 @@ mod tests {
         let b2_after: f64 = conn.query_row("SELECT quantity FROM inventory WHERE id=?1", params![b2], |r| r.get(0)).unwrap();
         assert_eq!(b1_after, 30.0, "B1 精确回扣后应恢复为 30");
         assert_eq!(b2_after, 50.0, "B2 精确回扣后应恢复为 50");
+        // 新数据回扣应写入 2 条退库历史（每个批次一条）
+        let hist_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM inventory_history WHERE medicine_id=?1 AND notes='删除处方回扣'",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(hist_count, 2, "应写入 2 条新数据退库历史（每批次一条）");
+    }
+
+    #[test]
+    fn test_restore_new_data_stock_falls_back_when_batch_deleted() {
+        // 边界场景：处方记录的扣减批次已被单独删除，restore_new_data_stock 应回退到
+        // "初始库存"或第一个批次，而非报错或丢失回扣量。
+        // 通过调用真实 helper 验证 fallback 分支（batch_exists=false → find_fallback_batch_id）。
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "回退回扣测试");
+        // 一个"初始库存"批次（80）作为 fallback 目标，一个 B1（30）作为原扣减批次
+        let fallback_id = insert_test_batch(&conn, mid, "初始库存", None, 80.0, 5.0);
+        let original_batch = insert_test_batch(&conn, mid, "B1", Some("2026-09-01"), 30.0, 10.0);
+
+        // 写处方 + 明细 + 关联表（指向 B1）
+        conn.execute(
+            "INSERT INTO prescriptions (patient_name, total_amount, created_by) VALUES ('回退测试', 300, '医生')",
+            [],
+        )
+        .unwrap();
+        let pid = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id) VALUES (?1,?2,'回退回扣测试',30,'g',10,300,?3)",
+            params![pid, mid, original_batch],
+        )
+        .unwrap();
+        let item_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO prescription_item_batches (prescription_item_id, batch_id, quantity, price) VALUES (?1,?2,30,10)",
+            params![item_id, original_batch],
+        )
+        .unwrap();
+
+        // 模拟原批次 B1 已被单独删除（如批次清理）
+        // 注意：pib.batch_id 有 FK 约束（ON DELETE NO ACTION），正常无法删除被引用的批次。
+        // 此处关闭 FK 模拟"FK 关闭时产生的 legacy 不一致状态"，验证 restore_new_data_stock
+        // 能优雅处理而非报错或丢失回扣量。
+        conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+        conn.execute("DELETE FROM inventory WHERE id=?1", params![original_batch])
+            .unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // 调用 restore_new_data_stock：应检测到 B1 不存在，回退到"初始库存"
+        let tx = conn.unchecked_transaction().unwrap();
+        let pib_rows = fetch_batch_deductions(&tx, pid, mid).expect("查询批次扣减应成功");
+        assert_eq!(pib_rows.len(), 1, "关联表应有 1 条扣减明细");
+        restore_new_data_stock(&tx, mid, "回退回扣测试", &pib_rows)
+            .expect("原批次已删时应回退成功");
+        tx.commit().unwrap();
+
+        // 回扣量 30 应加到 fallback 批次（初始库存 80 → 110）
+        let fallback_qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![fallback_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fallback_qty, 110.0, "回扣量应回退到初始库存批次");
+        // 退库历史应记录原批次 id（保持可追溯），即使实际回扣到 fallback
+        let hist: Option<i64> = conn
+            .query_row(
+                "SELECT batch_id FROM inventory_history WHERE medicine_id=?1 AND notes='删除处方回扣'",
+                params![mid],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(hist, Some(original_batch), "历史应记录原扣减批次 id");
     }
 
 

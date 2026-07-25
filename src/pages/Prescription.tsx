@@ -37,7 +37,7 @@ import { checkAllergy } from '@/utils/allergy';
 import { parseDefaultDosage } from '@/utils/dosage';
 import type { Medicine, Patient, PrescriptionItem } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
-import { PRESCRIPTION_COPY_KEY } from '@/pages/History';
+import { PRESCRIPTION_COPY_KEY } from '@/constants/prescription';
 
 const { Title, Paragraph, Text } = Typography;
 

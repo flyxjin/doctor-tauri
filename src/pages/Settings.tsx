@@ -39,12 +39,10 @@ import {
 import EmptyState from '@/components/EmptyState';
 import { compareVersions, formatFileSize } from '@/utils/format';
 import { formatError } from '@/utils/formatError';
+import { APP_VERSION } from '@/constants/version';
 import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/types';
 
 const { Paragraph, Text } = Typography;
-
-/** 当前应用版本（与 Cargo.toml / tauri.conf.json 对齐） */
-const CURRENT_VERSION = '0.3.13';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -75,7 +73,7 @@ export default function SettingsPage() {
         message.warning('未获取到版本信息');
         return;
       }
-      const hasNewVersion = compareVersions(info.version, CURRENT_VERSION) > 0;
+      const hasNewVersion = compareVersions(info.version, APP_VERSION) > 0;
       if (hasNewVersion) {
         modal.info({
           title: '发现新版本',
@@ -86,7 +84,7 @@ export default function SettingsPage() {
                 <Text strong>版本：</Text>
                 <Tag color="blue">v{info.version}</Tag>
                 <Text type="secondary" style={{ marginLeft: 8 }}>
-                  当前 v{CURRENT_VERSION}
+                  当前 v{APP_VERSION}
                 </Text>
               </Paragraph>
               {info.release_name && (
@@ -122,7 +120,7 @@ export default function SettingsPage() {
           okText: '关闭',
         });
       } else {
-        message.success(`当前已是最新版本（v${CURRENT_VERSION}）`);
+        message.success(`当前已是最新版本（v${APP_VERSION}）`);
       }
     },
     onError: (e: unknown) => message.error(`检查更新失败：${formatError(e)}`),
@@ -288,7 +286,7 @@ export default function SettingsPage() {
   const hasNewVersion =
     updateInfo &&
     updateInfo.version &&
-    compareVersions(updateInfo.version, CURRENT_VERSION) > 0;
+    compareVersions(updateInfo.version, APP_VERSION) > 0;
 
   // 操作日志表格列
   const logColumns: ColumnsType<OperationLog> = [
@@ -355,7 +353,7 @@ export default function SettingsPage() {
       <Card style={{ marginBottom: 16 }}>
         <Descriptions title="版本信息" column={2} size="small">
           <Descriptions.Item label="当前版本">
-            <Tag color="blue">v{CURRENT_VERSION}</Tag>
+            <Tag color="blue">v{APP_VERSION}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="最新版本">
             {updateInfo ? (
