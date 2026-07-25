@@ -117,6 +117,59 @@ body,
   margin-bottom: 28px;
 }
 
+/* 今日概览横幅：突出当日业绩 */
+.today-banner {
+  background: linear-gradient(135deg, #2D5F3F 0%, #1F4530 100%);
+  border-radius: var(--radius-lg);
+  padding: 18px 28px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-md);
+}
+
+.today-banner-label {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-inverse);
+  letter-spacing: 1px;
+  opacity: 0.9;
+}
+
+.today-banner-stats {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.today-banner-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.today-banner-num {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: #FBE54E;
+  letter-spacing: 0.5px;
+}
+
+.today-banner-unit {
+  font-size: 13px;
+  color: var(--text-inverse);
+  opacity: 0.75;
+}
+
+.today-banner-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .tcm-stat-card {
   background: var(--bg-elevated);
   border-radius: var(--radius-lg);

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  App,
   Button,
   Descriptions,
   Drawer,
@@ -15,17 +16,20 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, ExportOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   createMedicine,
   deleteMedicine,
   listMedicines,
+  saveTextToDownloads,
   updateMedicine,
 } from '@/api/tauri';
 import type { Medicine } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
+import { rowsToCsv } from '@/utils/csv';
+import { formatError } from '@/utils/formatError';
 
 const { Text } = Typography;
 
@@ -56,6 +60,7 @@ const CATEGORY_OPTIONS = [
 ].map((c) => ({ label: c, value: c }));
 
 export default function MedicineList() {
+  const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [modalOpen, setModalOpen] = useState(false);
@@ -67,6 +72,8 @@ export default function MedicineList() {
   const { data, isLoading } = useQuery({
     queryKey: ['medicines', keyword, category],
     queryFn: () => listMedicines(keyword || undefined, category),
+    // 药材库变更频率低，缓存 5 分钟；CRUD 后由 useCrudMutations 失效
+    staleTime: 5 * 60 * 1000,
   });
 
   const { create: createMutation, update: updateMutation, remove: deleteMutation } =
@@ -96,6 +103,42 @@ export default function MedicineList() {
     setEditing(record);
     form.setFieldsValue({ ...record });
     setModalOpen(true);
+  };
+
+  // 导出药材库 CSV（含完整字段，便于备份或外部维护）
+  const handleExportCsv = async () => {
+    const list = data ?? [];
+    if (list.length === 0) {
+      message.warning('没有可导出的数据');
+      return;
+    }
+    const rows: (string | number | null | undefined)[][] = [
+      ['名称', '别名', '分类', '性', '味', '归经', '功效', '主治', '用法', '用量', '禁忌', '备注'],
+    ];
+    for (const m of list) {
+      rows.push([
+        m.name,
+        m.alias ?? '',
+        m.category ?? '',
+        m.nature ?? '',
+        m.taste ?? '',
+        m.meridian ?? '',
+        m.efficacy ?? '',
+        m.indications ?? '',
+        m.usage ?? '',
+        m.dosage ?? '',
+        m.contraindication ?? '',
+        m.notes ?? '',
+      ]);
+    }
+    const csv = rowsToCsv(rows);
+    try {
+      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const path = await saveTextToDownloads(`medicines_export_${ts}.csv`, csv);
+      message.success(`已导出 ${list.length} 条药材记录到：${path}`);
+    } catch (e) {
+      message.error(formatError(e));
+    }
   };
 
   const handleSubmit = async () => {
@@ -191,6 +234,13 @@ export default function MedicineList() {
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新增药材
+          </Button>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={handleExportCsv}
+            disabled={!data || data.length === 0}
+          >
+            导出 CSV
           </Button>
         </Space>
 

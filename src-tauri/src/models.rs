@@ -214,6 +214,10 @@ pub struct DashboardData {
     pub low_stock_count: i64,
     pub low_stock_list: Vec<LowStockItem>,
     pub recent_prescriptions: Vec<Prescription>,
+    /// 今日开方数（按本地日期匹配）
+    pub today_prescription_count: i64,
+    /// 今日销售收入（按本地日期匹配）
+    pub today_revenue: f64,
 }
 
 /// 统计卡片

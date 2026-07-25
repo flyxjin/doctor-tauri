@@ -26,24 +26,27 @@ import {
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
+  ExportOutlined,
   EyeOutlined,
   PlusOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
 import {
   createPatient,
   deletePatient,
   getPatientStatistics,
   listPatients,
   listPrescriptions,
+  saveTextToDownloads,
   updatePatient,
 } from '@/api/tauri';
 import type { Patient, PrescriptionWithItems } from '@/types';
-import { PRESCRIPTION_COPY_KEY } from '@/pages/History';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
+import { useCopyToPrescription } from '@/hooks/useCopyToPrescription';
+import { rowsToCsv } from '@/utils/csv';
+import { formatError } from '@/utils/formatError';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -56,6 +59,7 @@ const GENDER_OPTIONS = [
 ];
 
 export default function Patients() {
+  const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Patient | null>(null);
@@ -67,6 +71,8 @@ export default function Patients() {
   const { data, isLoading } = useQuery({
     queryKey: ['patients', keyword],
     queryFn: () => listPatients(keyword || undefined),
+    // 患者档案变更频率低，缓存 5 分钟；CRUD 后由 useCrudMutations 失效
+    staleTime: 5 * 60 * 1000,
   });
 
   const { create: createMutation, update: updateMutation, remove: deleteMutation } =
@@ -94,6 +100,39 @@ export default function Patients() {
     setEditing(record);
     form.setFieldsValue({ ...record });
     setModalOpen(true);
+  };
+
+  // 导出患者档案 CSV（含基本信息与过敏史，便于备份或外部统计）
+  const handleExportCsv = async () => {
+    const list = data ?? [];
+    if (list.length === 0) {
+      message.warning('没有可导出的数据');
+      return;
+    }
+    const rows: (string | number | null | undefined)[][] = [
+      ['姓名', '性别', '年龄', '电话', '过敏史', '地址', '既往病史', '备注', '建档日期'],
+    ];
+    for (const p of list) {
+      rows.push([
+        p.name,
+        p.gender ?? '',
+        p.age ?? '',
+        p.phone ?? '',
+        p.allergy ?? '',
+        p.address ?? '',
+        p.medical_history ?? '',
+        p.notes ?? '',
+        p.created_at ?? '',
+      ]);
+    }
+    const csv = rowsToCsv(rows);
+    try {
+      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const path = await saveTextToDownloads(`patients_export_${ts}.csv`, csv);
+      message.success(`已导出 ${list.length} 条患者档案到：${path}`);
+    } catch (e) {
+      message.error(formatError(e));
+    }
   };
 
   const handleSubmit = async () => {
@@ -203,6 +242,13 @@ export default function Patients() {
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新增患者
           </Button>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={handleExportCsv}
+            disabled={!data || data.length === 0}
+          >
+            导出 CSV
+          </Button>
         </Space>
 
         {isLoading && !data ? (
@@ -307,9 +353,6 @@ interface PatientDetailDrawerProps {
 
 /** 患者详情 Drawer：展示基本信息、处方历史、统计数据 */
 function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
-  const navigate = useNavigate();
-  const { message } = App.useApp();
-
   // 改用 listPrescriptions 获取带 items 的处方，以支持「复制到处方」
   const { data: prescriptions, isLoading: loadingPrescriptions } = useQuery({
     queryKey: ['patient-prescriptions', patient?.name],
@@ -323,27 +366,10 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
     enabled: !!patient,
   });
 
-  // 复制处方到处方页（与 History 页逻辑一致）
+  // 复制处方到处方页（复用通用 hook，关闭 Drawer 后跳转）
+  const { copyToPrescription } = useCopyToPrescription(onClose);
   const handleCopyToPrescription = (record: PrescriptionWithItems) => {
-    const payload = {
-      patient_name: record.patient_name,
-      patient_age: record.patient_age ?? null,
-      patient_gender: record.patient_gender,
-      diagnosis: record.diagnosis,
-      created_by: record.created_by,
-      items: record.items.map((i) => ({
-        medicine_id: i.medicine_id,
-        medicine_name: i.medicine_name,
-        quantity: i.quantity,
-        unit: i.unit,
-        price: i.price,
-        amount: Number((i.quantity * i.price).toFixed(2)),
-      })),
-    };
-    sessionStorage.setItem(PRESCRIPTION_COPY_KEY, JSON.stringify(payload));
-    onClose();
-    navigate('/prescription');
-    message.success(`已加载处方 #${record.id} 的 ${record.items.length} 味药材，请核对后保存`);
+    copyToPrescription(record);
   };
 
   const prescriptionColumns: ColumnsType<PrescriptionWithItems> = [

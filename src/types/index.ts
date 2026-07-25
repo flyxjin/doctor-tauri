@@ -131,6 +131,10 @@ export interface DashboardData {
   low_stock_count: number;
   low_stock_list: LowStockItem[];
   recent_prescriptions: Prescription[];
+  /** 今日开方数（按本地日期匹配） */
+  today_prescription_count: number;
+  /** 今日销售收入（按本地日期匹配） */
+  today_revenue: number;
 }
 
 export interface StatisticsSummary {
