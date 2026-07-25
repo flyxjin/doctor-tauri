@@ -2,6 +2,21 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.15] - 2026-07-25
+
+### 重构
+
+- **`templateService` 类型逃逸收窄**（代码质量）— 用类型守卫 `isTemplatesArray` 替代 `as unknown as PrescriptionTemplate[]` 强制断言，让 JSON 数据形状在运行时得到校验；删除不再使用的 `TemplatesFile` interface。避免模板文件结构变更时静默传入脏数据
+- **删除后端死代码**（代码卫生）— 移除 `DataVersion` struct（全仓库 0 引用，仅定义未使用）与 `check_against_existing` 函数（"逐味添加"场景的设计预留，从未接入生产路径；前端已通过 `checkCompatibility` 全量校验配伍禁忌）及其单元测试。消除 2 处 `#[allow(dead_code)]` 抑制，让编译器重新成为未使用代码的有效防线
+
+### 测试
+
+- **`utils/inventory.test.ts` 新增 14 个测试**（测试覆盖空白填补）— 覆盖 `aggregateInventory`（空列表/单条/多批次聚合/minStock 取最小值/首批次 price-unit 口径/多药材独立聚合/字段缺失回退）与 `expiryStatus`（无日期/无效日期/已过期/今天当天/近效期窗口边界/远期 ok）两个核心库存工具函数。通过 mock `Date.now` 锁定"今天"避免跨日测试失败
+- **测试结果**：前端 53 → 67 个测试（+14），TypeScript 0 错误，ESLint 0 错误
+- **后端**：62 个测试（-1，删除 `test_check_against_existing_with_conflict`；0.3.14 的 +1 fallback 测试仍在），`cargo test --lib` 全部通过
+
+---
+
 ## [0.3.14] - 2026-07-25
 
 ### 重构

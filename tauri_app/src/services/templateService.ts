@@ -18,12 +18,32 @@ export interface PrescriptionTemplate {
 // 静态导入 JSON（Vite 支持）
 import templatesData from '@/data/prescription_templates.json';
 
-interface TemplatesFile {
-  templates: PrescriptionTemplate[];
+/**
+ * 类型守卫：判断未知值是否为 PrescriptionTemplate[]。
+ *
+ * 替代 `as unknown as` 强制断言，让 JSON 数据形状在运行时得到校验，
+ * 避免模板文件结构变更时静默传入脏数据。
+ */
+function isTemplatesArray(v: unknown): v is PrescriptionTemplate[] {
+  if (!Array.isArray(v)) return false;
+  return v.every(
+    (t) =>
+      t != null &&
+      typeof t === 'object' &&
+      'name' in t &&
+      typeof (t as { name: unknown }).name === 'string' &&
+      'items' in t &&
+      Array.isArray((t as { items: unknown }).items),
+  );
 }
 
-const templates: PrescriptionTemplate[] =
-  (templatesData as TemplatesFile).templates ?? (templatesData as unknown as PrescriptionTemplate[]);
+// 优先识别 { templates: [...] } 包装结构；否则直接将整体视为数组（需通过类型守卫校验）
+const wrapped = (templatesData as { templates?: unknown }).templates;
+const templates: PrescriptionTemplate[] = isTemplatesArray(wrapped)
+  ? wrapped
+  : isTemplatesArray(templatesData)
+    ? templatesData
+    : [];
 
 /** 返回全部方剂模板 */
 export function getTemplates(): PrescriptionTemplate[] {

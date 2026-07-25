@@ -172,19 +172,6 @@ pub struct OperationLog {
     pub created_at: Option<String>,
 }
 
-/// 数据版本
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataVersion {
-    pub id: Option<i64>,
-    pub version: String,
-    pub medicine_count: i64,
-    #[serde(default)]
-    pub checksum: Option<String>,
-    #[serde(default)]
-    pub created_at: Option<String>,
-}
-
 // ==================== 看板与统计 ====================
 
 /// 配伍禁忌冲突项

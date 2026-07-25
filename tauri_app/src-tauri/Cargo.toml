@@ -1,6 +1,6 @@
 [package]
 name = "medicine-system"
-version = "0.3.14"
+version = "0.3.15"
 description = "中药材销售管理系统"
 authors = ["medicine-system"]
 edition = "2021"

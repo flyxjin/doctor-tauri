@@ -108,30 +108,6 @@ pub fn check_compatibility(medicine_names: &[String]) -> Vec<CompatibilityConfli
     conflicts
 }
 
-/// 检查新增药材与已有药材列表的配伍禁忌
-///
-/// 用于"逐味添加"场景：用户在处方中已有若干药材，再加入一味新药时只检查新药与已有药材的冲突。
-#[allow(dead_code)]
-pub fn check_against_existing(
-    new_name: &str,
-    existing_names: &[String],
-) -> Vec<CompatibilityConflict> {
-    let mut conflicts = Vec::new();
-    for existing in existing_names {
-        if check_pair(new_name, existing) {
-            conflicts.push(CompatibilityConflict {
-                medicine1: new_name.to_string(),
-                medicine2: existing.clone(),
-                description: format!(
-                    "\"{}\" 与 \"{}\" 存在配伍禁忌（十八反/十九畏）",
-                    new_name, existing
-                ),
-            });
-        }
-    }
-    conflicts
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,19 +245,6 @@ mod tests {
         // 描述应包含双方药名及"配伍禁忌"字样
         assert!(conflicts[0].description.contains("甘草"));
         assert!(conflicts[0].description.contains("甘遂"));
-        assert!(conflicts[0].description.contains("配伍禁忌"));
-    }
-
-    // ==================== check_against_existing ====================
-
-    #[test]
-    fn test_check_against_existing_with_conflict() {
-        // 新增甘遂与已有 [甘草] 列表应冲突
-        let existing = vec!["甘草".to_string()];
-        let conflicts = check_against_existing("甘遂", &existing);
-        assert_eq!(conflicts.len(), 1);
-        assert_eq!(conflicts[0].medicine1, "甘遂");
-        assert_eq!(conflicts[0].medicine2, "甘草");
         assert!(conflicts[0].description.contains("配伍禁忌"));
     }
 
