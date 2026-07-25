@@ -27,6 +27,7 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
+  ExportOutlined,
   HistoryOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
@@ -37,6 +38,7 @@ import {
   listExpiringBatches,
   listInventory,
   listInventoryHistory,
+  saveTextToDownloads,
   updateStock,
 } from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
@@ -211,6 +213,59 @@ export default function InventoryPage() {
       expiry_date: null,
     });
     setModalOpen(true);
+  };
+
+  // 导出当前筛选后的库存为 CSV（含 BOM 以兼容 Excel）
+  const handleExportCsv = async () => {
+    const list = filteredData;
+    if (list.length === 0) {
+      message.warning('没有可导出的数据');
+      return;
+    }
+    const header = [
+      '药材',
+      '分类',
+      '批次号',
+      '生产日期',
+      '效期',
+      '库存量',
+      '单位',
+      '最低库存',
+      '单价',
+      '批次价值',
+      '备注',
+    ];
+    const escape = (v: string | number | null | undefined) => {
+      const s = v == null ? '' : String(v);
+      // 含逗号/引号/换行的字段用双引号包裹并转义内部引号
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [header.join(',')];
+    for (const i of list) {
+      lines.push(
+        [
+          escape(i.medicine_name),
+          escape(i.category),
+          escape(i.batch_no),
+          escape(i.production_date),
+          escape(i.expiry_date),
+          i.quantity,
+          escape(i.unit),
+          i.min_stock,
+          i.price.toFixed(2),
+          (i.quantity * i.price).toFixed(2),
+          escape(i.notes),
+        ].join(','),
+      );
+    }
+    const csv = '\uFEFF' + lines.join('\n');
+    try {
+      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const path = await saveTextToDownloads(`inventory_export_${ts}.csv`, csv);
+      message.success(`已导出到：${path}`);
+    } catch (e) {
+      message.error(formatError(e));
+    }
   };
 
   // 订阅 is_in 字段变化，使 Modal 标题与批次输入区随操作类型切换
@@ -462,22 +517,31 @@ export default function InventoryPage() {
 
       <div className="table-card">
         <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
-          <Segmented<FilterMode>
-            value={filterMode}
-            onChange={(v) => setFilterMode(v)}
-            options={[
-              { label: '全部', value: 'all' },
-              { label: `低库存${stats.lowCount > 0 ? ` (${stats.lowCount})` : ''}`, value: 'low' },
-              { label: `零库存${stats.zeroCount > 0 ? ` (${stats.zeroCount})` : ''}`, value: 'zero' },
-              { label: `近效期${expiringCount > 0 ? ` (${expiringCount})` : ''}`, value: 'expiring' },
-            ]}
-          />
-          <Input.Search
-            placeholder="搜索药材名 / 分类 / 批次号"
-            allowClear
-            style={{ width: 280 }}
-            onSearch={setKeyword}
-          />
+          <Space>
+            <Segmented<FilterMode>
+              value={filterMode}
+              onChange={(v) => setFilterMode(v)}
+              options={[
+                { label: '全部', value: 'all' },
+                { label: `低库存${stats.lowCount > 0 ? ` (${stats.lowCount})` : ''}`, value: 'low' },
+                { label: `零库存${stats.zeroCount > 0 ? ` (${stats.zeroCount})` : ''}`, value: 'zero' },
+                { label: `近效期${expiringCount > 0 ? ` (${expiringCount})` : ''}`, value: 'expiring' },
+              ]}
+            />
+            <Input.Search
+              placeholder="搜索药材名 / 分类 / 批次号"
+              allowClear
+              style={{ width: 260 }}
+              onSearch={setKeyword}
+            />
+          </Space>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={handleExportCsv}
+            disabled={filteredData.length === 0}
+          >
+            导出 CSV
+          </Button>
         </Space>
         <Table<Inventory>
           rowKey="id"

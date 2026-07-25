@@ -204,6 +204,39 @@ body,
 }
 
 /* ============================================================
+   快捷操作区
+   ============================================================ */
+
+.quick-actions {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.quick-actions-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+
+.quick-actions .ant-btn-large {
+  height: 44px;
+  padding-inline: 20px;
+  font-size: 14px;
+  border-radius: var(--radius-md);
+}
+
+.quick-actions .ant-btn-large .anticon {
+  font-size: 16px;
+}
+
+/* ============================================================
    侧边栏
    ============================================================ */
 

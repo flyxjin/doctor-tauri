@@ -156,6 +156,7 @@ export default function Patients() {
             onConfirm={() => deleteMutation.mutate(record.id!)}
             okText="删除"
             cancelText="取消"
+            okButtonProps={{ danger: true }}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               删除

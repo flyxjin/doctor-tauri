@@ -257,6 +257,11 @@ export async function restoreBackup(backupPath: string): Promise<void> {
   return invoke<void>('restore_backup', { backupPath });
 }
 
+/** 删除指定备份文件及其清单 */
+export async function deleteBackup(backupPath: string): Promise<void> {
+  return invoke<void>('delete_backup', { backupPath });
+}
+
 // ==================== 自动更新 ====================
 
 /** 检查 Gitee 最新 Release */
