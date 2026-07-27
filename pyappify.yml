@@ -1,0 +1,41 @@
+# PyAppify 配置文件
+# 文档: https://github.com/ok-oldking/pyappify
+# 字段说明见 pyappify/src-tauri/assets/pyappify.yml 与 src/app.rs::update_app_from_yml
+#
+# 分发方式（预构建启动器）：
+#   1. 从 https://github.com/ok-oldking/pyappify/releases 下载 pyappify.exe（~3MB）
+#   2. 将 pyappify.exe 重命名为 中药材销售管理系统.exe
+#   3. 将本 pyappify.yml 放在 exe 同目录
+#   4. 双击 exe，启动器会自动：
+#      - 克隆本仓库到 data/apps/medicine-system/repo/
+#      - 复制仓库根目录到 working_dir（不含 .git）
+#      - 下载独立 Python 3.12 到 data/apps/medicine-system/python/
+#      - 在 venv 中 pip 安装 python_app/requirements.txt
+#      - 运行 python_app/main.py，并注入 PYAPPIFY_* 环境变量
+#   5. 后续更新：启动器自动通过 Git tag 检测新版本，增量拉取约 1 秒完成
+
+# name 必须为英文（PyAppify 用作目录名 data/apps/<name>/）
+name: "medicine-system"
+
+# icon 为可选图片路径，相对 working_dir（即仓库根目录副本），
+# 必须位于 working_dir 内（启动器会做 canonicalize + starts_with 检查），
+# 支持 png/jpg/gif/webp/svg/bmp/ico，最大 5 MiB
+icon: "tauri_app/src-tauri/icons/128x128.png"
+
+profiles:
+  - name: "release"
+    # git_url 必须有 tags 用于版本管理，semver 推荐（如 v5.0.0）
+    git_url: "https://gitee.com/flyxjin/doctor.git"
+    # main_script 以 .py 结尾时用 venv 的 python 运行，路径相对 working_dir
+    main_script: "python_app/main.py"
+    # supports python 3.7 - 3.13
+    requires_python: "3.12"
+    # 支持 *.txt 或 pyproject.toml 的 .[dev,docs]
+    requirements: "python_app/requirements.txt"
+    # 可选 pip 参数，使用腾讯云镜像加速国内下载
+    pip_args: "--index-url https://mirrors.cloud.tencent.com/pypi/simple"
+
+  - name: "dev"
+    # dev profile 省略其他字段，继承 release 的默认值
+    # 可在启动器 GUI 中切换 profile，用于调试
+    main_script: "python_app/main.py"

@@ -6,7 +6,7 @@
 
 | 方案 | 路径 | 技术栈 | 体积 | 推荐场景 |
 |------|------|--------|------|---------|
-| **方案 A · Python 版** | [`python_app/`](python_app) | Python + PySide6 + SQLAlchemy | ~50 MB | 快速开发、学习 Qt、单文件分发 |
+| **方案 A · Python 版** | [`python_app/`](python_app) | Python + PySide6 + SQLAlchemy + PyAppify | ~3 MB | 快速开发、学习 Qt、Git 增量更新 |
 | **方案 B · Tauri 版** ⭐ | [`tauri_app/`](tauri_app) | Rust + React 18 + TypeScript | ~3 MB | **生产首选**、极致体积、现代 UI、自动更新 |
 
 两套方案共享同一产品需求与功能矩阵，数据库结构对齐，**数据可互通**（备份 / 还原）。
@@ -27,9 +27,9 @@
 | 患者档案 + 历史处方 | ✅ | ✅ |
 | 批量导入（CSV） | ✅ | ✅ |
 | 数据备份与还原 | ✅ | ✅ |
-| Gitee 自动更新 | ✅ | ✅ |
+| Git 增量自动更新 | ✅（PyAppify） | ✅（Gitee Releases） |
 | 操作日志查询 | ✅ | ✅ |
-| NSIS 安装包 | ❌（便携 exe） | ✅ |
+| NSIS 安装包 | ✅（PyAppify） | ✅ |
 | 代码签名 | ❌ | ⚠️（需购买证书） |
 
 ---
@@ -38,7 +38,7 @@
 
 ### 为什么推荐 Tauri 版？
 
-- **体积小 16 倍**：NSIS 安装包 3 MB vs Python 打包后 ~50 MB
+- **体积小**：NSIS 安装包 3 MB（与 Python 版 PyAppify 启动器相当）
 - **启动秒开**：Rust 原生编译，无 Python 解释器冷启动开销
 - **现代 Web UI**：React + Ant Design 5，组件丰富、样式灵活
 - **内存占用低**：WebView2 渲染，无 Qt 运行时
@@ -93,26 +93,36 @@ npm run tauri:build    # 生产构建
 
 - 已有 Python 环境，想快速二次开发
 - 学习 PyQt/PySide6 桌面开发
-- 需要单文件 exe 分发（无安装过程）
-- 不在意体积（50 MB 可接受）
+- 需要小体积（~3 MB）启动器分发，首次运行自动拉取环境
+- 希望享受 Git 增量更新（典型 1 秒完成）
 
 ### 快速开始
 
-**环境要求**：Python 3.9+、Windows 8.1/10/11
+**环境要求**：Python 3.9+、Windows 10/11
 
 ```powershell
+# 方式一：开发模式
 cd python_app
 pip install -r requirements.txt
-python main.py               # 运行
-pyinstaller --clean 中药材销售管理系统.spec   # 打包
+python main.py
+
+# 方式二：PyAppify 启动器分发（v5.0.0+，推荐）
+# 1. 下载 pyappify.exe（~3MB）→ 重命名为「中药材销售管理系统.exe」
+# 2. 将项目根目录的 pyappify.yml 放在 exe 同目录
+# 3. 双击 exe，启动器自动克隆代码 + 下载 Python 3.12 + 安装依赖
 ```
 
-**产物位置**：`python_app/dist/中药材销售管理系统.exe`
+**产物位置**：PyAppify 启动器目录（首次运行后自动生成 `data/`、`logs/`、`cache/`）
 
 ### 技术架构
 
 ```
 ┌─────────────────────────────────────────────────┐
+│         PyAppify 启动器 (~3MB Rust 二进制)        │
+│  └── Git tag 版本管理 + 增量更新 + 多 profile    │
+└────────────────────┬────────────────────────────┘
+                     │ 启动独立 Python 3.12 venv
+┌────────────────────▼────────────────────────────┐
 │            PySide6 6.6+ (Qt 官方维护)             │
 └────────────────────┬────────────────────────────┘
                      │
@@ -142,7 +152,7 @@ pyinstaller --clean 中药材销售管理系统.spec   # 打包
 2. 双击安装（需 Windows 10/11）
 3. 桌面快捷方式启动即可
 
-> 老电脑（Windows 8.1）或不想安装？用方案 A 的便携 exe，双击即用。
+> 老电脑（Windows 10）或不想安装？用方案 A 的 PyAppify 启动器，下载 ~3MB exe + pyappify.yml 双击即用，首次运行自动拉取 Python 环境与依赖。
 
 ### 我是开发者，想学习 / 二次开发
 
@@ -152,7 +162,7 @@ pyinstaller --clean 中药材销售管理系统.spec   # 打包
 | 已会 Python / 想快速出活 | **方案 A** | Python 生态熟、迭代快、调试简单 |
 | 想学现代前端 (React/TS) | **方案 B** | 完整 React + Ant Design + TanStack Query 实战 |
 | 想学桌面 GUI 框架 | **方案 A** | Qt (PySide6) 是跨平台 GUI 工业标准 |
-| 追求最小体积 / 最佳性能 | **方案 B** | 3 MB vs 50 MB，启动秒开 |
+| 追求最小体积 / 最佳性能 | **方案 B** | Rust 原生编译，启动秒开 |
 
 ### 两套方案的技术栈对比
 
@@ -163,10 +173,11 @@ pyinstaller --clean 中药材销售管理系统.spec   # 打包
 | 类型系统 | 动态类型 + typing | TypeScript 严格模式 + Rust 类型系统 |
 | 数据库 | SQLite3 + SQLAlchemy 2.0 ORM | rusqlite (bundled SQLite) |
 | 状态管理 | 内存 LRU 缓存 | TanStack Query 5 |
-| 打包工具 | PyInstaller 6.x | Tauri 2.x bundler + NSIS |
+| 打包工具 | PyAppify 启动器（Rust） | Tauri 2.x bundler + NSIS |
 | 测试框架 | pytest + pytest-qt | Vitest + cargo test |
 | 代码质量 | ruff + mypy | ESLint + tsc |
-| 安装包体积 | ~50 MB（便携 exe） | ~3 MB（NSIS 安装包） |
+| 安装包体积 | ~3 MB（PyAppify 启动器） | ~3 MB（NSIS 安装包） |
+| 自动更新 | PyAppify Git tag 增量拉取 | Gitee Releases 流式下载 |
 | CI/CD | GitHub Actions | 本地构建 + Gitee Releases |
 
 ---
@@ -180,11 +191,12 @@ doctor/
 │   ├── core/                # 业务层（Service / Repository / Cache / Validators）
 │   ├── views/               # 视图层（7 个页面）
 │   ├── widgets/             # 自定义控件
-│   ├── utils/               # 工具模块（版本管理 / 自动更新 / 响应式字体）
-│   ├── tests/               # 单元测试（pytest）
-│   ├── requirements.txt     # 运行依赖
-│   ├── pyproject.toml       # ruff + mypy 配置
-│   └── 中药材销售管理系统.spec  # PyInstaller 打包配置
+│   ├── utils/               # 工具模块（版本管理 / 响应式字体 / 快捷键）
+│   ├── tests/               # 单元测试（pytest，181 个全部通过）
+│   ├── requirements.txt     # 运行依赖（不含 pyinstaller）
+│   └── pyproject.toml       # ruff + mypy 配置
+│
+├── pyappify.yml             # PyAppify 启动器配置（v5.0.0+）
 │
 ├── tauri_app/               # 方案 B：Tauri + React 版本（生产首选）
 │   ├── src/                 # React 前端

@@ -9,4 +9,4 @@ pydantic>=2.0.0
 
 # 其它运行时依赖
 openpyxl>=3.1.0
-pyinstaller==6.3.0
+# 注：打包改由 PyAppify 启动器接管（见项目根目录 pyappify.yml），不再需要 pyinstaller

@@ -1,19 +1,45 @@
-import json
-import logging
-import os
-from datetime import datetime
-from typing import Any, Dict
+"""版本信息与变更日志。
 
-CURRENT_VERSION = "4.2.0"
-VERSION_DATE = "2026-07-22"
+自 v5.0.0 起，打包与自动更新由 PyAppify 启动器接管（见项目根目录 pyappify.yml）。
+本模块仅保留版本号、变更日志与版本比较工具，供「关于」对话框与 UI 展示使用。
+
+PyAppify 启动器运行时会注入以下环境变量（见 pyappify src/app_service.rs:
+build_python_execution_environment）：
+- PYAPPIFY_APP_VERSION       当前 git tag 版本号（如 "v5.0.0"），优先级最高
+- PYAPPIFY_APP_STARTING_VERSION  本次启动对应的版本号
+- PYAPPIFY_UPDATE_NOTE       更新说明（JSON 数组，来自 git 提交信息）
+- PYAPPIFY_APP_PROFILE       当前 profile 名称
+- PYAPPIFY_LOCALE            系统语言
+- PYAPPIFY_VERSION           PyAppify 启动器版本号
+- PYAPPIFY_EXECUTABLE        启动器 exe 路径
+- PYAPPIFY_APP_JSON_PATH     app.json 配置路径（可通过它修改 update_method/auto_start）
+"""
+
+import os
+from typing import Any, Dict, List, Optional
+
+CURRENT_VERSION = "5.0.0"
+VERSION_DATE = "2026-07-27"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
-GITEE_REPO = "flyxjin/doctor"
-GITEE_API_URL = f"https://gitee.com/api/v5/repos/{GITEE_REPO}"
-GITEE_RELEASES_URL = f"{GITEE_API_URL}/releases/latest"
-
-CHANGELOG = {
+CHANGELOG: Dict[str, Dict[str, Any]] = {
+    "5.0.0": {
+        "date": "2026-07-27",
+        "changes": [
+            "打包系统重大变更：PyInstaller → PyAppify 启动器（~3MB Rust 二进制）",
+            "启动器体积从 ~50MB 降至 ~3MB，与 Tauri 版相当",
+            "更新方式从「下载整个 exe」改为「Git 增量拉取」，典型增量约 1 秒",
+            "NSIS 安装包支持（功能矩阵中由 ❌ 改为 ✅）",
+            "避免 PyInstaller exe 易触发 Windows Defender 误报的问题",
+            "删除自研更新器：utils/updater.py（310 行）、widgets/update_dialog.py、update_config.json",
+            "精简 utils/version.py：移除 VersionManager 更新检查逻辑，保留 Version 类与 CHANGELOG",
+            "精简 main.py：移除 _check_update_*、_on_update_* 系列方法与「检查更新」菜单项",
+            "删除 PyInstaller 配置：中药材销售管理系统.spec、build.bat",
+            "新增 pyappify.yml 配置文件（项目根目录）",
+            "requirements.txt 移除 pyinstaller 依赖",
+        ]
+    },
     "4.2.0": {
         "date": "2026-07-22",
         "changes": [
@@ -297,6 +323,8 @@ CHANGELOG = {
 
 
 class Version:
+    """语义化版本比较工具"""
+
     def __init__(self, version_str: str):
         self.original = version_str
         self.parts = self._parse(version_str)
@@ -324,92 +352,60 @@ class Version:
         return self.original
 
 
-class VersionManager:
-    def __init__(self, config_dir: str = None):
-        if config_dir is None:
-            config_dir = self._get_config_dir()
+def get_changelog(version: str = None) -> Dict[str, Any]:
+    """获取指定版本的变更日志；不指定版本时返回全部。"""
+    if version:
+        return CHANGELOG.get(version, {})
+    return CHANGELOG
 
-        self.config_dir = config_dir
-        self.config_file = os.path.join(config_dir, "update_config.json")
-        self._ensure_config_dir()
-        self.config = self._load_config()
 
-    def _get_config_dir(self) -> str:
-        from core.database import get_app_data_dir
-        return get_app_data_dir()
+def get_runtime_version() -> str:
+    """获取运行时版本号。
 
-    def _ensure_config_dir(self):
-        if not os.path.exists(self.config_dir):
-            os.makedirs(self.config_dir)
+    优先从 PyAppify 注入的 PYAPPIFY_APP_VERSION 环境变量读取（git tag，如 "v5.0.0"），
+    回退到本模块硬编码的 CURRENT_VERSION（开发模式 python main.py 时使用）。
 
-    def _load_config(self) -> Dict[str, Any]:
-        default_config = {
-            "check_on_startup": True,
-            "check_interval_hours": 24,
-            "last_check_time": None,
-            "skip_version": None,
-            "auto_download": False,
-            "download_dir": os.path.join(self.config_dir, "downloads")
-        }
+    返回值已去除前导 'v'，例如 "5.0.0"。
+    """
+    raw = os.environ.get("PYAPPIFY_APP_VERSION", "").strip()
+    if raw:
+        return raw.lstrip("v")
+    return CURRENT_VERSION
 
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    saved = json.load(f)
-                    default_config.update(saved)
-            except (json.JSONDecodeError, OSError) as e:
-                logging.getLogger('MedicineSystem').warning(f"加载更新配置失败: {e}")
-            except Exception as e:
-                # 配置结构异常（如字段类型错误）时回退到默认配置，避免崩溃
-                logging.getLogger('MedicineSystem').warning(f"更新配置解析异常，使用默认配置: {e}")
 
-        return default_config
+def get_starting_version() -> Optional[str]:
+    """获取本次启动对应的版本号（来自 PyAppify 的 PYAPPIFY_APP_STARTING_VERSION）。"""
+    raw = os.environ.get("PYAPPIFY_APP_STARTING_VERSION", "").strip()
+    return raw.lstrip("v") if raw else None
 
-    def save_config(self):
-        try:
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, ensure_ascii=False, indent=2)
-        except OSError as e:
-            logging.getLogger('MedicineSystem').warning(f"保存更新配置失败: {e}")
 
-    def get_current_version(self) -> Version:
-        return Version(CURRENT_VERSION)
+def get_update_notes() -> List[str]:
+    """获取本次更新说明（来自 PyAppify 的 PYAPPIFY_UPDATE_NOTE，JSON 数组）。
 
-    def should_check_update(self) -> bool:
-        if not self.config.get("check_on_startup", True):
-            return False
+    仅在通过 PyAppify 启动器启动并发生版本更新时返回非空列表。
+    """
+    import json
+    raw = os.environ.get("PYAPPIFY_UPDATE_NOTE", "").strip()
+    if not raw:
+        return []
+    try:
+        notes = json.loads(raw)
+        return [str(item) for item in notes] if isinstance(notes, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
 
-        last_check = self.config.get("last_check_time")
-        if not last_check:
-            return True
 
-        try:
-            last_time = datetime.fromisoformat(last_check)
-            interval_hours = self.config.get("check_interval_hours", 24)
-            elapsed = datetime.now() - last_time
-            return elapsed.total_seconds() >= interval_hours * 3600
-        except (ValueError, TypeError):
-            # last_check_time 格式异常或字段类型错误时，触发检查
-            return True
+def get_pyappify_info() -> Dict[str, str]:
+    """获取 PyAppify 启动器运行时信息（仅启动器运行时有值）。"""
+    return {
+        "version": os.environ.get("PYAPPIFY_VERSION", ""),
+        "executable": os.environ.get("PYAPPIFY_EXECUTABLE", ""),
+        "profile": os.environ.get("PYAPPIFY_APP_PROFILE", ""),
+        "locale": os.environ.get("PYAPPIFY_LOCALE", ""),
+        "app_json_path": os.environ.get("PYAPPIFY_APP_JSON_PATH", ""),
+    }
 
-    def record_check_time(self):
-        self.config["last_check_time"] = datetime.now().isoformat()
-        self.save_config()
 
-    def skip_version(self, version: str):
-        self.config["skip_version"] = version
-        self.save_config()
-
-    def is_version_skipped(self, version: str) -> bool:
-        return self.config.get("skip_version") == version
-
-    def get_download_dir(self) -> str:
-        download_dir = self.config.get("download_dir")
-        if download_dir and not os.path.exists(download_dir):
-            os.makedirs(download_dir)
-        return download_dir
-
-    def get_changelog(self, version: str = None) -> Dict[str, Any]:
-        if version:
-            return CHANGELOG.get(version, {})
-        return CHANGELOG
+def is_running_under_pyappify() -> bool:
+    """判断当前是否运行在 PyAppify 启动器环境下。"""
+    return bool(os.environ.get("PYAPPIFY_VERSION"))

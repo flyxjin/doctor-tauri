@@ -1,6 +1,6 @@
 import sys
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -21,8 +21,13 @@ from core import BuiltinDataLoader, Database, PatientService, get_app_logger
 from core.theme import AppColors, get_button_style, get_main_window_style
 from utils.responsive_font import get_font_manager
 from utils.shortcuts import ShortcutManager, get_shortcut_help_text
-from utils.updater import UpdateManager
-from utils.version import CURRENT_VERSION, VERSION_DATE, VersionManager
+from utils.version import (
+    VERSION_DATE,
+    get_pyappify_info,
+    get_runtime_version,
+    get_update_notes,
+    is_running_under_pyappify,
+)
 from views.batch_import_view import BatchImportView
 from views.dashboard_view import DashboardView
 from views.history_view import HistoryView
@@ -32,7 +37,6 @@ from views.patient_view import PatientView
 from views.prescription_view import PrescriptionView
 from views.statistics_view import StatisticsView
 from widgets.page_header import PageHeader
-from widgets.update_dialog import UpdateDialog
 
 
 class MainWindow(QMainWindow):
@@ -47,14 +51,11 @@ class MainWindow(QMainWindow):
         data_loader.ensure_data_loaded()
 
         self.font_manager = get_font_manager()
-        self.version_manager = VersionManager()
-        self.update_manager = UpdateManager(self.version_manager)
         self.font_manager.font_changed.connect(self._on_font_changed)
         self._resize_timer = None
         self._last_window_state = None
         self.init_ui()
         self._setup_shortcuts()
-        self._check_update_on_startup()
 
     def _setup_shortcuts(self):
         """初始化全局快捷键系统"""
@@ -182,12 +183,6 @@ class MainWindow(QMainWindow):
 
         help_menu = menubar.addMenu('帮助')
 
-        update_action = QAction('检查更新', self)
-        update_action.triggered.connect(self._check_update_manual)
-        help_menu.addAction(update_action)
-
-        help_menu.addSeparator()
-
         shortcut_action = QAction('快捷键说明', self)
         shortcut_action.setShortcut('F1')
         shortcut_action.triggered.connect(self._show_about)
@@ -267,7 +262,7 @@ class MainWindow(QMainWindow):
         self.import_btn.clicked.connect(self.show_import_dialog)
         sidebar_layout.addWidget(self.import_btn)
 
-        self.version_label = QLabel(f'v{CURRENT_VERSION}')
+        self.version_label = QLabel(f'v{get_runtime_version()}')
         self.version_label.setObjectName('version_label')
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setMinimumHeight(24)
@@ -386,50 +381,6 @@ class MainWindow(QMainWindow):
 
         self.font_manager.update_for_window_size(self.width())
 
-    def _check_update_on_startup(self):
-        if self.version_manager.should_check_update():
-            QTimer.singleShot(2000, self._check_update_silent)
-
-    def _check_update_silent(self):
-        self.update_manager.check_update(
-            self._on_update_found,
-            self._on_update_error
-        )
-
-    def _check_update_manual(self):
-        self.status_bar.showMessage('正在检查更新...')
-        self.update_manager.check_update(
-            self._on_update_found_manual,
-            self._on_update_error_manual
-        )
-
-    def _on_update_found(self, update_info):
-        if update_info:
-            if not self.version_manager.is_version_skipped(update_info.version):
-                dialog = UpdateDialog(self, update_info, self.version_manager)
-                dialog.exec()
-        self.version_manager.record_check_time()
-
-    def _on_update_error(self, error):
-        pass
-
-    def _on_update_found_manual(self, update_info):
-        self.status_bar.clearMessage()
-        if update_info:
-            dialog = UpdateDialog(self, update_info, self.version_manager)
-            dialog.exec()
-        else:
-            dialog = UpdateDialog(self, None, self.version_manager)
-            dialog.show_no_update()
-            dialog.exec()
-        self.version_manager.record_check_time()
-
-    def _on_update_error_manual(self, error):
-        self.status_bar.clearMessage()
-        dialog = UpdateDialog(self, None, self.version_manager)
-        dialog.show_error(error)
-        dialog.exec()
-
     def show_import_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('批量导入药材数据')
@@ -493,16 +444,38 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, '备份失败', str(e))
 
     def _show_about(self):
-        QMessageBox.about(self, '关于',
+        runtime_version = get_runtime_version()
+        pyappify_info = get_pyappify_info()
+        running_under_pyappify = is_running_under_pyappify()
+
+        about_html = (
             f'<h3>中药材销售管理系统</h3>'
-            f'<p>版本: {CURRENT_VERSION}</p>'
+            f'<p>版本: {runtime_version}</p>'
             f'<p>发布日期: {VERSION_DATE}</p>'
             f'<hr>'
             f'<p>一款专业的中药材信息管理系统</p>'
             f'<p>支持药材管理、处方开具、库存管理等功能</p>'
-            f'<hr>'
-            f'{get_shortcut_help_text()}'
         )
+
+        if running_under_pyappify:
+            launcher_version = pyappify_info.get('version', '')
+            profile = pyappify_info.get('profile', '')
+            about_html += (
+                '<hr>'
+                '<p style="color:#666;font-size:11px;">由 PyAppify 启动器运行'
+                + (f' v{launcher_version}' if launcher_version else '')
+                + (f' · profile: {profile}' if profile else '')
+                + '</p>'
+            )
+
+        update_notes = get_update_notes()
+        if update_notes:
+            notes_html = '<br>'.join(f'• {note}' for note in update_notes[:10])
+            about_html += f'<hr><p><b>本次更新内容：</b></p><p>{notes_html}</p>'
+
+        about_html += f'<hr>{get_shortcut_help_text()}'
+
+        QMessageBox.about(self, '关于', about_html)
 
     def switch_view(self, view_name):
         view_map = {

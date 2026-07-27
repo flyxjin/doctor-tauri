@@ -15,9 +15,10 @@
 
 根据 LGPL v3 协议要求，本项目作为「使用」（非衍生）LGPL 库的应用程序，声明如下：
 
-1. **允许用户替换 LGPL 库**：本应用以动态链接方式使用 PySide6 / Qt 库。打包后的 exe（PyInstaller `--onefile` 模式）将 Qt 库嵌入归档，用户可通过以下方式替换：
-   - 安装 Python 3.9+ 与 PySide6（`pip install PySide6`），从源码运行 `python main.py` 即可使用用户自行安装的 Qt 版本
-   - 或使用 PyInstaller `--onedir` 模式重新打包，替换 `dist/` 目录下的 Qt DLL 文件
+1. **允许用户替换 LGPL 库**：本应用以动态链接方式使用 PySide6 / Qt 库。自 v5.0.0 起，应用通过 [PyAppify](https://github.com/ok-oldking/pyappify) 启动器运行，启动器在用户机器上拉取独立 Python 3.12 环境并通过 `pip install PySide6` 安装 Qt 库到 `data/venv/` 目录，用户可执行以下任一方式替换：
+   - 修改 `pyappify.yml` 中的 `requirements` 字段指定不同版本的 PySide6
+   - 直接编辑 `data/venv/` 目录下的 PySide6 / Qt DLL 文件
+   - 从源码运行 `python main.py` 即可使用用户自行安装的 Qt 版本
 
 2. **允许逆向调试**：用户有权对本应用中 PySide6 / Qt 部分进行逆向工程与调试
 
@@ -51,17 +52,15 @@
 
 ---
 
-## 5. PyInstaller — GPL License（带例外条款）
+## 5. PyAppify — MIT License
 
-- **用途**：打包工具（仅开发期使用，不包含在运行时）
-- **协议**：GPL v2（带 Bootloader 例外条款）
-- **主页**：https://pyinstaller.org/
+- **用途**：应用打包 / 自动更新启动器（Rust 二进制，~3MB，不包含 Python 运行时）
+- **协议**：MIT License
+- **主页**：https://github.com/ok-oldking/pyappify
 
-### GPL 例外说明
+### 说明
 
-PyInstaller 的 GPL 协议仅约束 PyInstaller 自身及其 Bootloader，**不传染被打包的应用程序**。本应用使用 PyInstaller 打包后，应用本身仍遵循 MIT License。
-
-详见：https://pyinstaller.org/en/stable/license.html
+PyAppify 启动器是独立的 Rust 程序，**不嵌入 Python 解释器或依赖库**。首次运行时，启动器从官方源下载独立 Python 3.12 与本应用 `requirements.txt` 声明的依赖到本地 `data/` 目录，应用代码与依赖均以源码 / wheel 形式存在，不构成静态或动态链接。PyAppify 自身遵循 MIT License，不传染本应用。
 
 ---
 

@@ -40,11 +40,20 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# PyInstaller
+# PyInstaller (已弃用，改用 PyAppify)
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+
+# PyAppify 运行时产物（启动器自动生成，不入库）
+python_app/data/
+python_app/logs/
+python_app/cache/
+pyappify_dist/
+*.pyappify.exe
+# PyAppify 源码包（用户本地下载参考，不入库）
+pyappify-*/
 
 # Installer logs
 pip-log.txt

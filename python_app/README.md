@@ -14,25 +14,35 @@
 | **销售统计** | 时间范围筛选（今日/本周/本月/本年/全部）、热销药材 TOP10、营收趋势分析 |
 | **患者档案** | 患者信息管理、历史处方关联、消费统计 |
 | **批量导入** | CSV 批量导入药材、UPSERT 语义、实时进度 |
-| **系统设置** | 数据备份与还原、Gitee 自动更新、操作日志查询 |
+| **系统设置** | 数据备份与还原、PyAppify 自动更新、操作日志查询 |
 
 ## 系统要求
 
 | 项目 | 要求 |
 |------|------|
-| **操作系统** | Windows 8.1 / 10 / 11 |
+| **操作系统** | Windows 10 / 11 |
 | **处理器** | 1 GHz 或更快 |
 | **内存** | 512 MB RAM |
-| **硬盘** | 100 MB 可用空间 |
-| **运行时** | 无需安装（exe 已打包所有依赖） |
+| **硬盘** | 50 MB 可用空间（首次启动需联网下载 Python 环境与依赖） |
+| **运行时** | 无需安装（PyAppify 启动器自动拉取独立 Python 3.12 + 依赖） |
 
 ## 安装与运行
 
-### 方法一：直接运行打包版本（推荐）
+### 方法一：PyAppify 启动器（推荐，v5.0.0+）
 
-双击 `中药材销售管理系统.exe` 即可运行，无需安装 Python 或其他依赖。
+自 v5.0.0 起，打包与自动更新由 [PyAppify](https://github.com/ok-oldking/pyappify) 启动器接管，体积从 ~50MB 降至 ~3MB。
 
-### 方法二：从源码运行
+1. 从 [PyAppify Releases](https://github.com/ok-oldking/pyappify/releases) 下载 `pyappify.exe`（~3MB）
+2. 重命名为 `中药材销售管理系统.exe`
+3. 将项目根目录的 `pyappify.yml` 放在 exe 同目录
+4. 双击 exe，启动器会自动：
+   - 克隆本仓库（首次约 10 秒）
+   - 下载独立 Python 3.12 环境（不污染系统 Python）
+   - `pip install` 安装依赖
+   - 运行 `python_app/main.py`
+5. **后续更新**：启动器自动通过 Git tag 检测新版本，增量拉取约 1 秒完成，无需重新下载整个安装包
+
+### 方法二：从源码运行（开发模式）
 
 1. 安装 Python 3.9+（勾选 "Add Python to PATH"）
 2. 安装依赖：
@@ -44,14 +54,9 @@
    python main.py
    ```
 
-### 方法三：自行打包
+### 方法三：CI 自动构建离线分发包
 
-```bash
-pip install -r requirements.txt
-pyinstaller --clean 中药材销售管理系统.spec
-```
-
-产物位于 `dist/中药材销售管理系统.exe`。
+使用 [pyappify-action](https://github.com/ok-oldking/pyappify-action) GitHub Action 可构建包含 Python 环境、依赖、代码的完整离线分发包（zip），适合内网或网络不畅的场景。详见 PyAppify 文档。
 
 ## 项目结构
 
@@ -59,10 +64,9 @@ pyinstaller --clean 中药材销售管理系统.spec
 python_app/
 ├── main.py                          # 主程序入口、主窗口、视图切换
 ├── medicines_data_300.py            # 内置 300 味中药材数据
-├── requirements.txt                 # 运行依赖
+├── requirements.txt                 # 运行依赖（不含 pyinstaller）
 ├── requirements-dev.txt             # 开发依赖（测试、lint）
 ├── pytest.ini                       # pytest 配置
-├── 中药材销售管理系统.spec           # PyInstaller 打包配置
 ├── core/                            # 核心业务层
 │   ├── database.py                  # 数据库连接 + schema 自动迁移
 │   ├── models.py                    # 数据模型（Medicine/Inventory/Prescription 等）
@@ -84,13 +88,12 @@ python_app/
 │   ├── statistics_view.py           # 销售统计
 │   └── batch_import_view.py         # 批量导入
 ├── widgets/                         # 自定义控件
-│   ├── page_header.py               # 页面标题栏
-│   └── update_dialog.py             # 更新对话框
+│   └── page_header.py               # 页面标题栏
 ├── utils/                           # 工具模块
-│   ├── version.py                   # 版本管理 + 更新日志
-│   ├── updater.py                   # 自动更新
+│   ├── version.py                   # 版本号 + 变更日志 + Version 比较工具
+│   ├── shortcuts.py                 # 全局快捷键
 │   └── responsive_font.py           # 响应式字体
-└── tests/                           # 单元测试
+└── tests/                           # 单元测试（181 个，全部通过）
     ├── conftest.py                  # pytest fixtures
     ├── test_services.py             # Service 层测试
     ├── test_cache_sync.py           # 缓存同步测试
@@ -112,8 +115,8 @@ python_app/
 - **GUI 框架**: PySide6 6.6+（Qt 官方维护，LGPL 授权）
 - **数据库**: SQLite3（线程安全单例 + schema 自动迁移）
 - **ORM**: SQLAlchemy 2.0（Repository 分层，只读走 ORM，写操作保留原生 SQL 维持跨 Repository 事务原子性）
-- **打包工具**: PyInstaller 6.x
-- **开发语言**: Python 3.9+
+- **打包 / 自动更新**: [PyAppify](https://github.com/ok-oldking/pyappify) ~3MB Rust 启动器 + Git 增量更新
+- **开发语言**: Python 3.9+（PyAppify 启动器内置 Python 3.12 独立环境）
 - **测试框架**: pytest + pytest-qt
 - **缓存**: LRU 缓存 + 读写穿透
 
@@ -169,13 +172,28 @@ v3.3.1+ 已修复：导入完成后自动失效缓存并重建，无需手动刷
 
 ## 版本信息
 
-- 当前版本: **4.2.0**
-- 发布日期: 2026-07-22
-- 开发语言: Python 3.9+
+- 当前版本: **5.0.0**
+- 发布日期: 2026-07-27
+- 开发语言: Python 3.9+（PyAppify 启动器内置 Python 3.12）
 - 界面框架: PySide6 6.6+
 - ORM: SQLAlchemy 2.0
+- 打包工具: PyAppify（取代 PyInstaller）
 
 ## 更新日志
+
+### v5.0.0 (2026-07-27) — 打包系统重大变更：PyInstaller → PyAppify
+
+- **启动器体积从 ~50MB 降至 ~3MB**：改用 PyAppify Rust 启动器，与 Tauri 版相当
+- **更新方式从「下载整个 exe」改为「Git 增量拉取」**：典型增量约 1 秒完成
+- **NSIS 安装包支持**：功能矩阵中由 ❌ 改为 ✅
+- 避免 PyInstaller exe 易触发 Windows Defender 误报的问题
+- 删除自研更新器：`utils/updater.py`（310 行）、`widgets/update_dialog.py`、`update_config.json`
+- 精简 `utils/version.py`：移除 `VersionManager` 更新检查逻辑，保留 `Version` 类与 `CHANGELOG`
+- 精简 `main.py`：移除 `_check_update_*`、`_on_update_*` 系列方法与「检查更新」菜单项
+- 删除 PyInstaller 配置：`中药材销售管理系统.spec`、`build.bat`
+- 新增 `pyappify.yml` 配置文件（项目根目录）
+- `requirements.txt` 移除 `pyinstaller` 依赖
+- 测试 181 个全部通过，无回归
 
 ### v4.2.0 (2026-07-22) — UI 设计系统升级 + 性能与稳定性修复
 
