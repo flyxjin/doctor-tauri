@@ -18,12 +18,23 @@ build_python_execution_environment）：
 import os
 from typing import Any, Dict, List, Optional
 
-CURRENT_VERSION = "5.1.0"
+CURRENT_VERSION = "5.1.1"
 VERSION_DATE = "2026-07-27"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
 CHANGELOG: Dict[str, Dict[str, Any]] = {
+    "5.1.1": {
+        "date": "2026-07-27",
+        "changes": [
+            "修复 PyAppify 启动器在 Windows 中文系统下 pip install 失败的问题（exit code 120）",
+            "根因：command.rs 用 String::read_line 读取 pip 输出，Tokio 内部 UTF-8 解码器遇到 GBK/cp936 字节流返回 Err，导致子进程输出读取中断",
+            "修复：改用 read_until(b'\\n', &mut Vec<u8>) + String::from_utf8_lossy，用 U+FFFD 替换无效字节而非中断读取",
+            "影响范围：所有 Windows 中文系统用户首次安装时的 pip install 阶段",
+            "重新编译 pyappify.exe（2分16秒增量编译）",
+            "重新打包 NSIS 安装包：medicine-system_python_5.1.1_x64-setup.exe（3.58MB）",
+        ]
+    },
     "5.1.0": {
         "date": "2026-07-27",
         "changes": [
