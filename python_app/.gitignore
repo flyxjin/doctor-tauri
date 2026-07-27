@@ -7,3 +7,7 @@ __pycache__/
 venv/
 *.db
 data/*.db
+
+# NSIS 安装包构建产物（对应 Gitee Issue IK4DWR）
+build/
+dist/

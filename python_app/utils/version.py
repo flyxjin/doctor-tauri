@@ -18,12 +18,28 @@ build_python_execution_environment）：
 import os
 from typing import Any, Dict, List, Optional
 
-CURRENT_VERSION = "5.0.0"
+CURRENT_VERSION = "5.1.0"
 VERSION_DATE = "2026-07-27"
 APP_NAME = "中药材销售管理系统"
 AUTHOR = "TCM System"
 
 CHANGELOG: Dict[str, Dict[str, Any]] = {
+    "5.1.0": {
+        "date": "2026-07-27",
+        "changes": [
+            "新增 NSIS 正式安装包：installer.nsi + build_installer.bat（对应 Gitee Issue IK4DWR）",
+            "安装模式 currentUser：无需管理员权限，与 PyAppify 用户态运行时一致",
+            "安装目录：%LOCALAPPDATA%\\Programs\\中药材销售管理系统",
+            "支持 /S 静默安装与静默卸载（NSIS 原生）",
+            "控制面板「程序和功能」注册卸载入口，含版本/发布者/官网链接",
+            "桌面 + 开始菜单快捷方式，图标使用 python_app/assets/icon.ico",
+            "安装时自动检测并关闭运行中的主程序，避免文件覆盖失败",
+            "pyappify.exe 在安装时重命名为「中药材销售管理系统.exe」",
+            "输出文件名：中药材销售管理系统_python_x.x.x_x64-setup.exe（_python 后缀与 Tauri 版区分）",
+            "版本号通过 !searchparse 从 utils/version.py 自动读取，无需手动同步",
+            ".gitignore 新增 build/ 与 dist/ 忽略规则",
+        ]
+    },
     "5.0.0": {
         "date": "2026-07-27",
         "changes": [
