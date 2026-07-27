@@ -1,11 +1,11 @@
-# PyAppify 配置文件
+# PyAppify 配置文件（Python 版专属）
 # 文档: https://github.com/ok-oldking/pyappify
 # 字段说明见 pyappify/src-tauri/assets/pyappify.yml 与 src/app.rs::update_app_from_yml
 #
 # 分发方式（预构建启动器）：
 #   1. 从 https://github.com/ok-oldking/pyappify/releases 下载 pyappify.exe（~3MB）
 #   2. 将 pyappify.exe 重命名为 中药材销售管理系统.exe
-#   3. 将本 pyappify.yml 放在 exe 同目录
+#   3. 将本 pyappify.yml 复制到 exe 同目录
 #   4. 双击 exe，启动器会自动：
 #      - 克隆本仓库到 data/apps/medicine-system/repo/
 #      - 复制仓库根目录到 working_dir（不含 .git）
@@ -20,7 +20,8 @@ name: "medicine-system"
 # icon 为可选图片路径，相对 working_dir（即仓库根目录副本），
 # 必须位于 working_dir 内（启动器会做 canonicalize + starts_with 检查），
 # 支持 png/jpg/gif/webp/svg/bmp/ico，最大 5 MiB
-icon: "tauri_app/src-tauri/icons/128x128.png"
+# 使用 Python 版独立图标，不依赖 Tauri 版资源
+icon: "python_app/assets/icon.png"
 
 profiles:
   - name: "release"

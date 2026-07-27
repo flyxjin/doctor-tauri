@@ -108,7 +108,7 @@ python main.py
 
 # 方式二：PyAppify 启动器分发（v5.0.0+，推荐）
 # 1. 下载 pyappify.exe（~3MB）→ 重命名为「中药材销售管理系统.exe」
-# 2. 将项目根目录的 pyappify.yml 放在 exe 同目录
+# 2. 将 python_app/pyappify.yml 复制到 exe 同目录
 # 3. 双击 exe，启动器自动克隆代码 + 下载 Python 3.12 + 安装依赖
 ```
 
@@ -152,7 +152,7 @@ python main.py
 2. 双击安装（需 Windows 10/11）
 3. 桌面快捷方式启动即可
 
-> 老电脑（Windows 10）或不想安装？用方案 A 的 PyAppify 启动器，下载 ~3MB exe + pyappify.yml 双击即用，首次运行自动拉取 Python 环境与依赖。
+> 老电脑（Windows 10）或不想安装？用方案 A 的 PyAppify 启动器，下载 ~3MB exe + `python_app/pyappify.yml` 双击即用，首次运行自动拉取 Python 环境与依赖。
 
 ### 我是开发者，想学习 / 二次开发
 
@@ -193,10 +193,10 @@ doctor/
 │   ├── widgets/             # 自定义控件
 │   ├── utils/               # 工具模块（版本管理 / 响应式字体 / 快捷键）
 │   ├── tests/               # 单元测试（pytest，181 个全部通过）
+│   ├── assets/              # Python 版独立图标资源
 │   ├── requirements.txt     # 运行依赖（不含 pyinstaller）
+│   ├── pyappify.yml         # PyAppify 启动器配置（v5.0.0+）
 │   └── pyproject.toml       # ruff + mypy 配置
-│
-├── pyappify.yml             # PyAppify 启动器配置（v5.0.0+）
 │
 ├── tauri_app/               # 方案 B：Tauri + React 版本（生产首选）
 │   ├── src/                 # React 前端

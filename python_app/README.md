@@ -34,7 +34,7 @@
 
 1. 从 [PyAppify Releases](https://github.com/ok-oldking/pyappify/releases) 下载 `pyappify.exe`（~3MB）
 2. 重命名为 `中药材销售管理系统.exe`
-3. 将项目根目录的 `pyappify.yml` 放在 exe 同目录
+3. 将本目录（`python_app/`）下的 `pyappify.yml` 复制到 exe 同目录
 4. 双击 exe，启动器会自动：
    - 克隆本仓库（首次约 10 秒）
    - 下载独立 Python 3.12 环境（不污染系统 Python）
@@ -93,6 +93,10 @@ python_app/
 │   ├── version.py                   # 版本号 + 变更日志 + Version 比较工具
 │   ├── shortcuts.py                 # 全局快捷键
 │   └── responsive_font.py           # 响应式字体
+├── assets/                          # Python 版独立图标资源（不依赖 Tauri 版）
+│   ├── icon.png                     # PyAppify 启动器图标
+│   └── icon.ico                     # Windows 图标
+├── pyappify.yml                     # PyAppify 启动器配置（v5.0.0+）
 └── tests/                           # 单元测试（181 个，全部通过）
     ├── conftest.py                  # pytest fixtures
     ├── test_services.py             # Service 层测试
@@ -191,7 +195,7 @@ v3.3.1+ 已修复：导入完成后自动失效缓存并重建，无需手动刷
 - 精简 `utils/version.py`：移除 `VersionManager` 更新检查逻辑，保留 `Version` 类与 `CHANGELOG`
 - 精简 `main.py`：移除 `_check_update_*`、`_on_update_*` 系列方法与「检查更新」菜单项
 - 删除 PyInstaller 配置：`中药材销售管理系统.spec`、`build.bat`
-- 新增 `pyappify.yml` 配置文件（项目根目录）
+- 新增 `pyappify.yml` 配置文件（`python_app/` 目录下，Python 版专属）
 - `requirements.txt` 移除 `pyinstaller` 依赖
 - 测试 181 个全部通过，无回归
 
