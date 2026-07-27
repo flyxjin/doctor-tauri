@@ -1,4 +1,4 @@
-; =========================================================================
+﻿; =========================================================================
 ; 中药材销售管理系统（Python 版）NSIS 安装脚本
 ; =========================================================================
 ; 对应 Gitee Issue: IK4DWR
@@ -48,8 +48,9 @@ ManifestDPIAware true
 !define PRODUCT_EXE "中药材销售管理系统.exe"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
-; --- 输出文件名：加 _python 后缀以与 Tauri 版区分 ---
-!define OUT_FILE "dist\中药材销售管理系统_python_${APP_VERSION}_x64-setup.exe"
+; --- 输出文件名：ASCII 文件名避免 NSIS 输出路径编码问题 ---
+; 显示名（Name 指令）仍为中文，仅安装包文件名用 ASCII
+!define OUT_FILE "dist\medicine-system_python_${APP_VERSION}_x64-setup.exe"
 
 ; =========================================================================
 ; 编译器配置
@@ -87,7 +88,6 @@ VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 ; 界面语言：简体中文
 !define MUI_ABORTWARNING
 !define MUI_LANGDLL_ALLLANGUAGES
-!insertmacro MUI_LANGUAGE "SimpChinese"
 
 ; --- 安装页面 ---
 !insertmacro MUI_PAGE_WELCOME
@@ -98,6 +98,9 @@ VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 ; --- 卸载页面 ---
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
+
+; MUI_LANGUAGE 必须在所有 MUI_PAGE_* 之后插入
+!insertmacro MUI_LANGUAGE "SimpChinese"
 
 ; =========================================================================
 ; 安装逻辑
@@ -110,13 +113,14 @@ Section "Install" SecInstall
   Call CloseAppIfRunning
 
   ; 主程序：将 pyappify.exe 重命名为产品名
-  File /oname="${PRODUCT_EXE}" "${PYAPPIFY_EXE}"
+  ; NSIS File /oname= 不接受引号包裹的输出名（除非含空格）
+  File /oname=${PRODUCT_EXE} "${PYAPPIFY_EXE}"
 
   ; 启动器配置（必须与 exe 同目录）
-  File /oname="pyappify.yml" "${PYAPPIFY_YML}"
+  File /oname=pyappify.yml "${PYAPPIFY_YML}"
 
   ; 图标资源（快捷方式与控制面板 DisplayIcon 使用）
-  File /oname="icon.ico" "${APP_ICON}"
+  File /oname=icon.ico "${APP_ICON}"
 
   ; 写入卸载程序
   WriteUninstaller "$INSTDIR\uninstall.exe"

@@ -23,13 +23,21 @@ if %errorlevel% equ 0 (
     goto :found_nsis
 )
 
-REM 常见安装位置回退
+REM 常见安装位置回退（按 C/D 盘、x86/x64 顺序探测）
 if exist "C:\Program Files (x86)\NSIS\makensis.exe" (
     set "MAKENSIS=C:\Program Files (x86)\NSIS\makensis.exe"
     goto :found_nsis
 )
 if exist "C:\Program Files\NSIS\makensis.exe" (
     set "MAKENSIS=C:\Program Files\NSIS\makensis.exe"
+    goto :found_nsis
+)
+if exist "D:\Program\NSIS\makensis.exe" (
+    set "MAKENSIS=D:\Program\NSIS\makensis.exe"
+    goto :found_nsis
+)
+if exist "D:\Program Files\NSIS\makensis.exe" (
+    set "MAKENSIS=D:\Program Files\NSIS\makensis.exe"
     goto :found_nsis
 )
 
