@@ -2,6 +2,107 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.3.0] - 2026-08-06 — 性能调优 + 全局快捷键 + 主题切换 + 功能扩展
+
+### 性能优化
+
+- **SQLite 连接级调优**（[src-tauri/src/db.rs](src-tauri/src/db.rs)）— 新增 `temp_store=MEMORY`（临时表/排序走内存，加速 GROUP BY / ORDER BY）与 `mmap_size=128MB`（内存映射读取，减少系统调用）两项 PRAGMA；抽取 `new()` / `reopen()` 重复的 PRAGMA 配置为共享常量 `CONNECTION_PRAGMAS`，消除两处配置漂移风险
+- **渲染优化** — `MainLayout` 菜单项构建改用 `useMemo` 避免每次渲染重建；主题配置保持模块级常量，不触发 ConfigProvider 主题重算
+
+### 新功能
+
+- **全局快捷键系统** — `Ctrl+1~9` 快速切换页面（按菜单顺序）、`F1` 弹出快捷键帮助 Modal、开处方页 `Ctrl+S` 保存处方（防重入守卫 + 模态框打开时不触发 + 拦截浏览器默认保存行为）；顶栏新增快捷键帮助入口按钮，纯 React 实现零新增依赖（ROADMAP 全局快捷键 + 帮助对话框）
+- **深浅主题切换**（ROADMAP 主题切换）— 新增 [ThemeContext](src/theme/ThemeContext.tsx)，顶栏灯泡按钮一键切换；深色模式基于 antd `darkAlgorithm` + [global.css](src/styles/global.css) CSS 变量覆盖，保持墨绿+草本绿+朱砂品牌风格；`localStorage` 持久化重启后保持；库存预警行高亮同步深色适配
+- **方剂模板扩充 32 → 53 张**（ROADMAP 更多方剂模板）— 新增十全大补汤、当归补血汤、炙甘草汤、小柴胡汤、大柴胡汤、苓桂术甘汤、真武汤、二妙散、麻杏石甘汤、九味羌活汤、香苏散、定喘汤、苏子降气汤、泻白散、青蒿鳖甲汤、四妙勇安汤、半夏厚朴汤、柴胡疏肝散、越鞠丸、桃红四物汤、酸枣仁汤共 21 张经典方剂；全部药材经脚本校验与 400 味数据库精确匹配，应用模板时不会出现「未找到」提示
+- **数据导入导出统一入口**（ROADMAP 数据迁移向导精简版）— 设置页新增「数据导入导出」卡片：前往批量导入、下载导入模板（含样本数据）、导出全量药材 CSV（后端生成含完整字段），打通「模板下载 → 批量导入 → 全量导出」数据迁移闭环
+
+### UI 改进
+
+- **首页看板** — 页头新增手动刷新按钮；四张统计卡可点击跳转关联页面（带 Tooltip 提示与键盘可达性）
+- **处方历史** — 新增日期快捷预设（今天 / 近 7 天 / 本月 / 近 3 月）与 RangePicker 联动；双击表格行打开详情；汇总统计卡片化并增加加载态
+- **销售统计** — 修复初始区间与快捷选中态不一致的缺陷（初始范围改为与「本月」高亮匹配）
+- **客户管理** — 联系电话新增格式校验（手机 / 座机 / 400，非必填不拦截空值）
+- **统计卡视觉统一** — 患者/库存页各自的 `Card + Statistic`（含硬编码颜色）统一替换为复用组件 [StatCard](src/components/StatCard.tsx)，四页风格一致且深浅主题自动适配；StatCard 新增 `onClick` 可点击能力
+- **TrendChart 深色适配** — SVG 网格线/刻度/图例/数据点全部改用 CSS 变量（inline style 使 `var()` 生效），趋势图折线颜色改为 `var(--accent-color)` / `var(--primary-color)`；清理处方页、库存页硬编码颜色
+
+### 测试
+
+- 前端：67 个测试全部通过，TypeScript 0 错误，ESLint 0 错误
+- 后端：70 个测试，`cargo test --lib` 全部通过
+
+---
+
+## [1.2.0] - 2026-08-02 — 健壮性增强 + 错误 UI 完善
+
+### 健壮性修复
+
+- **配伍禁忌双向匹配**（[src-tauri/src/compatibility.rs](src-tauri/src/compatibility.rs)）— 新增白芍/赤芍/党参/西洋参/太子参与藜芦的禁忌对，以及乌头/川乌/草乌/附子与川贝/浙贝的禁忌对共 13 条；实现双向名称匹配逻辑，解决"白芍"不触发"藜芦"禁忌的用药安全隐患
+- **数据库 Mutex 中毒恢复**（[src-tauri/src/db.rs](src-tauri/src/db.rs)）— `lock()` 方法遇到 poisoned Mutex 时强制取出 guard，避免单次 panic 雪崩为整个会话数据库不可用
+- **处方总金额服务端重算**（[src-tauri/src/commands.rs](src-tauri/src/commands.rs)）— `create_prescription` 不再信任客户端传入的 `total_amount`，改为服务端按 `quantity * price` 重算总金额与明细金额，确保财务数据完整性
+- **更新下载完整性校验**（[src-tauri/src/updater.rs](src-tauri/src/updater.rs)）— 下载完成后断言字节数等于 API 返回的 `file_size`，不一致则删除文件并报错，防止安装截断损坏的安装包
+- **下载并发保护** — `AtomicBool` 防止静默下载与手动下载同时写同一文件导致损坏
+- **单 chunk 读超时** — 60 秒无数据中断下载，避免网络卡死导致永久挂起
+- **applyTemplate 错误处理**（[src/pages/Prescription.tsx](src/pages/Prescription.tsx)）— 添加 try/catch 防止方剂模板加载失败时静默失败
+
+### 错误 UI 完善
+
+- **6 个页面统一查询错误提示** — Inventory / History / MedicineList / Patients / Prescription / Settings 页面所有 `useQuery` 调用均接入 `QueryErrorAlert` 组件，查询失败时展示错误信息 + 重试按钮，替代原先的静默空状态
+  - Prescription 页辅助查询（患者档案/药材库/库存）失败时展示降级提示，不阻塞开方流程
+  - Patients 详情 Drawer 的处方历史与消费统计查询独立错误处理
+
+### 测试修复
+
+- **inventory.test.ts 日期 mock** — 改用 vitest fake timers（`vi.useFakeTimers` + `vi.setSystemTime`）替代手动 `Date.now` 覆盖，确保测试结果不受系统时间影响
+
+---
+
+## [1.1.0] - 2026-07-28 — PDF 导出 + CI 自动构建
+
+### 新功能
+
+- **处方 PDF 导出**（用户高频需求）— 处方历史页表格操作列与详情面板均新增「导出PDF」按钮
+  - 技术方案：复用 `generate_prescription_html` 后端命令生成处方 HTML → 前端 `exportHtmlAsPdf` 工具函数通过 iframe + `window.print()` 触发系统打印对话框 → 用户选择「Microsoft Print to PDF」作为打印机即可保存 PDF 文件
+  - 设计考量：Rust `printpdf` 库内置字体不支持中文字形，嵌入中文字体会使安装包体积增加 5-15 MB（违反 3 MB 目标）。WebView2 原生支持中文渲染，通过打印对话框转 PDF 是中文处方最佳方案，零额外依赖
+  - 新增前端工具函数 `exportHtmlAsPdf`（[src/utils/print.ts](src/utils/print.ts)）
+  - 操作列宽度从 230px 扩展到 290px，表格 scroll.x 从 1150 扩展到 1210
+
+### 工程化
+
+- **新增 GitHub Actions CI 工作流**（[.github/workflows/ci.yml](.github/workflows/ci.yml)）— push 到 main/master 或 PR 时触发，包含 TypeScript 类型检查、ESLint、Vitest 前端测试、Rust fmt/clippy 检查、cargo test 后端测试
+- **新增 GitHub Actions Release 工作流**（[.github/workflows/release.yml](.github/workflows/release.yml)）— `tag v*` 触发，Windows MSVC 环境构建 NSIS 安装包 + 便携 EXE，自动创建 GitHub Release 并上传产物。对应 ROADMAP.md P0 项「Tauri 版 CI Release 工作流」
+- 两套工作流分离：ci.yml 跑测试（push 分支/PR 触发），release.yml 跑构建（tag 触发），规避 GitHub Actions 同一 push 事件不能同时使用 branches 与 tags 过滤器的限制
+
+---
+
+## [1.0.0] - 2026-07-28 — 里程碑版本
+
+### 战略调整
+
+- **Tauri 版定位为生产主推版本**：功能完成度达到 1.0 标准（400 味药材 / 32 张方剂模板 / FEFO 跨批次出库 / 过敏史冲突检测 / SVG 销售趋势图 / CSP 安全加固 / 129 个测试）
+- **Python 版同步进入维护模式**：仅保留重大 Bug 修复与安全补丁，不再新增功能。所有新功能（PDF 导出、代码签名、更多方剂模板等）只在 Tauri 版实现
+- 项目根 README 重新定位：Tauri 版置顶为主推，Python 版标注 Legacy / 维护模式
+- 新增 [v1.0.0 路线图](docs/ROADMAP.md) — 列出 1.x 系列后续迭代计划
+
+### 文档
+
+- 新增《中药材销售管理系统 用户操作手册》（`docs/用户操作手册.md`，1063 行）— 覆盖安装、9 大功能模块操作说明、快捷键、12 个常见问题，满足软件著作权申请的文档要求
+
+### 版本号说明
+
+- 从 0.3.x 直接跃升到 1.0.0，标志产品已具备生产可用状态
+- 主版本号 1 表示 API 与数据 schema 稳定，后续 1.x 向后兼容
+- 与 Python 版（v5.2.0，维护模式）解耦，两版版本号不再保持同步
+
+---
+
+## [0.3.16] - 2026-07-28
+
+### 文档
+
+- **新增用户操作手册**（软著申请材料）— 项目根目录新增 `docs/用户操作手册.md`（1063 行），覆盖软件概述、运行环境、安装与卸载、首次启动、9 大功能模块操作说明（首页概览/药材管理/开处方/客户管理/库存管理/处方历史/销售统计/批量导入/系统设置）、完整快捷键表、12 个常见问题与技术支持。手册同时适用 Python 版与 Tauri 版，满足软件著作权申请的文档要求
+
+---
+
 ## [0.3.15] - 2026-07-25
 
 ### 重构

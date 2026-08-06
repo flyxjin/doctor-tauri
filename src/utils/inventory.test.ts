@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import dayjs from 'dayjs';
 import {
   aggregateInventory,
@@ -26,16 +26,17 @@ function makeInventory(overrides: Partial<Inventory> & { medicine_id: number }):
 // ============ expiryStatus ============
 
 describe('expiryStatus', () => {
-  // 锁定"今天"避免跨日测试失败：mock dayjs 的起点
-  const realNow = Date.now;
+  // 使用 vitest 内置的 fake timers 锁定"今天"，避免跨日测试失败
+  // 注意：dayjs() 内部调用 Date.now()，vi.setSystemTime 能正确 mock 它
+  // 而 手动 Date.now = () => ms 对 dayjs 不完全生效（dayjs 可能缓存或用其他方式）
 
   afterEach(() => {
-    Date.now = realNow;
+    vi.useRealTimers();
   });
 
   function setToday(dateStr: string): void {
-    const ms = dayjs(dateStr).valueOf();
-    Date.now = () => ms;
+    vi.useFakeTimers();
+    vi.setSystemTime(dayjs(dateStr).valueOf());
   }
 
   it('无日期返回 none', () => {

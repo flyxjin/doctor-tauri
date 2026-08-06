@@ -19,18 +19,23 @@ import { DeleteOutlined, EditOutlined, ExportOutlined, EyeOutlined, PlusOutlined
 import {
   createMedicine,
   deleteMedicine,
+  listInventory,
   listMedicines,
   updateMedicine,
 } from '@/api/tauri';
 import type { Medicine } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
 import { useCsvExport } from '@/hooks/useCsvExport';
 
 const { Text } = Typography;
 
 const { TextArea } = Input;
+
+/** 药性下拉选项 */
+const NATURE_OPTIONS = ['寒', '热', '温', '凉', '平'].map((c) => ({ label: c, value: c }));
 
 /** 分类下拉选项（常见分类） */
 const CATEGORY_OPTIONS = [
@@ -59,6 +64,7 @@ const CATEGORY_OPTIONS = [
 export default function MedicineList() {
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState<string | undefined>(undefined);
+  const [nature, setNature] = useState<string | undefined>(undefined);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Medicine | null>(null);
   const [form] = Form.useForm<Medicine>();
@@ -68,12 +74,34 @@ export default function MedicineList() {
   // CSV 导出：复用统一 hook
   const { exportCsv } = useCsvExport({ filenamePrefix: 'medicines_export', label: '药材记录' });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['medicines', keyword, category],
-    queryFn: () => listMedicines(keyword || undefined, category),
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['medicines', keyword, category, nature],
+    queryFn: () => listMedicines(keyword || undefined, category, nature),
     // 药材库变更频率低，缓存 5 分钟；CRUD 后由 useCrudMutations 失效
     staleTime: 5 * 60 * 1000,
   });
+
+  // 获取库存数据用于显示库存量与最低库存列
+  const { data: inventoryData } = useQuery({
+    queryKey: ['inventory'],
+    queryFn: listInventory,
+    staleTime: 60 * 1000,
+  });
+
+  // 按药材 ID 聚合库存（跨批次合并）
+  const stockMap = useMemo(() => {
+    const map = new Map<number, { qty: number; minStock: number; price: number }>();
+    for (const inv of inventoryData ?? []) {
+      const existing = map.get(inv.medicine_id);
+      if (existing) {
+        existing.qty += inv.quantity;
+        existing.minStock = Math.min(existing.minStock, inv.min_stock);
+      } else {
+        map.set(inv.medicine_id, { qty: inv.quantity, minStock: inv.min_stock, price: inv.price });
+      }
+    }
+    return map;
+  }, [inventoryData]);
 
   const { create: createMutation, update: updateMutation, remove: deleteMutation } =
     useCrudMutations<Medicine>({
@@ -157,6 +185,31 @@ export default function MedicineList() {
     { title: '功效', dataIndex: 'efficacy', key: 'efficacy', ellipsis: true },
     { title: '用量', dataIndex: 'dosage', key: 'dosage', width: 120, ellipsis: true },
     {
+      title: '库存量',
+      key: 'stock_qty',
+      width: 100,
+      align: 'right',
+      sorter: (a, b) => {
+        const sa = stockMap.get(a.id!)?.qty ?? 0;
+        const sb = stockMap.get(b.id!)?.qty ?? 0;
+        return sa - sb;
+      },
+      render: (_v, r) => {
+        const s = stockMap.get(r.id!);
+        return s ? `${s.qty.toFixed(1)} g` : '-';
+      },
+    },
+    {
+      title: '最低库存',
+      key: 'min_stock',
+      width: 90,
+      align: 'right',
+      render: (_v, r) => {
+        const s = stockMap.get(r.id!);
+        return s ? `${s.minStock.toFixed(1)}` : '-';
+      },
+    },
+    {
       title: '操作',
       key: 'action',
       width: 200,
@@ -204,6 +257,14 @@ export default function MedicineList() {
       </div>
 
       <div className="table-card">
+        {isError && (
+          <QueryErrorAlert
+            error={error}
+            onRetry={() => refetch()}
+            retrying={isFetching}
+            message="加载药材列表失败"
+          />
+        )}
         <Space style={{ marginBottom: 16 }} wrap>
           <Input.Search
             placeholder="搜索药材名 / 别名 / 功效"
@@ -214,11 +275,18 @@ export default function MedicineList() {
           <Select
             placeholder="选择分类"
             allowClear
-            style={{ width: 160 }}
+            style={{ width: 140 }}
             options={[...categories, ...CATEGORY_OPTIONS.map((o) => o.value)]
               .filter((v, i, arr) => arr.indexOf(v) === i)
               .map((c) => ({ label: c, value: c }))}
             onChange={(v) => setCategory(v)}
+          />
+          <Select
+            placeholder="药性"
+            allowClear
+            style={{ width: 100 }}
+            options={NATURE_OPTIONS}
+            onChange={(v) => setNature(v)}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新增药材

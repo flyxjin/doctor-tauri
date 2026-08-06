@@ -61,3 +61,25 @@ export function printHtmlInIframe(html: string): Promise<void> {
     }
   });
 }
+
+/**
+ * 导出 HTML 为 PDF 文件
+ *
+ * 实现原理：
+ * 1. 将 HTML 加载到隐藏 iframe
+ * 2. 调用 iframe.contentWindow.print() 触发系统打印对话框
+ * 3. 用户在打印对话框中选择「Microsoft Print to PDF」作为打印机
+ * 4. 点击「打印」后选择保存位置，即生成 PDF 文件
+ *
+ * 设计考量：
+ * - printpdf 等 Rust PDF 库内置字体不支持中文字形，会导致处方显示为方块
+ * - 嵌入中文字体（如思源黑体）会使安装包体积增加 5-15 MB，违反 3 MB 目标
+ * - WebView2 原生支持中文渲染，通过打印对话框转 PDF 是中文处方最佳方案
+ * - 用户操作多一步选打印机，但中文显示完美、零额外依赖
+ *
+ * @param html 处方 HTML 字符串
+ */
+export function exportHtmlAsPdf(html: string): Promise<void> {
+  return printHtmlInIframe(html);
+}
+

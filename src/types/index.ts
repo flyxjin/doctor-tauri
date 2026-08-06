@@ -124,6 +124,12 @@ export interface LowStockItem {
   unit: string;
 }
 
+export interface DashboardDailyTrend {
+  date: string;
+  revenue: number;
+  prescription_count: number;
+}
+
 export interface DashboardData {
   medicine_count: number;
   prescription_count: number;
@@ -135,6 +141,8 @@ export interface DashboardData {
   today_prescription_count: number;
   /** 今日销售收入（按本地日期匹配） */
   today_revenue: number;
+  /** 近 7 天每日营收与处方数趋势 */
+  daily_trend: DashboardDailyTrend[];
 }
 
 export interface StatisticsSummary {
@@ -229,7 +237,7 @@ export interface SilentUpdateResult {
 export interface BackupInfo {
   backup_path: string;
   file_size: number;
-  md5: string;
+  checksum: string;
   created_at: string;
 }
 
@@ -237,7 +245,7 @@ export interface BackupInfo {
 export interface BackupEntry {
   backup_path: string;
   file_size: number;
-  md5: string;
+  checksum: string;
   created_at: string;
 }
 

@@ -44,6 +44,23 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ),
 ];
 
+/// 统一的连接级 PRAGMA 调优配置（new/reopen 共用，避免两处配置漂移）
+///
+/// - foreign_keys：启用外键约束
+/// - WAL：写入不阻塞读，显著提升并发性能
+/// - synchronous=NORMAL：配合 WAL，兼顾安全与性能（断电仍可能丢最后一个事务）
+/// - busy_timeout=5000ms：锁争用时等待 5 秒而非立即报错
+/// - cache_size=-8000：8MB 页缓存
+/// - temp_store=MEMORY：临时表/排序走内存，加速 GROUP BY / ORDER BY
+/// - mmap_size=128MB：内存映射读取，减少系统调用，加速只读查询
+const CONNECTION_PRAGMAS: &str = "PRAGMA foreign_keys = ON;\
+     PRAGMA journal_mode = WAL;\
+     PRAGMA synchronous = NORMAL;\
+     PRAGMA busy_timeout = 5000;\
+     PRAGMA cache_size = -8000;\
+     PRAGMA temp_store = MEMORY;\
+     PRAGMA mmap_size = 134217728;";
+
 /// 数据库状态：持有单个 SQLite 连接，通过 Mutex 序列化访问
 pub struct DbState {
     conn: Mutex<Connection>,
@@ -55,18 +72,8 @@ impl DbState {
     /// 传入 `Path::new(":memory:")` 可创建内存数据库（用于单元测试）。
     pub fn new(path: &Path) -> Result<Self, String> {
         let conn = Connection::open(path).map_err(|e| format!("打开数据库失败: {e}"))?;
-        // 启用外键约束 + WAL 模式 + 性能与并发调优
-        // WAL：写入不阻塞读，显著提升并发性能
-        // synchronous=NORMAL：配合 WAL，兼顾安全与性能（断电仍可能丢最后一个事务）
-        // busy_timeout=5000ms：锁争用时等待 5 秒而非立即报错
-        conn.execute_batch(
-            "PRAGMA foreign_keys = ON;\
-             PRAGMA journal_mode = WAL;\
-             PRAGMA synchronous = NORMAL;\
-             PRAGMA busy_timeout = 5000;\
-             PRAGMA cache_size = -8000;",
-        )
-        .map_err(|e| format!("设置数据库 PRAGMA 失败: {e}"))?;
+        conn.execute_batch(CONNECTION_PRAGMAS)
+            .map_err(|e| format!("设置数据库 PRAGMA 失败: {e}"))?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -124,8 +131,28 @@ impl DbState {
     }
 
     /// 获取连接的互斥锁守卫，供 commands 串行执行 SQL
+    ///
+    /// 设计说明：Mutex 一旦在持锁期间 panic 会进入 poisoned 状态，此后所有 lock() 都会失败，
+    /// 导致应用在本次会话内彻底无法访问数据库。然而 panic 通常不会损坏 Connection 本身
+    /// （rusqlite 连接仍可用），因此这里在遇到 poison 时强制取出 guard，避免一次 panic
+    /// 雪崩为整个会话的数据库不可用。代价是可能读到 panic 时的中间状态，但这比"应用挂掉"
+    /// 更可恢复——用户重启应用即可回到干净状态。
     pub fn lock(&self) -> Result<MutexGuard<'_, Connection>, String> {
-        self.conn.lock().map_err(|e| format!("获取数据库锁失败: {e}"))
+        Ok(self.conn.lock().unwrap_or_else(|poison| poison.into_inner()))
+    }
+
+    /// 重新打开数据库连接（用于备份恢复后刷新连接）
+    ///
+    /// 替换文件后，原连接持有的文件句柄和缓存已失效，必须重新打开
+    pub fn reopen(&self, path: &Path) -> Result<(), String> {
+        let mut guard = self.conn.lock().map_err(|_| "锁中毒".to_string())?;
+        let new_conn = Connection::open(path)
+            .map_err(|e| format!("重新打开数据库失败: {e}"))?;
+        new_conn
+            .execute_batch(CONNECTION_PRAGMAS)
+            .map_err(|e| format!("设置 PRAGMA 失败: {e}"))?;
+        *guard = new_conn;
+        Ok(())
     }
 }
 

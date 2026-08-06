@@ -29,6 +29,13 @@ fn log_operation(
     Ok(())
 }
 
+/// 金额四舍五入到分（避免浮点精度累积误差）
+///
+/// 财务计算关键点：每次乘法后立即四舍五入，避免误差累积
+fn round_amount(amount: f64) -> f64 {
+    (amount * 100.0).round() / 100.0
+}
+
 // ==================== 药材管理 ====================
 
 /// 药材列表（支持按分类、关键字搜索）
@@ -36,6 +43,7 @@ fn log_operation(
 pub fn list_medicines(
     keyword: Option<String>,
     category: Option<String>,
+    nature: Option<String>,
     state: State<'_, DbState>,
 ) -> Result<Vec<Medicine>, String> {
     let conn = state.lock()?;
@@ -47,6 +55,12 @@ pub fn list_medicines(
         if !cat.is_empty() {
             sql.push_str(" AND category = ?");
             pv.push(SqlValue::Text(cat.clone()));
+        }
+    }
+    if let Some(nat) = &nature {
+        if !nat.is_empty() {
+            sql.push_str(" AND nature = ?");
+            pv.push(SqlValue::Text(nat.clone()));
         }
     }
     if let Some(kw) = &keyword {
@@ -542,6 +556,65 @@ pub fn list_inventory_history(
     Ok(list)
 }
 
+/// 库存调整：将指定批次的库存设置为目标数量，差值记入变更历史
+#[tauri::command]
+pub fn adjust_stock(
+    inventory_id: i64,
+    target_quantity: f64,
+    operator: Option<String>,
+    notes: Option<String>,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    if target_quantity < 0.0 {
+        return Err("目标库存不能为负数".to_string());
+    }
+    let conn = state.lock()?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+
+    let (medicine_id, medicine_name, old_qty, price, unit): (i64, String, f64, f64, String) = tx
+        .query_row(
+            "SELECT i.medicine_id, m.name, i.quantity, i.price, i.unit
+             FROM inventory i JOIN medicines m ON i.medicine_id=m.id
+             WHERE i.id=?1",
+            params![inventory_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("库存记录 id={inventory_id} 不存在"))?;
+
+    let diff = target_quantity - old_qty;
+    if diff.abs() < 0.001 {
+        return Ok(()); // 无变化，直接返回
+    }
+
+    let hist_type = if diff > 0.0 { "入库" } else { "出库" };
+    let abs_diff = diff.abs();
+    let operator_str = operator.unwrap_or_default();
+    let notes_str = notes.unwrap_or_default();
+    let detail = format!("库存调整: {} {}{} → {}{} (差值:{}{})",
+        medicine_name, old_qty, unit, target_quantity, unit, if diff > 0.0 { "+" } else { "" }, diff);
+
+    // 更新库存数量
+    tx.execute(
+        "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+        params![target_quantity, inventory_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // 写入变更历史
+    let total_amount = abs_diff * price;
+    tx.execute(
+        "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![medicine_id, &medicine_name, hist_type, abs_diff, price, total_amount, &operator_str, &notes_str, inventory_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    log_operation(&tx, "STOCK", "inventory", inventory_id, &detail)?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 效期预警：查询指定天数内到期的批次（默认 30 天）
 #[tauri::command]
 pub fn list_expiring_batches(
@@ -712,7 +785,11 @@ pub fn create_prescription(
     let p = input.prescription;
 
     // 服务端强制重新计算总金额，防止前端传入不一致数据
-    let total: f64 = input.items.iter().map(|i| i.amount).sum();
+    // 注意：使用 round_amount 避免浮点精度累积
+    let total: f64 = input.items.iter()
+        .map(|i| round_amount(i.quantity * i.price))
+        .sum::<f64>();
+    let total = round_amount(total);
     // 用户选择的开方日期（为空则用数据库默认 CURRENT_TIMESTAMP）
     let created_at = p.created_at.as_deref().filter(|s| !s.is_empty());
 
@@ -754,6 +831,10 @@ pub fn create_prescription(
         // 取第一个扣减批次作为处方明细的 batch_id（主要批次，用于列表展示参考）
         let primary_batch_id = batches.first().map(|b| b.0);
 
+        // 服务端重算 amount = quantity * price，防止前端传入不一致数据
+        // 使用 round_amount 避免浮点精度问题
+        let server_amount = round_amount(item.quantity * item.price);
+
         tx.execute(
             "INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             params![
@@ -763,7 +844,7 @@ pub fn create_prescription(
                 item.quantity,
                 &item.unit,
                 item.price,
-                item.amount,
+                server_amount,
                 primary_batch_id,
             ],
         )
@@ -1132,6 +1213,8 @@ pub fn update_patient(patient: Patient, state: State<'_, DbState>) -> Result<(),
 }
 
 /// 删除患者档案
+///
+/// 安全检查：若患者有关联处方记录，禁止删除（保留审计轨迹）
 #[tauri::command]
 pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> {
     let conn = state.lock()?;
@@ -1144,6 +1227,24 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
         )
         .optional()
         .map_err(|e| e.to_string())?;
+    
+    let name = name.ok_or_else(|| format!("患者 id={id} 不存在"))?;
+    
+    // 检查是否有关联处方记录（通过 patient_name 匹配）
+    let prescription_count: i64 = tx
+        .query_row(
+            "SELECT COUNT(*) FROM prescriptions WHERE patient_name=?1",
+            params![&name],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    
+    if prescription_count > 0 {
+        return Err(format!(
+            "该患者有 {prescription_count} 张处方记录，无法删除。建议保留患者档案以维持审计轨迹"
+        ));
+    }
+    
     tx.execute("DELETE FROM patients WHERE id=?1", params![id])
         .map_err(|e| format!("删除患者失败: {e}"))?;
     log_operation(
@@ -1151,7 +1252,7 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
         "DELETE",
         "patient",
         id,
-        &format!("删除患者: {}", name.unwrap_or_default()),
+        &format!("删除患者: {}", name),
     )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
@@ -1311,6 +1412,31 @@ pub fn get_dashboard_data(
         .map_err(|e| e.to_string())?
     };
 
+    // 近 7 天每日营收与处方数趋势（供前端趋势图使用）
+    let daily_trend: Vec<DashboardDailyTrend> = {
+        let mut stmt = conn.prepare(
+            "SELECT date(created_at) as d, COALESCE(SUM(total_amount),0), COUNT(*)
+             FROM prescriptions
+             WHERE date(created_at) BETWEEN date('now', 'localtime', '-6 days') AND date('now', 'localtime')
+             GROUP BY d ORDER BY d ASC",
+        )
+        .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map((), |row| {
+                Ok(DashboardDailyTrend {
+                    date: row.get(0)?,
+                    revenue: row.get(1)?,
+                    prescription_count: row.get(2)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r.map_err(|e| e.to_string())?);
+        }
+        out
+    };
+
     Ok(DashboardData {
         medicine_count,
         prescription_count,
@@ -1320,6 +1446,7 @@ pub fn get_dashboard_data(
         recent_prescriptions,
         today_prescription_count,
         today_revenue,
+        daily_trend,
     })
 }
 
@@ -1648,7 +1775,13 @@ pub fn export_medicines_csv(state: State<'_, DbState>) -> Result<String, String>
         let fields: Vec<String> = r
             .iter()
             .map(|s| {
-                let needs_quote = s.contains(',') || s.contains('"') || s.contains('\n');
+                // 完善 CSV 转义：处理逗号、双引号、换行符、回车符、首尾空格
+                let needs_quote = s.contains(',')
+                    || s.contains('"')
+                    || s.contains('\n')
+                    || s.contains('\r')
+                    || s.starts_with(' ')
+                    || s.ends_with(' ');
                 if needs_quote {
                     let escaped = s.replace('"', "\"\"");
                     format!("\"{escaped}\"")
@@ -1901,7 +2034,7 @@ pub fn generate_prescription_html(
 </head>
 <body>
   <h1>中药处方笺</h1>
-  <div class="subtitle"> prescription #{id} </div>
+  <div class="subtitle"> 处方笺 #{id} </div>
   <div class="meta">
     <div>
       <div>患者姓名：<b>{patient_name}</b></div>
@@ -1952,14 +2085,13 @@ pub fn generate_prescription_html(
 
 // ==================== 数据备份与恢复 ====================
 
-/// 计算文件 MD5（十六进制小写，每个字节零填充到 2 位）
-fn compute_file_md5(path: &PathBuf) -> Result<String, String> {
-    use md5::{Digest, Md5};
+/// 计算文件 SHA256（十六进制小写，每个字节零填充到 2 位）
+fn compute_file_sha256(path: &PathBuf) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
     let bytes = std::fs::read(path).map_err(|e| format!("读取文件失败: {e}"))?;
-    let mut hasher = Md5::new();
+    let mut hasher = Sha256::new();
     hasher.update(&bytes);
     let digest = hasher.finalize();
-    // 手动零填充，避免 GenericArray::LowerHex 在单字符字节上不补 0
     let hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
     Ok(hex)
 }
@@ -2003,12 +2135,12 @@ pub fn create_backup(
     let file_size = std::fs::metadata(&backup_path)
         .map(|m| m.len())
         .unwrap_or(0);
-    let md5 = compute_file_md5(&backup_path)?;
+    let checksum = compute_file_sha256(&backup_path)?;
 
     let manifest = serde_json::json!({
         "backup_path": backup_path.to_string_lossy(),
         "file_size": file_size,
-        "md5": md5,
+        "checksum": checksum,
         "created_at": created_at,
         "timestamp": timestamp,
         "filename": backup_filename,
@@ -2033,7 +2165,7 @@ pub fn create_backup(
     Ok(BackupInfo {
         backup_path: backup_path.to_string_lossy().to_string(),
         file_size,
-        md5,
+        checksum,
         created_at,
     })
 }
@@ -2079,7 +2211,12 @@ pub fn list_backups(
             .map(|s| s.to_string())
             .unwrap_or_default();
         let file_size = value["file_size"].as_u64().unwrap_or(0);
-        let md5 = value["md5"].as_str().unwrap_or("").to_string();
+        // 兼容旧版备份（md5 字段）和新版（checksum 字段）
+        let checksum = value["checksum"]
+            .as_str()
+            .or_else(|| value["md5"].as_str())
+            .unwrap_or("")
+            .to_string();
         let created_at = value["created_at"].as_str().unwrap_or("").to_string();
         if backup_path.is_empty() {
             continue;
@@ -2087,7 +2224,7 @@ pub fn list_backups(
         entries.push(BackupEntry {
             backup_path,
             file_size,
-            md5,
+            checksum,
             created_at,
         });
     }
@@ -2100,9 +2237,10 @@ pub fn list_backups(
 /// 基于备份还原数据库
 ///
 /// 还原流程：
-/// 1. 关闭当前数据库连接（实际上 rusqlite 仍持有连接，这里通过 checkpoint + 文件覆盖实现）
+/// 1. 验证备份路径合法性（必须在 backups 目录下）
 /// 2. 用备份覆盖 medicine_system.db
-/// 3. 验证 MD5
+/// 3. 验证 SHA256
+/// 4. 重新初始化数据库连接
 #[tauri::command]
 pub fn restore_backup(
     backup_path: String,
@@ -2118,7 +2256,20 @@ pub fn restore_backup(
         .path()
         .app_data_dir()
         .map_err(|e| format!("无法获取应用数据目录: {e}"))?;
+    let backup_dir = app_data_dir.join("backups");
     let db_path = app_data_dir.join("medicine_system.db");
+
+    // 路径遍历防护：验证备份文件必须在 backups 目录下
+    if let (Ok(canonical_src), Ok(canonical_backup_dir)) = (
+        src.canonicalize(),
+        backup_dir.canonicalize(),
+    ) {
+        if !canonical_src.starts_with(&canonical_backup_dir) {
+            return Err("备份文件必须位于 backups 目录下".to_string());
+        }
+    } else {
+        return Err("无效的备份路径".to_string());
+    }
 
     // 先做 checkpoint 让 WAL 数据落盘
     {
@@ -2132,19 +2283,23 @@ pub fn restore_backup(
     std::fs::copy(&src, &tmp_path)
         .map_err(|e| format!("还原备份失败: {e}"))?;
 
-    // 校验 MD5（如果备份清单存在）
+    // 校验 SHA256（如果备份清单存在）
     let manifest_path = src.with_extension("json");
     if manifest_path.exists() {
         let manifest_str = std::fs::read_to_string(&manifest_path)
             .map_err(|e| format!("读取备份清单失败: {e}"))?;
         let manifest: serde_json::Value = serde_json::from_str(&manifest_str)
             .map_err(|e| format!("解析备份清单失败: {e}"))?;
-        if let Some(expected_md5) = manifest["md5"].as_str() {
-            let actual_md5 = compute_file_md5(&tmp_path)?;
-            if actual_md5 != expected_md5 {
+        // 兼容旧版 md5 和新版 checksum
+        if let Some(expected) = manifest["checksum"]
+            .as_str()
+            .or_else(|| manifest["md5"].as_str())
+        {
+            let actual = compute_file_sha256(&tmp_path)?;
+            if actual != expected {
                 let _ = std::fs::remove_file(&tmp_path);
                 return Err(format!(
-                    "备份文件 MD5 校验失败，期望 {expected_md5}，实际 {actual_md5}"
+                    "备份文件校验失败，期望 {expected}，实际 {actual}"
                 ));
             }
         }
@@ -2153,6 +2308,9 @@ pub fn restore_backup(
     // 用临时文件覆盖原数据库
     std::fs::rename(&tmp_path, &db_path)
         .map_err(|e| format!("替换数据库文件失败: {e}"))?;
+
+    // 重新初始化数据库连接（关键修复：替换文件后必须重新打开连接）
+    state.reopen(&db_path)?;
 
     let conn = state.lock()?;
     log_operation(

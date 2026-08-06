@@ -8,15 +8,28 @@
 // v0.3.2 增强：
 // - install_update 支持 silent 参数（NSIS /S 静默安装）+ 自动退出应用
 // - 新增 check_and_download_silently：启动时后台静默检查并下载更新
+//
+// v1.2.0 增强：
+// - 下载完整性校验：下载完成后断言 downloaded == file_size（API 返回值），不一致则删除文件并报错
+// - 并发保护：AtomicBool 防止多个下载任务写同一文件导致损坏
+// - 单 chunk 读超时：60 秒无数据则中断，避免网络卡死导致永久挂起
 
 use crate::models::{DownloadProgress, SilentUpdateResult, UpdateInfo};
 use futures_util::StreamExt;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::ipc::Channel;
 use tauri::Manager;
 use tokio::io::AsyncWriteExt;
 
 const GITEE_RELEASES_URL: &str = "https://gitee.com/api/v5/repos/flyxjin/doctor/releases/latest";
+
+/// 下载并发保护：同一时刻只允许一个下载任务
+/// 防止 check_and_download_silently 与用户手动 download_update 同时写同一文件
+static DOWNLOADING: AtomicBool = AtomicBool::new(false);
+
+/// 单 chunk 读取最大超时（秒）。超时则中断下载，避免网络卡死导致永久挂起。
+const READ_TIMEOUT_SECS: u64 = 60;
 
 /// 检查 Gitee 最新 Release，解析 tag_name / name / body / assets
 #[tauri::command]
@@ -94,8 +107,23 @@ pub async fn download_update(
         return Err("下载地址为空".to_string());
     }
 
+    // 并发保护：若已有下载任务在进行，直接返回错误
+    if DOWNLOADING.swap(true, Ordering::SeqCst) {
+        return Err("已有下载任务在进行中，请等待完成后再试".to_string());
+    }
+
+    // 使用 RAII 守卫确保无论成功或失败都重置 DOWNLOADING 标志
+    struct DownloadGuard;
+    impl Drop for DownloadGuard {
+        fn drop(&mut self) {
+            DOWNLOADING.store(false, Ordering::SeqCst);
+        }
+    }
+    let _guard = DownloadGuard;
+
     let save_path = build_download_path(&url, &app_handle)?;
-    download_to_path(&url, &save_path, Some(&on_progress)).await?;
+    let expected_size = check_for_update().await.ok().map(|i| i.file_size).unwrap_or(0);
+    download_to_path(&url, &save_path, Some(&on_progress), expected_size).await?;
     Ok(save_path.to_string_lossy().to_string())
 }
 
@@ -179,9 +207,28 @@ pub async fn check_and_download_silently(
         });
     }
 
-    // 4. 静默下载到 downloads/ 目录（不推送进度）
+    // 4. 并发保护：若已有下载任务在进行，仅返回更新信息，不重复下载
+    if DOWNLOADING.swap(true, Ordering::SeqCst) {
+        eprintln!("[updater] 已有下载任务在进行，跳过静默下载");
+        return Ok(SilentUpdateResult {
+            has_update: true,
+            info,
+            downloaded_path: String::new(),
+        });
+    }
+
+    struct DownloadGuard;
+    impl Drop for DownloadGuard {
+        fn drop(&mut self) {
+            DOWNLOADING.store(false, Ordering::SeqCst);
+        }
+    }
+    let _guard = DownloadGuard;
+
+    // 5. 静默下载到 downloads/ 目录（不推送进度）
     let save_path = build_download_path(&info.download_url, &app_handle)?;
-    match download_to_path(&info.download_url, &save_path, None).await {
+    let expected_size = info.file_size;
+    match download_to_path(&info.download_url, &save_path, None, expected_size).await {
         Ok(_) => Ok(SilentUpdateResult {
             has_update: true,
             info,
@@ -230,10 +277,15 @@ fn build_download_path(url: &str, app_handle: &tauri::AppHandle) -> Result<PathB
 }
 
 /// 流式下载到指定路径；`on_progress` 为 None 时静默下载（无进度回调）
+///
+/// v1.2.0 增强：
+/// - `expected_size` 用于下载完成后完整性校验（>0 时断言 downloaded == expected_size）
+/// - 单 chunk 读取超时（READ_TIMEOUT_SECS 秒），避免网络卡死导致永久挂起
 async fn download_to_path(
     url: &str,
     save_path: &PathBuf,
     on_progress: Option<&Channel<DownloadProgress>>,
+    expected_size: u64,
 ) -> Result<(), String> {
     // 大文件下载不能用总超时（否则下不完），仅限制连接阶段超时
     let client = reqwest::Client::builder()
@@ -264,8 +316,24 @@ async fn download_to_path(
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
 
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("读取数据块失败: {e}"))?;
+    loop {
+        let timeout_result = tokio::time::timeout(
+            std::time::Duration::from_secs(READ_TIMEOUT_SECS),
+            stream.next(),
+        )
+        .await;
+
+        let chunk_result = match timeout_result {
+            Ok(Some(result)) => result,
+            Ok(None) => break, // 流结束
+            Err(_) => {
+                return Err(format!(
+                    "读取数据块超时（{READ_TIMEOUT_SECS} 秒无数据），已下载 {downloaded} 字节"
+                ));
+            }
+        };
+
+        let chunk = chunk_result.map_err(|e| format!("读取数据块失败: {e}"))?;
         file.write_all(&chunk)
             .await
             .map_err(|e| format!("写入数据失败: {e}"))?;
@@ -281,6 +349,16 @@ async fn download_to_path(
     file.flush()
         .await
         .map_err(|e| format!("刷新文件失败: {e}"))?;
+
+    // 完整性校验：若 API 返回了文件大小，断言下载字节数一致
+    // 防止服务端提前断连导致下载截断，安装损坏的安装包
+    if expected_size > 0 && downloaded != expected_size {
+        // 删除不完整的下载文件
+        let _ = tokio::fs::remove_file(save_path).await;
+        return Err(format!(
+            "下载完整性校验失败：期望 {expected_size} 字节，实际下载 {downloaded} 字节（文件可能被截断）"
+        ));
+    }
 
     Ok(())
 }

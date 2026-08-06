@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Button, Layout, Menu, Tag, Typography, Spin } from 'antd';
+import { App, Button, Layout, Menu, Modal, Table, Tag, Typography, Spin } from 'antd';
 import {
   DashboardOutlined,
   MedicineBoxOutlined,
@@ -12,13 +12,17 @@ import {
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  BulbOutlined,
+  BulbFilled,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { checkAndDownloadSilently, installUpdate } from '@/api/tauri';
 import { formatFileSize } from '@/utils/format';
 import { formatError } from '@/utils/formatError';
 import { APP_VERSION } from '@/constants/version';
+import { useThemeMode } from '@/theme/ThemeContext';
 
 const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
@@ -59,13 +63,43 @@ const MENU_GROUPS = [
   },
 ] as const;
 
+/** 快捷键帮助清单（F1 弹窗展示） */
+const SHORTCUT_LIST = [
+  { key: 'Ctrl + 1 ~ 9', desc: '快速切换页面（按菜单顺序）' },
+  { key: 'Ctrl + S', desc: '保存处方（开处方页）' },
+  { key: 'F1', desc: '打开/关闭本快捷键帮助' },
+];
+
 export default function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { message, modal } = App.useApp();
+  const { mode: themeMode, toggle: toggleTheme } = useThemeMode();
   const [installing, setInstalling] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   // 默认展开所有分组，便于用户发现功能
   const [openKeys, setOpenKeys] = useState<string[]>(['grp-business', 'grp-data']);
+
+  // 全局快捷键：Ctrl+1~9 切换页面；F1 打开帮助
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault(); // 阻止浏览器/WebView 默认帮助行为
+        setHelpOpen((v) => !v);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+        const n = Number(e.key);
+        if (Number.isInteger(n) && n >= 1 && n <= NAV_ITEMS.length) {
+          e.preventDefault();
+          navigate(NAV_ITEMS[n - 1].key);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navigate]);
 
   // 启动时静默检查更新：仅触发一次，失败不提示
   useEffect(() => {
@@ -154,7 +188,7 @@ export default function MainLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
-  const buildMenuItems = (): MenuProps['items'] => {
+  const buildMenuItems = useMemo((): MenuProps['items'] => {
     const findItem = (key: string) => NAV_ITEMS.find((i) => i.key === key)!;
     const linkLabel = (key: string) => {
       const item = findItem(key);
@@ -183,7 +217,8 @@ export default function MainLayout() {
       },
     ];
     return items;
-  };
+    // NAV_ITEMS/MENU_GROUPS 为模块级常量，无需入依赖
+  }, []);
 
   const currentLabel = NAV_ITEMS.find((item) => item.key === selectedKey)?.label ?? '首页概览';
 
@@ -215,7 +250,7 @@ export default function MainLayout() {
           selectedKeys={[selectedKey]}
           openKeys={collapsed ? [] : openKeys}
           onOpenChange={(keys) => setOpenKeys(keys as string[])}
-          items={buildMenuItems()}
+          items={buildMenuItems}
           style={{ borderRight: 0 }}
           inlineCollapsed={collapsed}
         />
@@ -231,7 +266,23 @@ export default function MainLayout() {
             />
             <span className="tcm-header-title">{currentLabel}</span>
           </div>
-          <span className="tcm-header-date">{formatToday()}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="tcm-header-date">{formatToday()}</span>
+            <Button
+              type="text"
+              icon={<QuestionCircleOutlined />}
+              onClick={() => setHelpOpen(true)}
+              title="键盘快捷键（F1）"
+              className="tcm-collapse-btn"
+            />
+            <Button
+              type="text"
+              icon={themeMode === 'light' ? <BulbOutlined /> : <BulbFilled />}
+              onClick={toggleTheme}
+              title={themeMode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+              className="tcm-collapse-btn"
+            />
+          </div>
         </Header>
         <Content style={{ overflow: 'auto' }}>
           <Outlet />
@@ -258,6 +309,35 @@ export default function MainLayout() {
           <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>请勿关闭程序</div>
         </div>
       )}
+
+      {/* 快捷键帮助弹窗（F1 触发） */}
+      <Modal
+        title="键盘快捷键"
+        open={helpOpen}
+        onCancel={() => setHelpOpen(false)}
+        footer={null}
+        width={440}
+      >
+        <Table
+          rowKey="key"
+          size="small"
+          pagination={false}
+          dataSource={SHORTCUT_LIST}
+          columns={[
+            {
+              title: '快捷键',
+              dataIndex: 'key',
+              key: 'key',
+              width: 150,
+              render: (v: string) => <Typography.Text keyboard>{v}</Typography.Text>,
+            },
+            { title: '功能', dataIndex: 'desc', key: 'desc' },
+          ]}
+        />
+        <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
+          提示：Ctrl+1 对应菜单第一项「首页概览」，依次类推至 Ctrl+9「系统设置」。
+        </Typography.Paragraph>
+      </Modal>
     </Layout>
   );
 }

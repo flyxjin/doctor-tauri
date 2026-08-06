@@ -55,6 +55,68 @@
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ============================================================
+   深色模式变量覆盖（由 ThemeProvider 设置 html[data-theme='dark']）
+   保持东方本草品牌：墨绿底 + 草本绿主色 + 朱砂点缀
+   ============================================================ */
+
+:root[data-theme='dark'] {
+  /* 主色系：提亮草本绿，保证深色底上的对比度 */
+  --primary-color: #4C9566;
+  --primary-light: rgba(76, 149, 102, 0.15);
+  --primary-dark: #14261C;
+  --primary-hover: #5BA878;
+
+  /* 强调色：提亮朱砂红 */
+  --accent-color: #D95B3F;
+  --accent-light: rgba(217, 91, 63, 0.15);
+
+  /* 背景色系：墨绿灰阶 */
+  --bg-color: #171B18;
+  --bg-surface: #1E2420;
+  --bg-elevated: #232A25;
+
+  /* 文字色系 */
+  --text-color: #E8EAE8;
+  --text-secondary: #B8BEB9;
+  --text-muted: #7D847E;
+  --text-inverse: #FDFAF5;
+
+  /* 边框与分割 */
+  --border-color: #384039;
+  --border-light: #2C332E;
+
+  /* 语义色（深色底提亮） */
+  --success-color: #6FA14E;
+  --success-light: rgba(111, 161, 78, 0.15);
+  --warning-color: #D4943A;
+  --warning-light: rgba(212, 148, 58, 0.15);
+  --danger-color: #D4574A;
+  --danger-light: rgba(212, 87, 74, 0.15);
+
+  /* 阴影：深色底加深 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* 深色模式：库存预警行高亮改用低亮度色块 */
+:root[data-theme='dark'] .ant-table-tbody > tr.row-low-stock > td {
+  background: rgba(212, 148, 58, 0.18) !important;
+}
+
+:root[data-theme='dark'] .ant-table-tbody > tr.row-low-stock:hover > td {
+  background: rgba(212, 148, 58, 0.26) !important;
+}
+
+:root[data-theme='dark'] .ant-table-tbody > tr.row-zero-stock > td {
+  background: rgba(212, 87, 74, 0.18) !important;
+}
+
+:root[data-theme='dark'] .ant-table-tbody > tr.row-zero-stock:hover > td {
+  background: rgba(212, 87, 74, 0.26) !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -104,6 +166,18 @@ body,
   color: var(--text-muted);
   margin: 0;
   letter-spacing: 0.3px;
+}
+
+/* 页头带右侧操作区（刷新按钮等），保持标题/副标题左对齐 */
+.page-header-flex {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-header-flex .page-header {
+  margin-bottom: 0;
 }
 
 /* ============================================================
@@ -195,6 +269,16 @@ body,
 .tcm-stat-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+/* 可点击统计卡片：指针样式 + 键盘聚焦轮廓 */
+.tcm-stat-card.clickable {
+  cursor: pointer;
+}
+
+.tcm-stat-card.clickable:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .tcm-stat-card.accent::before {

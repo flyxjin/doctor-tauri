@@ -12,6 +12,41 @@ import type { ColumnsType } from 'antd/es/table';
 import { ExportOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
+
+dayjs.locale('zh-cn');
+
+/** 快捷时间范围定义 */
+type QuickKey = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
+const QUICK_RANGES: { label: string; key: QuickKey }[] = [
+  { label: '今日', key: 'today' },
+  { label: '本周', key: 'week' },
+  { label: '本月', key: 'month' },
+  { label: '本季', key: 'quarter' },
+  { label: '本年', key: 'year' },
+  { label: '全部', key: 'all' },
+];
+
+/** 根据快捷 key 计算日期范围 */
+function getQuickRange(key: QuickKey): [Dayjs, Dayjs] {
+  const today = dayjs();
+  switch (key) {
+    case 'today':
+      return [today.startOf('day'), today.endOf('day')];
+    case 'week':
+      return [today.startOf('week'), today.endOf('day')];
+    case 'month':
+      return [today.startOf('month'), today.endOf('day')];
+    case 'quarter': {
+      const qMonth = Math.floor(today.month() / 3) * 3;
+      return [today.month(qMonth).startOf('month'), today.endOf('day')];
+    }
+    case 'year':
+      return [today.startOf('year'), today.endOf('day')];
+    case 'all':
+      return [dayjs('2020-01-01'), today.endOf('day')];
+  }
+}
 import { getStatistics } from '@/api/tauri';
 import type { DailyTrend, TopMedicine } from '@/types';
 import StatCard from '@/components/StatCard';
@@ -24,12 +59,10 @@ const { RangePicker } = DatePicker;
 
 export default function StatisticsPage() {
   const { message } = App.useApp();
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(29, 'day'),
-    dayjs(),
-  ]);
+  // 初始范围与快捷选中态保持一致（默认「本月」），避免高亮与实际区间不匹配
+  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => getQuickRange('month'));
   // 当前快捷范围选中态：null 表示用户自定义了 RangePicker
-  const [quickSelected, setQuickSelected] = useState<number | null>(30);
+  const [quickSelected, setQuickSelected] = useState<QuickKey | null>('month');
 
   // CSV 导出：复用统一 hook
   const { exportCsv } = useCsvExport({ filenamePrefix: 'statistics', label: '统计报表' });
@@ -43,23 +76,14 @@ export default function StatisticsPage() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const quickRange = (days: number) => {
-    setRange([dayjs().subtract(days - 1, 'day'), dayjs()]);
-    setQuickSelected(days);
+  const handleQuickRange = (key: QuickKey) => {
+    setRange(getQuickRange(key));
+    setQuickSelected(key);
   };
 
   const handleRangePickerChange = (v: [Dayjs, Dayjs] | null) => {
     if (v && v[0] && v[1]) {
       setRange([v[0], v[1]]);
-      // 判断是否匹配某个快捷范围（结束日期为今天）
-      const today = dayjs().startOf('day');
-      if (v[1].startOf('day').isSame(today)) {
-        const diff = v[0].startOf('day').diff(today, 'day') * -1 + 1;
-        if ([7, 30, 90].includes(diff)) {
-          setQuickSelected(diff);
-          return;
-        }
-      }
       setQuickSelected(null);
     }
   };
@@ -155,24 +179,15 @@ export default function StatisticsPage() {
           value={range}
           onChange={(v) => handleRangePickerChange(v as [Dayjs, Dayjs] | null)}
         />
-        <Button
-          type={quickSelected === 7 ? 'primary' : 'default'}
-          onClick={() => quickRange(7)}
-        >
-          近 7 天
-        </Button>
-        <Button
-          type={quickSelected === 30 ? 'primary' : 'default'}
-          onClick={() => quickRange(30)}
-        >
-          近 30 天
-        </Button>
-        <Button
-          type={quickSelected === 90 ? 'primary' : 'default'}
-          onClick={() => quickRange(90)}
-        >
-          近 90 天
-        </Button>
+        {QUICK_RANGES.map((r) => (
+          <Button
+            key={r.key}
+            type={quickSelected === r.key ? 'primary' : 'default'}
+            onClick={() => handleQuickRange(r.key)}
+          >
+            {r.label}
+          </Button>
+        ))}
         <Button
           icon={<ExportOutlined />}
           onClick={handleExportCsv}
@@ -249,8 +264,9 @@ export default function StatisticsPage() {
                 xKey="date"
                 height={260}
                 lines={[
-                  { key: 'total_amount', name: '销售额', color: '#C8472C' },
-                  { key: 'prescription_count', name: '处方数', color: '#2D5F3F', area: false },
+                  // 使用 CSS 变量，浅色/深色主题下自动适配
+                  { key: 'total_amount', name: '销售额', color: 'var(--accent-color)' },
+                  { key: 'prescription_count', name: '处方数', color: 'var(--primary-color)', area: false },
                 ]}
               />
             </div>

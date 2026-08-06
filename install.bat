@@ -16,7 +16,7 @@ if %errorlevel% neq 0 (
 )
 
 set "INSTALL_DIR=%ProgramFiles%\中药材销售管理系统"
-set "APP_VERSION=0.3.15"
+set "APP_VERSION=1.3.0"
 set "EXE_NAME=medicine-system.exe"
 
 echo [1/4] 创建安装目录...

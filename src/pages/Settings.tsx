@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import {
   Alert,
   App,
@@ -21,22 +23,29 @@ import {
   DatabaseOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  ExportOutlined,
   FileSearchOutlined,
+  ImportOutlined,
   ReloadOutlined,
   RollbackOutlined,
   SaveOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import {
   checkForUpdate,
   createBackup,
   deleteBackup,
+  downloadImportTemplate,
   downloadUpdate,
+  exportMedicinesCsv,
   installUpdate,
   listBackups,
   listOperationLogs,
   restoreBackup,
+  saveTextToDownloads,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
 import { compareVersions, formatFileSize } from '@/utils/format';
 import { formatError } from '@/utils/formatError';
 import { APP_VERSION } from '@/constants/version';
@@ -46,6 +55,7 @@ const { Paragraph, Text } = Typography;
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { message, modal } = App.useApp();
 
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -54,13 +64,16 @@ export default function SettingsPage() {
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [logType, setLogType] = useState<string | undefined>(undefined);
+  // 数据导入导出入口的加载态
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [exportMedLoading, setExportMedLoading] = useState(false);
 
-  const { data: backups, isLoading: backupsLoading } = useQuery({
+  const { data: backups, isLoading: backupsLoading, isError: backupsError, error: backupsErr, refetch: refetchBackups, isFetching: backupsFetching } = useQuery({
     queryKey: ['backups'],
     queryFn: listBackups,
   });
 
-  const { data: operationLogs, isLoading: logsLoading } = useQuery({
+  const { data: operationLogs, isLoading: logsLoading, isError: logsError, error: logsErr, refetch: refetchLogs, isFetching: logsFetching } = useQuery({
     queryKey: ['operation-logs', logType],
     queryFn: () => listOperationLogs(logType, undefined, undefined, undefined, 100),
   });
@@ -208,6 +221,36 @@ export default function SettingsPage() {
     });
   };
 
+  /** 下载药材导入模板（含样本数据）到系统下载目录 */
+  const handleDownloadTemplate = async () => {
+    setTemplateLoading(true);
+    try {
+      const csv = await downloadImportTemplate();
+      const ts = dayjs().format('YYYYMMDD_HHmmss');
+      const path = await saveTextToDownloads(`药材导入模板_${ts}.csv`, csv);
+      message.success(`导入模板已下载到：${path}`);
+    } catch (e) {
+      message.error(`下载模板失败：${formatError(e)}`);
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  /** 导出全量药材库为 CSV（后端生成，含完整字段） */
+  const handleExportAllMedicines = async () => {
+    setExportMedLoading(true);
+    try {
+      const csv = await exportMedicinesCsv();
+      const ts = dayjs().format('YYYYMMDD_HHmmss');
+      const path = await saveTextToDownloads(`药材全量导出_${ts}.csv`, csv);
+      message.success(`全量药材已导出到：${path}`);
+    } catch (e) {
+      message.error(`导出失败：${formatError(e)}`);
+    } finally {
+      setExportMedLoading(false);
+    }
+  };
+
   const backupColumns: ColumnsType<BackupEntry> = [
     {
       title: '创建时间',
@@ -223,11 +266,11 @@ export default function SettingsPage() {
       render: (v: number) => formatFileSize(v),
     },
     {
-      title: 'MD5',
-      dataIndex: 'md5',
-      key: 'md5',
+      title: '校验值',
+      dataIndex: 'checksum',
+      key: 'checksum',
       ellipsis: true,
-      render: (v: string) => <Text code style={{ fontSize: 12 }}>{v}</Text>,
+      render: (v: string) => <Text code style={{ fontSize: 12 }}>{v || '-'}</Text>,
     },
     {
       title: '路径',
@@ -451,6 +494,45 @@ export default function SettingsPage() {
         )}
       </Card>
 
+      {/* 数据导入导出统一入口（ROADMAP 数据迁移向导精简版） */}
+      <Card
+        title={
+          <Space>
+            <SwapOutlined />
+            <span>数据导入导出</span>
+          </Space>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={<ImportOutlined />}
+            onClick={() => navigate('/batch-import')}
+          >
+            前往批量导入
+          </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={handleDownloadTemplate}
+            loading={templateLoading}
+          >
+            下载导入模板
+          </Button>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={handleExportAllMedicines}
+            loading={exportMedLoading}
+          >
+            导出全量药材 CSV
+          </Button>
+        </Space>
+        <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 13 }}>
+          批量导入支持 CSV 格式，导入前请先下载模板核对字段；药材导出含全部字段，
+          可用于数据备份或在 Excel 中批量维护后重新导入。
+        </Paragraph>
+      </Card>
+
       {/* 数据备份与恢复 */}
       <Card
         title={
@@ -470,6 +552,14 @@ export default function SettingsPage() {
           </Button>
         }
       >
+        {backupsError && (
+          <QueryErrorAlert
+            error={backupsErr}
+            onRetry={() => refetchBackups()}
+            retrying={backupsFetching}
+            message="加载备份列表失败"
+          />
+        )}
         <Table<BackupEntry>
           rowKey="backup_path"
           size="small"
@@ -506,6 +596,14 @@ export default function SettingsPage() {
         }
         style={{ marginTop: 16 }}
       >
+        {logsError && (
+          <QueryErrorAlert
+            error={logsErr}
+            onRetry={() => refetchLogs()}
+            retrying={logsFetching}
+            message="加载操作日志失败"
+          />
+        )}
         <Table<OperationLog>
           rowKey="id"
           size="small"

@@ -1,0 +1,101 @@
+name: Release
+
+# tag 触发 Tauri 应用构建与 GitHub Release 发布
+# 对应 Gitee Issue IK3Y7P / ROADMAP.md P0 项
+# 与 Python 版的 release.yml 工作流对齐
+on:
+  push:
+    tags:
+      - 'v*'
+
+defaults:
+  run:
+    working-directory: tauri_app
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: tauri_app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tauri_app/package-lock.json
+
+      - name: 安装 Rust stable-msvc
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri_app/src-tauri -> target
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: TypeScript 类型检查
+        run: npx tsc --noEmit
+
+      - name: 前端单元测试（Vitest）
+        run: npx vitest run
+
+      - name: Rust 单元测试
+        working-directory: tauri_app/src-tauri
+        run: cargo test --lib
+
+      - name: 生产构建（Tauri bundler）
+        run: npm run tauri:build
+
+      - name: 验证构建产物
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" -ErrorAction SilentlyContinue
+          $portable = Test-Path "src-tauri/target/release/medicine-system.exe"
+
+          if (-not $setup) {
+            Write-Host "错误：未找到 NSIS 安装包"
+            exit 1
+          }
+          if (-not $portable) {
+            Write-Host "警告：未找到便携 EXE（medicine-system.exe）"
+          }
+
+          Write-Host "构建产物清单："
+          Write-Host "  NSIS 安装包: $($setup.FullName)"
+          Write-Host "  体积: $([math]::Round($setup.Length / 1MB, 2)) MB"
+          if ($portable) {
+            $pe = Get-Item "src-tauri/target/release/medicine-system.exe"
+            Write-Host "  便携 EXE: $($pe.FullName)"
+            Write-Host "  体积: $([math]::Round($pe.Length / 1MB, 2)) MB"
+          }
+
+      - name: 上传构建产物到 GitHub Actions Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: medicine-system-tauri-setup-${{ github.ref_name }}
+          path: |
+            tauri_app/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            tauri_app/src-tauri/target/release/medicine-system.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            tauri_app/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            tauri_app/src-tauri/target/release/medicine-system.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

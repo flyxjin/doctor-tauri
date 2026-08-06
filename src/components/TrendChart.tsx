@@ -83,7 +83,7 @@ export default function TrendChart<T extends object>({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#8B8580',
+          color: 'var(--text-muted)',
           fontSize: 13,
         }}
       >
@@ -116,15 +116,15 @@ export default function TrendChart<T extends object>({
                     y1={y}
                     x2={padding.left + innerW}
                     y2={y}
-                    stroke="#E5DFD5"
                     strokeDasharray="3 3"
+                    style={{ stroke: 'var(--border-color)' }}
                   />
                   <text
                     x={padding.left - 8}
                     y={y + 4}
                     textAnchor="end"
                     fontSize={11}
-                    fill="#8B8580"
+                    style={{ fill: 'var(--text-muted)' }}
                   >
                     {formatTick(value, config[0].isCurrency)}
                   </text>
@@ -146,7 +146,7 @@ export default function TrendChart<T extends object>({
               y={padding.top + innerH + 18}
               textAnchor="middle"
               fontSize={11}
-              fill="#8B8580"
+              style={{ fill: 'var(--text-muted)' }}
             >
               {label}
             </text>
@@ -173,15 +173,15 @@ export default function TrendChart<T extends object>({
           return (
             <g key={`line-${lineIdx}`}>
               {line.area !== false && (
-                <path d={areaD} fill={line.color} opacity={0.08} />
+                <path d={areaD} opacity={0.08} style={{ fill: line.color }} />
               )}
               <path
                 d={pathD}
                 fill="none"
-                stroke={line.color}
                 strokeWidth={2}
                 strokeLinejoin="round"
                 strokeLinecap="round"
+                style={{ stroke: line.color }}
               />
               {points.map((p, i) => (
                 <circle
@@ -189,9 +189,8 @@ export default function TrendChart<T extends object>({
                   cx={p.x}
                   cy={p.y}
                   r={3}
-                  fill="#fff"
-                  stroke={line.color}
                   strokeWidth={1.5}
+                  style={{ fill: 'var(--bg-elevated)', stroke: line.color }}
                 >
                   <title>{`${line.name}: ${formatTick(p.v, line.isCurrency)}`}</title>
                 </circle>
@@ -208,14 +207,14 @@ export default function TrendChart<T extends object>({
               y={4}
               width={12}
               height={3}
-              fill={line.color}
               rx={1.5}
+              style={{ fill: line.color }}
             />
             <text
               x={padding.left + i * 120 + 16}
               y={9}
               fontSize={11}
-              fill="#4A4A4A"
+              style={{ fill: 'var(--text-secondary)' }}
             >
               {line.name}
             </text>

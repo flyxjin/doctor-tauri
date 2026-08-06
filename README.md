@@ -1,4 +1,4 @@
-# 中药材销售管理系统 v0.3.15
+# 中药材销售管理系统 v1.0.0
 
 > 面向中医诊所 / 中药房的桌面端开方与销售管理软件，内置 400 味药材库、32 张经典方剂模板、十八反十九畏配伍禁忌实时预警、患者过敏史冲突检测、批次效期 FEFO 出库。
 
@@ -59,7 +59,7 @@ npm run tauri:build
 ```
 
 产物位置：
-- **NSIS 安装包**：`src-tauri/target/release/bundle/nsis/中药材销售管理系统_0.3.15_x64-setup.exe`（约 3 MB）
+- **NSIS 安装包**：`src-tauri/target/release/bundle/nsis/中药材销售管理系统_1.1.0_x64-setup.exe`（约 3 MB）
 - **便携 EXE**：`src-tauri/target/release/medicine-system.exe`（约 7 MB）
 
 > NSIS 安装包采用 `perMachine` 模式，安装到 `Program Files`（所有用户可用），简体中文向导，运行时自动请求 UAC 提权，支持 `/S` 静默安装参数。
@@ -380,6 +380,9 @@ A: 因未购买代码签名证书，首次安装时会提示。点击「仍要�
 
 详见 [CHANGELOG.md](CHANGELOG.md)。
 
+- **v1.1.0**（2026-07-28）：处方 PDF 导出功能 + GitHub Actions CI/Release 工作流
+- **v1.0.0**（2026-07-28）：**里程碑版本** — 功能完成度达到 1.0 标准，定位为生产主推版本；Python 版同步进入维护模式。详见 [docs/ROADMAP.md](docs/ROADMAP.md)
+- **v0.3.16**（2026-07-28）：新增用户操作手册（软著申请材料）
 - **v0.3.15**（2026-07-25）：代码卫生改进（死代码清理 + 类型逃逸收窄 + 测试补强）
 - **v0.3.14**（2026-07-25）：代码质量改进（brooks-lint 修复）
 - **v0.3.13**（2026-07-25）：今日概览横幅 + 三页 CSV 导出

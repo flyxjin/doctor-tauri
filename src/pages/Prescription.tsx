@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -29,6 +29,7 @@ import {
   listPatients,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
 import TemplateSelector from '@/components/TemplateSelector';
 import { printHtmlInIframe } from '@/utils/print';
 import { formatError } from '@/utils/formatError';
@@ -64,21 +65,21 @@ export default function PrescriptionPage() {
   const [patientAllergy, setPatientAllergy] = useState<string | null>(null);
 
   // 患者档案列表（用于患者姓名 AutoComplete 与过敏史回填）
-  const { data: patients } = useQuery({
+  const { data: patients, isError: patientsError, error: patientsErr, refetch: refetchPatients, isFetching: patientsFetching } = useQuery({
     queryKey: ['patients', ''],
     queryFn: () => listPatients(undefined),
     staleTime: 5 * 60 * 1000,
   });
 
   // 药材搜索
-  const { data: medicines } = useQuery({
+  const { data: medicines, isError: medicinesError, error: medicinesErr, refetch: refetchMedicines, isFetching: medicinesFetching } = useQuery({
     queryKey: ['medicines', keyword, undefined],
     queryFn: () => listMedicines(keyword || undefined, undefined),
     staleTime: 5 * 60 * 1000,
   });
 
   // 库存（用于取价格/单位与库存校验）
-  const { data: inventory } = useQuery({
+  const { data: inventory, isError: inventoryError, error: inventoryErr, refetch: refetchInventory, isFetching: inventoryFetching } = useQuery({
     queryKey: ['inventory'],
     queryFn: listInventory,
     staleTime: 60 * 1000,
@@ -94,7 +95,7 @@ export default function PrescriptionPage() {
       label: (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>{p.name}</span>
-          <span style={{ color: '#8B8580', fontSize: 12 }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
             {[p.gender, p.age != null ? `${p.age}岁` : ''].filter(Boolean).join(' · ')}
             {p.allergy ? ' · ⚠过敏' : ''}
           </span>
@@ -278,53 +279,57 @@ export default function PrescriptionPage() {
 
   // 应用方剂模板：自动填入诊断并按模板组成匹配药材加入处方
   const applyTemplate = async (template: PrescriptionTemplate) => {
-    // 1. 自动设置诊断字段为模板主治
-    form.setFieldValue('diagnosis', template.indication);
+    try {
+      // 1. 自动设置诊断字段为模板主治
+      form.setFieldValue('diagnosis', template.indication);
 
-    const found: { medicine: Medicine; quantity: number }[] = [];
-    const missing: string[] = [];
+      const found: { medicine: Medicine; quantity: number }[] = [];
+      const missing: string[] = [];
 
-    // 2. 一次拉取全部药材，内存中按名称匹配（消除 N 次 invoke 调用）
-    const allMedicines = await listMedicines(undefined, undefined);
-    const medicineMap = new Map(allMedicines.map((m) => [m.name, m]));
-    for (const tpl of template.items) {
-      const matched = medicineMap.get(tpl.name);
-      if (matched && matched.id !== null) {
-        found.push({ medicine: matched, quantity: tpl.quantity });
-      } else {
-        missing.push(tpl.name);
+      // 2. 一次拉取全部药材，内存中按名称匹配（消除 N 次 invoke 调用）
+      const allMedicines = await listMedicines(undefined, undefined);
+      const medicineByName = new Map(allMedicines.map((m) => [m.name, m]));
+      for (const tpl of template.items) {
+        const matched = medicineByName.get(tpl.name);
+        if (matched && matched.id !== null) {
+          found.push({ medicine: matched, quantity: tpl.quantity });
+        } else {
+          missing.push(tpl.name);
+        }
       }
-    }
 
-    // 3. 找到的药材添加到处方列表（跳过已存在，单价/单位取自库存）
-    setItems((prev) => {
-      const existingIds = new Set(prev.map((i) => i.medicine_id));
-      const additions: PrescriptionItem[] = [];
-      for (const { medicine, quantity } of found) {
-        if (!medicine.id || existingIds.has(medicine.id)) continue;
-        const mid = medicine.id;
-        const inv = inventoryMap.get(mid);
-        const price = inv?.price ?? 0;
-        const unit = inv?.unit ?? 'g';
-        additions.push({
-          medicine_id: mid,
-          medicine_name: medicine.name,
-          quantity,
-          unit,
-          price,
-          amount: Number((quantity * price).toFixed(2)),
-        });
-        existingIds.add(mid);
+      // 3. 找到的药材添加到处方列表（跳过已存在，单价/单位取自库存）
+      setItems((prev) => {
+        const existingIds = new Set(prev.map((i) => i.medicine_id));
+        const additions: PrescriptionItem[] = [];
+        for (const { medicine, quantity } of found) {
+          if (!medicine.id || existingIds.has(medicine.id)) continue;
+          const mid = medicine.id;
+          const inv = inventoryMap.get(mid);
+          const price = inv?.price ?? 0;
+          const unit = inv?.unit ?? 'g';
+          additions.push({
+            medicine_id: mid,
+            medicine_name: medicine.name,
+            quantity,
+            unit,
+            price,
+            amount: Number((quantity * price).toFixed(2)),
+          });
+          existingIds.add(mid);
+        }
+        return [...prev, ...additions];
+      });
+
+      // 4. 未找到的药材提示
+      if (missing.length > 0) {
+        message.warning(`以下药材未找到：${missing.join('、')}`);
       }
-      return [...prev, ...additions];
-    });
-
-    // 4. 未找到的药材提示
-    if (missing.length > 0) {
-      message.warning(`以下药材未找到：${missing.join('、')}`);
-    }
-    if (found.length > 0) {
-      message.success(`已加载方剂「${template.name}」共 ${found.length} 味药材`);
+      if (found.length > 0) {
+        message.success(`已加载方剂「${template.name}」共 ${found.length} 味药材`);
+      }
+    } catch (e) {
+      message.error(formatError(e));
     }
   };
 
@@ -344,6 +349,8 @@ export default function PrescriptionPage() {
   };
 
   const handleSubmit = async () => {
+    // 防重入：快捷键/按钮连点时避免重复创建处方
+    if (createMutation.isPending) return;
     if (items.length === 0) {
       message.warning('请至少添加一味药材');
       return;
@@ -395,6 +402,23 @@ export default function PrescriptionPage() {
     }
   };
 
+  // Ctrl+S 保存处方：用 ref 始终指向最新 handleSubmit，
+  // 监听器只注册一次，避免闭包陈旧与频繁重绑
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault(); // 拦截浏览器/WebView 默认的「保存页面」行为
+        // 模态框打开时不触发保存，避免误提交
+        if (document.querySelector('.ant-modal-wrap:not([style*="display: none"])')) return;
+        handleSubmitRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const itemColumns: ColumnsType<PrescriptionItem> = [
     {
       title: '药材',
@@ -410,12 +434,13 @@ export default function PrescriptionPage() {
             <div>{name}</div>
             <div style={{ fontSize: 11, marginTop: 2 }}>
               {totalQty > 0 ? (
-                <span style={{ color: insufficient ? '#B83A2E' : '#8B8580' }}>
+                // 使用 CSS 变量，深色主题下保持可读对比度
+                <span style={{ color: insufficient ? 'var(--danger-color)' : 'var(--text-muted)' }}>
                   库存 {totalQty}{r.unit}
                   {insufficient && ' · 不足'}
                 </span>
               ) : (
-                <span style={{ color: '#B83A2E' }}>无库存</span>
+                <span style={{ color: 'var(--danger-color)' }}>无库存</span>
               )}
             </div>
           </div>
@@ -429,7 +454,7 @@ export default function PrescriptionPage() {
       width: 120,
       render: (q: number, _r, index) => (
         <InputNumber
-          min={0}
+          min={0.01}
           step={1}
           value={q}
           onChange={(v) => updateItem(index, 'quantity', Number(v ?? 0))}
@@ -485,6 +510,32 @@ export default function PrescriptionPage() {
           左侧检索药材加入处方，系统自动校验十八反/十九畏配伍禁忌并扣减库存
         </Paragraph>
       </div>
+
+      {/* 辅助查询错误提示：患者档案/药材库/库存加载失败时展示，不阻塞开方流程 */}
+      {patientsError && (
+        <QueryErrorAlert
+          error={patientsErr}
+          onRetry={() => refetchPatients()}
+          retrying={patientsFetching}
+          message="加载患者档案失败（自动补全不可用，仍可手动输入）"
+        />
+      )}
+      {medicinesError && (
+        <QueryErrorAlert
+          error={medicinesErr}
+          onRetry={() => refetchMedicines()}
+          retrying={medicinesFetching}
+          message="加载药材列表失败（药材搜索不可用）"
+        />
+      )}
+      {inventoryError && (
+        <QueryErrorAlert
+          error={inventoryErr}
+          onRetry={() => refetchInventory()}
+          retrying={inventoryFetching}
+          message="加载库存数据失败（库存校验与价格回填不可用）"
+        />
+      )}
 
       {conflicts && conflicts.length > 0 && (
         <Alert
@@ -675,8 +726,9 @@ export default function PrescriptionPage() {
                 type="primary"
                 loading={createMutation.isPending}
                 onClick={handleSubmit}
+                title="快捷键：Ctrl+S"
               >
-                保存处方
+                保存处方（Ctrl+S）
               </Button>
               {lastCreatedId !== null && (
                 <Button

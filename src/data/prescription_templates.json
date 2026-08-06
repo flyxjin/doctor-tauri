@@ -486,6 +486,296 @@
         {"name": "白芍", "quantity": 6, "unit": "g"},
         {"name": "生地黄", "quantity": 9, "unit": "g"}
       ]
+    },
+    {
+      "name": "十全大补汤",
+      "category": "补益剂",
+      "description": "温补气血，主治气血两虚兼阳气不足证",
+      "indication": "气血两虚证兼阳虚。面色萎黄，精神倦怠，四肢无力，心悸气短，畏寒肢冷，疮疡不敛",
+      "items": [
+        {"name": "人参", "quantity": 6, "unit": "g"},
+        {"name": "白术", "quantity": 9, "unit": "g"},
+        {"name": "茯苓", "quantity": 9, "unit": "g"},
+        {"name": "炙甘草", "quantity": 6, "unit": "g"},
+        {"name": "熟地黄", "quantity": 12, "unit": "g"},
+        {"name": "当归", "quantity": 9, "unit": "g"},
+        {"name": "白芍", "quantity": 9, "unit": "g"},
+        {"name": "川芎", "quantity": 6, "unit": "g"},
+        {"name": "黄芪", "quantity": 12, "unit": "g"},
+        {"name": "肉桂", "quantity": 3, "unit": "g"}
+      ]
+    },
+    {
+      "name": "当归补血汤",
+      "category": "补益剂",
+      "description": "补气生血，主治血虚阳浮发热证",
+      "indication": "血虚阳浮发热证。肌热面赤，烦渴欲饮，脉洪大而虚；亦治妇人经期产后血虚发热",
+      "items": [
+        {"name": "黄芪", "quantity": 30, "unit": "g"},
+        {"name": "当归", "quantity": 6, "unit": "g"}
+      ]
+    },
+    {
+      "name": "炙甘草汤",
+      "category": "补益剂",
+      "description": "益气滋阴，通阳复脉，主治气虚血弱脉结代证",
+      "indication": "气虚血弱证。脉结代，心动悸，虚羸少气，舌光少苔；或虚劳肺痿干咳无痰",
+      "items": [
+        {"name": "炙甘草", "quantity": 12, "unit": "g"},
+        {"name": "生地黄", "quantity": 15, "unit": "g"},
+        {"name": "人参", "quantity": 6, "unit": "g"},
+        {"name": "桂枝", "quantity": 9, "unit": "g"},
+        {"name": "麦冬", "quantity": 10, "unit": "g"},
+        {"name": "阿胶", "quantity": 9, "unit": "g"},
+        {"name": "火麻仁", "quantity": 9, "unit": "g"},
+        {"name": "生姜", "quantity": 6, "unit": "g"},
+        {"name": "大枣", "quantity": 10, "unit": "g"}
+      ]
+    },
+    {
+      "name": "小柴胡汤",
+      "category": "和解剂",
+      "description": "和解少阳，主治伤寒少阳证",
+      "indication": "伤寒少阳证。寒热往来，胸胁苦满，默默不欲饮食，心烦喜呕，口苦咽干，目眩头痛",
+      "items": [
+        {"name": "柴胡", "quantity": 12, "unit": "g"},
+        {"name": "黄芩", "quantity": 9, "unit": "g"},
+        {"name": "人参", "quantity": 6, "unit": "g"},
+        {"name": "半夏", "quantity": 9, "unit": "g"},
+        {"name": "炙甘草", "quantity": 6, "unit": "g"},
+        {"name": "生姜", "quantity": 6, "unit": "g"},
+        {"name": "大枣", "quantity": 10, "unit": "g"}
+      ]
+    },
+    {
+      "name": "大柴胡汤",
+      "category": "和解剂",
+      "description": "和解少阳，内泻热结，主治少阳阳明合病",
+      "indication": "少阳阳明合病。寒热往来，胸胁苦满，呕不止，郁郁微烦，心下痞硬，大便秘结",
+      "items": [
+        {"name": "柴胡", "quantity": 12, "unit": "g"},
+        {"name": "黄芩", "quantity": 9, "unit": "g"},
+        {"name": "半夏", "quantity": 9, "unit": "g"},
+        {"name": "白芍", "quantity": 9, "unit": "g"},
+        {"name": "枳实", "quantity": 9, "unit": "g"},
+        {"name": "大黄", "quantity": 6, "unit": "g"},
+        {"name": "生姜", "quantity": 6, "unit": "g"},
+        {"name": "大枣", "quantity": 10, "unit": "g"}
+      ]
+    },
+    {
+      "name": "苓桂术甘汤",
+      "category": "祛湿剂",
+      "description": "温阳化饮，健脾利湿，主治中阳不足痰饮证",
+      "indication": "中阳不足痰饮证。胸胁支满，目眩心悸，短气而咳，舌苔白滑，脉弦滑",
+      "items": [
+        {"name": "茯苓", "quantity": 12, "unit": "g"},
+        {"name": "桂枝", "quantity": 9, "unit": "g"},
+        {"name": "白术", "quantity": 9, "unit": "g"},
+        {"name": "甘草", "quantity": 6, "unit": "g"}
+      ]
+    },
+    {
+      "name": "真武汤",
+      "category": "祛湿剂",
+      "description": "温阳利水，主治脾肾阳虚水泛证",
+      "indication": "脾肾阳虚，水气内停证。小便不利，四肢沉重疼痛，腹痛下利，或肢体浮肿，苔白不渴",
+      "items": [
+        {"name": "附子", "quantity": 9, "unit": "g"},
+        {"name": "白术", "quantity": 9, "unit": "g"},
+        {"name": "茯苓", "quantity": 9, "unit": "g"},
+        {"name": "白芍", "quantity": 9, "unit": "g"},
+        {"name": "生姜", "quantity": 9, "unit": "g"}
+      ]
+    },
+    {
+      "name": "二妙散",
+      "category": "祛湿剂",
+      "description": "清热燥湿，主治湿热下注证",
+      "indication": "湿热下注证。筋骨疼痛，或两足痿软，或足膝红肿热痛，或湿热带下，小便短赤",
+      "items": [
+        {"name": "黄柏", "quantity": 12, "unit": "g"},
+        {"name": "苍术", "quantity": 12, "unit": "g"}
+      ]
+    },
+    {
+      "name": "麻杏石甘汤",
+      "category": "解表剂",
+      "description": "辛凉宣泄，清肺平喘，主治外感风邪肺热喘咳证",
+      "indication": "外感风邪，邪热壅肺证。身热不解，咳逆气急，甚则鼻煽，口渴，有汗或无汗",
+      "items": [
+        {"name": "麻黄", "quantity": 6, "unit": "g"},
+        {"name": "杏仁", "quantity": 9, "unit": "g"},
+        {"name": "石膏", "quantity": 24, "unit": "g"},
+        {"name": "甘草", "quantity": 6, "unit": "g"}
+      ]
+    },
+    {
+      "name": "九味羌活汤",
+      "category": "解表剂",
+      "description": "发汗祛湿，兼清里热，主治外感风寒湿邪兼里热证",
+      "indication": "外感风寒湿邪，内有蕴热证。恶寒发热，无汗，头痛项强，肢体酸楚疼痛，口苦微渴",
+      "items": [
+        {"name": "羌活", "quantity": 9, "unit": "g"},
+        {"name": "独活", "quantity": 6, "unit": "g"},
+        {"name": "藁本", "quantity": 6, "unit": "g"},
+        {"name": "防风", "quantity": 9, "unit": "g"},
+        {"name": "川芎", "quantity": 6, "unit": "g"},
+        {"name": "细辛", "quantity": 3, "unit": "g"},
+        {"name": "白芷", "quantity": 6, "unit": "g"},
+        {"name": "生地黄", "quantity": 6, "unit": "g"},
+        {"name": "黄芩", "quantity": 6, "unit": "g"},
+        {"name": "甘草", "quantity": 6, "unit": "g"}
+      ]
+    },
+    {
+      "name": "香苏散",
+      "category": "解表剂",
+      "description": "疏散风寒，理气和中，主治外感风寒内有气滞证",
+      "indication": "外感风寒，内有气滞证。恶寒身热，头痛无汗，胸脘痞闷，不思饮食",
+      "items": [
+        {"name": "紫苏叶", "quantity": 9, "unit": "g"},
+        {"name": "香附", "quantity": 9, "unit": "g"},
+        {"name": "陈皮", "quantity": 6, "unit": "g"},
+        {"name": "甘草", "quantity": 3, "unit": "g"}
+      ]
+    },
+    {
+      "name": "定喘汤",
+      "category": "止咳平喘剂",
+      "description": "宣降肺气，清热化痰，主治风寒外束痰热内蕴之哮喘",
+      "indication": "风寒外束，痰热内蕴证。哮喘咳嗽，痰多气急，痰稠色黄，微恶风寒",
+      "items": [
+        {"name": "麻黄", "quantity": 6, "unit": "g"},
+        {"name": "白果", "quantity": 9, "unit": "g"},
+        {"name": "黄芩", "quantity": 9, "unit": "g"},
+        {"name": "桑白皮", "quantity": 9, "unit": "g"},
+        {"name": "半夏", "quantity": 9, "unit": "g"},
+        {"name": "款冬花", "quantity": 9, "unit": "g"},
+        {"name": "紫苏子", "quantity": 9, "unit": "g"},
+        {"name": "甘草", "quantity": 3, "unit": "g"}
+      ]
+    },
+    {
+      "name": "苏子降气汤",
+      "category": "止咳平喘剂",
+      "description": "降气平喘，祛痰止咳，主治上实下虚喘咳证",
+      "indication": "上实下虚喘咳证。痰涎壅盛，喘咳短气，胸膈满闷，或腰疼脚软，肢体浮肿",
+      "items": [
+        {"name": "紫苏子", "quantity": 9, "unit": "g"},
+        {"name": "半夏", "quantity": 9, "unit": "g"},
+        {"name": "厚朴", "quantity": 6, "unit": "g"},
+        {"name": "前胡", "quantity": 6, "unit": "g"},
+        {"name": "当归", "quantity": 6, "unit": "g"},
+        {"name": "肉桂", "quantity": 3, "unit": "g"},
+        {"name": "生姜", "quantity": 6, "unit": "g"},
+        {"name": "甘草", "quantity": 6, "unit": "g"},
+        {"name": "大枣", "quantity": 6, "unit": "g"}
+      ]
+    },
+    {
+      "name": "泻白散",
+      "category": "止咳平喘剂",
+      "description": "清泻肺热，止咳平喘，主治肺热喘咳证",
+      "indication": "肺热喘咳证。气喘咳嗽，皮肤蒸热，日晡尤甚，舌红苔黄，脉细数",
+      "items": [
+        {"name": "桑白皮", "quantity": 15, "unit": "g"},
+        {"name": "地骨皮", "quantity": 15, "unit": "g"},
+        {"name": "甘草", "quantity": 3, "unit": "g"}
+      ]
+    },
+    {
+      "name": "青蒿鳖甲汤",
+      "category": "清热剂",
+      "description": "养阴透热，主治温病后期邪伏阴分证",
+      "indication": "温病后期，邪伏阴分证。夜热早凉，热退无汗，舌红苔少，脉细数",
+      "items": [
+        {"name": "青蒿", "quantity": 6, "unit": "g"},
+        {"name": "鳖甲", "quantity": 15, "unit": "g"},
+        {"name": "生地黄", "quantity": 12, "unit": "g"},
+        {"name": "知母", "quantity": 6, "unit": "g"},
+        {"name": "牡丹皮", "quantity": 9, "unit": "g"}
+      ]
+    },
+    {
+      "name": "四妙勇安汤",
+      "category": "清热剂",
+      "description": "清热解毒，活血止痛，主治热毒炽盛脱疽证",
+      "indication": "热毒炽盛之脱疽。患肢暗红微肿灼热，溃烂腐臭，疼痛剧烈，或发热口渴",
+      "items": [
+        {"name": "金银花", "quantity": 30, "unit": "g"},
+        {"name": "玄参", "quantity": 30, "unit": "g"},
+        {"name": "当归", "quantity": 15, "unit": "g"},
+        {"name": "甘草", "quantity": 9, "unit": "g"}
+      ]
+    },
+    {
+      "name": "半夏厚朴汤",
+      "category": "理气剂",
+      "description": "行气散结，降逆化痰，主治梅核气",
+      "indication": "梅核气。咽中如有物阻，咯吐不出，吞咽不下，胸膈满闷，或咳或呕",
+      "items": [
+        {"name": "半夏", "quantity": 12, "unit": "g"},
+        {"name": "厚朴", "quantity": 9, "unit": "g"},
+        {"name": "茯苓", "quantity": 12, "unit": "g"},
+        {"name": "生姜", "quantity": 9, "unit": "g"},
+        {"name": "紫苏叶", "quantity": 6, "unit": "g"}
+      ]
+    },
+    {
+      "name": "柴胡疏肝散",
+      "category": "理气剂",
+      "description": "疏肝理气，活血止痛，主治肝气郁滞证",
+      "indication": "肝气郁滞证。胁肋疼痛，胸闷喜太息，情志抑郁易怒，或呕逆口苦，脉弦",
+      "items": [
+        {"name": "柴胡", "quantity": 6, "unit": "g"},
+        {"name": "陈皮", "quantity": 6, "unit": "g"},
+        {"name": "川芎", "quantity": 6, "unit": "g"},
+        {"name": "香附", "quantity": 6, "unit": "g"},
+        {"name": "枳壳", "quantity": 6, "unit": "g"},
+        {"name": "白芍", "quantity": 6, "unit": "g"},
+        {"name": "甘草", "quantity": 3, "unit": "g"}
+      ]
+    },
+    {
+      "name": "越鞠丸",
+      "category": "理气剂",
+      "description": "行气解郁，主治六郁证",
+      "indication": "六郁证。胸膈痞闷，脘腹胀痛，嗳腐吞酸，恶心呕吐，饮食不消",
+      "items": [
+        {"name": "川芎", "quantity": 9, "unit": "g"},
+        {"name": "苍术", "quantity": 9, "unit": "g"},
+        {"name": "香附", "quantity": 9, "unit": "g"},
+        {"name": "栀子", "quantity": 9, "unit": "g"},
+        {"name": "神曲", "quantity": 9, "unit": "g"}
+      ]
+    },
+    {
+      "name": "桃红四物汤",
+      "category": "理血剂",
+      "description": "养血活血，主治血虚兼血瘀证",
+      "indication": "血虚兼血瘀证。妇女月经不调，经行腹痛，或经血紫黑有块，面色晦暗",
+      "items": [
+        {"name": "桃仁", "quantity": 9, "unit": "g"},
+        {"name": "红花", "quantity": 6, "unit": "g"},
+        {"name": "当归", "quantity": 9, "unit": "g"},
+        {"name": "川芎", "quantity": 6, "unit": "g"},
+        {"name": "白芍", "quantity": 9, "unit": "g"},
+        {"name": "熟地黄", "quantity": 12, "unit": "g"}
+      ]
+    },
+    {
+      "name": "酸枣仁汤",
+      "category": "安神剂",
+      "description": "养血安神，清热除烦，主治肝血不足虚烦不眠证",
+      "indication": "肝血不足，虚热内扰证。虚烦失眠，心悸不安，头目眩晕，咽干口燥，脉弦细",
+      "items": [
+        {"name": "酸枣仁", "quantity": 15, "unit": "g"},
+        {"name": "茯苓", "quantity": 9, "unit": "g"},
+        {"name": "知母", "quantity": 6, "unit": "g"},
+        {"name": "川芎", "quantity": 6, "unit": "g"},
+        {"name": "甘草", "quantity": 3, "unit": "g"}
+      ]
     }
   ]
 }

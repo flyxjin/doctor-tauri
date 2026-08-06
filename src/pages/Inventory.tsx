@@ -4,7 +4,6 @@ import {
   Alert,
   App,
   Button,
-  Card,
   Col,
   DatePicker,
   Drawer,
@@ -16,20 +15,16 @@ import {
   Row,
   Segmented,
   Space,
-  Statistic,
   Table,
   Tag,
   Tooltip,
   Typography,
 } from 'antd';
 import {
-  AlertOutlined,
   ClockCircleOutlined,
-  DatabaseOutlined,
   ExclamationCircleOutlined,
   ExportOutlined,
   HistoryOutlined,
-  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
@@ -38,6 +33,7 @@ import {
   listInventory,
   listInventoryHistory,
   updateStock,
+  adjustStock,
 } from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
 import {
@@ -46,6 +42,8 @@ import {
   expiryStatus,
 } from '@/utils/inventory';
 import { useCsvExport } from '@/hooks/useCsvExport';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
+import StatCard from '@/components/StatCard';
 import type { Inventory, InventoryHistory } from '@/types';
 
 const { Text } = Typography;
@@ -60,6 +58,12 @@ interface StockForm {
   expiry_date?: Dayjs | null;
 }
 
+interface AdjustForm {
+  target_quantity: number;
+  operator?: string;
+  notes?: string;
+}
+
 type FilterMode = 'all' | 'low' | 'zero' | 'expiring';
 
 export default function InventoryPage() {
@@ -71,11 +75,13 @@ export default function InventoryPage() {
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [keyword, setKeyword] = useState('');
   const [historyTarget, setHistoryTarget] = useState<Inventory | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState<Inventory | null>(null);
+  const [adjustForm] = Form.useForm<AdjustForm>();
 
   // CSV 导出：复用统一 hook（统一用 \r\n 行分隔符，避免 Excel 兼容性问题）
   const { exportCsv } = useCsvExport({ filenamePrefix: 'inventory_export', label: '库存记录' });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['inventory'],
     queryFn: listInventory,
     // 库存变更频率中等，缓存 1 分钟；出入库后由 mutation 失效
@@ -90,7 +96,14 @@ export default function InventoryPage() {
   });
 
   // 库存变更历史（仅当选择某药材时查询）
-  const { data: historyData, isLoading: historyLoading } = useQuery({
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    isError: historyIsError,
+    error: historyError,
+    refetch: historyRefetch,
+    isFetching: historyFetching,
+  } = useQuery({
     queryKey: ['inventory-history', historyTarget?.medicine_id],
     queryFn: () => listInventoryHistory(historyTarget!.medicine_id, undefined, undefined, undefined, 100),
     enabled: !!historyTarget,
@@ -178,6 +191,25 @@ export default function InventoryPage() {
     onError: (e: unknown) => message.error(formatError(e)),
   });
 
+  // 库存调整 mutation
+  const adjustMutation = useMutation({
+    mutationFn: (vars: { inventoryId: number; form: AdjustForm }) =>
+      adjustStock(
+        vars.inventoryId,
+        vars.form.target_quantity,
+        vars.form.operator,
+        vars.form.notes,
+      ),
+    onSuccess: () => {
+      message.success('库存调整成功');
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches', EXPIRY_WARN_DAYS] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setAdjustTarget(null);
+    },
+    onError: (e: unknown) => message.error(formatError(e)),
+  });
+
   const openModal = (record: Inventory, isIn: boolean) => {
     setTarget(record);
     form.resetFields();
@@ -219,6 +251,20 @@ export default function InventoryPage() {
 
   // 订阅 is_in 字段变化，使 Modal 标题与批次输入区随操作类型切换
   const isInWatch = Form.useWatch('is_in', form);
+
+  const handleAdjustSubmit = async () => {
+    if (!adjustTarget) return;
+    try {
+      const values = await adjustForm.validateFields();
+      if (values.target_quantity < 0) {
+        message.warning('目标库存不能为负数');
+        return;
+      }
+      adjustMutation.mutate({ inventoryId: adjustTarget.id!, form: values });
+    } catch {
+      // 校验失败
+    }
+  };
 
   const handleSubmit = async () => {
     if (!target) return;
@@ -291,7 +337,8 @@ export default function InventoryPage() {
       render: (_v, r) => {
         const low = r.quantity <= r.min_stock;
         return (
-          <span style={{ color: low ? '#dc2626' : undefined, fontWeight: low ? 600 : 400 }}>
+          // 使用 CSS 变量，深色主题下保持可读对比度
+          <span style={{ color: low ? 'var(--danger-color)' : undefined, fontWeight: low ? 600 : 400 }}>
             {r.quantity} {r.unit}
           </span>
         );
@@ -334,6 +381,17 @@ export default function InventoryPage() {
             onClick={() => setHistoryTarget(record)}
           >
             历史
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setAdjustTarget(record);
+              adjustForm.resetFields();
+              adjustForm.setFieldsValue({ target_quantity: record.quantity });
+            }}
+          >
+            调整
           </Button>
         </Space>
       ),
@@ -418,53 +476,48 @@ export default function InventoryPage() {
         />
       )}
 
-      {/* 库存概览统计卡片 */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="在库品种"
-              value={stats.totalKinds}
-              prefix={<DatabaseOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="低库存预警"
-              value={stats.lowCount}
-              valueStyle={{ color: stats.lowCount > 0 ? '#fa8c16' : undefined }}
-              prefix={<ExclamationCircleOutlined />}
-              suffix="种"
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="零库存"
-              value={stats.zeroCount}
-              valueStyle={{ color: stats.zeroCount > 0 ? '#cf1322' : undefined }}
-              prefix={<AlertOutlined />}
-              suffix="种"
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="库存总价值"
-              value={stats.totalValue}
-              precision={2}
-              prefix="¥"
-              suffix={<SafetyCertificateOutlined style={{ color: '#52c41a' }} />}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {/* 库存概览统计卡（统一 StatCard，深浅主题自动适配） */}
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 16 }}>
+        <StatCard
+          title="在库品种"
+          value={stats.totalKinds}
+          suffix="种"
+          loading={isLoading}
+          variant="success"
+        />
+        <StatCard
+          title="低库存预警"
+          value={stats.lowCount}
+          suffix="种"
+          loading={isLoading}
+          variant={stats.lowCount > 0 ? 'warning' : 'default'}
+        />
+        <StatCard
+          title="零库存"
+          value={stats.zeroCount}
+          suffix="种"
+          loading={isLoading}
+          variant={stats.zeroCount > 0 ? 'warning' : 'default'}
+        />
+        <StatCard
+          title="库存总价值"
+          value={stats.totalValue}
+          precision={2}
+          prefix="¥"
+          loading={isLoading}
+          variant="accent"
+        />
+      </div>
 
       <div className="table-card">
+        {isError && (
+          <QueryErrorAlert
+            error={error}
+            onRetry={() => refetch()}
+            retrying={isFetching}
+            message="加载库存数据失败"
+          />
+        )}
         <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
           <Space>
             <Segmented<FilterMode>
@@ -559,7 +612,7 @@ export default function InventoryPage() {
             label="数量"
             rules={[{ required: true, message: '请输入数量' }]}
           >
-            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+            <InputNumber min={0.01} step={1} style={{ width: '100%' }} />
           </Form.Item>
 
           {/* 入库时录入批次信息；出库时按 FEFO 自动扣减，无需填写 */}
@@ -602,6 +655,53 @@ export default function InventoryPage() {
         </Form>
       </Modal>
 
+      {/* 库存调整 Modal */}
+      <Modal
+        title={`${adjustTarget?.medicine_name ?? ''} - 库存调整`}
+        open={!!adjustTarget}
+        onOk={handleAdjustSubmit}
+        onCancel={() => setAdjustTarget(null)}
+        confirmLoading={adjustMutation.isPending}
+        okText="确认调整"
+        cancelText="取消"
+        width={480}
+      >
+        {adjustTarget && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              <span>
+                当前库存：
+                <Text strong style={{ fontSize: 16 }}>
+                  {adjustTarget.quantity} {adjustTarget.unit}
+                </Text>
+                <Text type="secondary" style={{ marginLeft: 12 }}>
+                  批次余量：{adjustTarget.quantity} {adjustTarget.unit}
+                </Text>
+              </span>
+            }
+            description="将库存调整为目标数量，差值自动记入变更历史（盘盈记为入库，盘亏记为出库）"
+          />
+        )}
+        <Form form={adjustForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="target_quantity"
+            label="目标库存量"
+            rules={[{ required: true, message: '请输入目标库存量' }]}
+          >
+            <InputNumber min={0} step={1} style={{ width: '100%' }} addonAfter={adjustTarget?.unit ?? 'g'} />
+          </Form.Item>
+          <Form.Item name="operator" label="操作人">
+            <Input placeholder="操作人姓名" />
+          </Form.Item>
+          <Form.Item name="notes" label="备注">
+            <Input.TextArea autoSize={{ minRows: 2 }} placeholder="调整原因，如：盘点核实" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       {/* 库存变更历史抽屉 */}
       <Drawer
         title={`${historyTarget?.medicine_name ?? ''} - 库存变更历史`}
@@ -611,6 +711,14 @@ export default function InventoryPage() {
       >
         {historyTarget && (
           <>
+            {historyIsError && (
+              <QueryErrorAlert
+                error={historyError}
+                onRetry={() => historyRefetch()}
+                retrying={historyFetching}
+                message="加载库存变更历史失败"
+              />
+            )}
             <Space size="large" style={{ marginBottom: 16 }}>
               <Text type="secondary">
                 当前库存：

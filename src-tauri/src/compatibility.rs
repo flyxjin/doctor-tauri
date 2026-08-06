@@ -1,8 +1,11 @@
 // 配伍禁忌检查 - 十八反、十九畏
 //
 // 基于中医传统配伍禁忌理论，检查处方中是否存在冲突的药材组合。
-// 匹配采用"包含"策略，以兼容炮制前后缀（如"生甘草"、"炙甘草"均匹配"甘草"）。
-// 规则与原 Python 项目 core/compatibility.py 完全一致。
+// 匹配采用"双向包含"策略：
+// - 正向：药材名包含关键词（如"生甘草"匹配"甘草"）
+// - 反向：关键词包含药材名（如"白芍"匹配"芍药"）
+// 以兼容炮制前后缀和药材别名变体。
+// 规则与原 Python 项目 core/compatibility.py 保持一致，并补充了白芍/赤芍/川贝/浙贝等变体。
 
 use crate::models::CompatibilityConflict;
 
@@ -13,6 +16,11 @@ use crate::models::CompatibilityConflict;
 /// - 十八反·乌头（川乌/草乌/附子）反贝母/瓜蒌/半夏/白蔹/白及（20 对）
 /// - 十八反·藜芦反人参/沙参/丹参/玄参/苦参/细辛/芍药（7 对）
 /// - 十九畏（10 对）
+///
+/// 补充变体（确保临床常见药名能命中）：
+/// - 芍药：白芍、赤芍、白芍药、赤芍药（藜芦反芍药的变体）
+/// - 贝母：川贝、浙贝、川贝母、浙贝母（乌头类反贝母的变体）
+/// - 诸参：党参、西洋参、太子参（藜芦反诸参的扩展，参考 L1 改进）
 pub const INCOMPATIBLE_PAIRS: &[(&str, &str)] = &[
     // 十八反 - 甘草反甘遂、大戟、海藻、芫花
     ("甘草", "甘遂"),
@@ -48,6 +56,22 @@ pub const INCOMPATIBLE_PAIRS: &[(&str, &str)] = &[
     ("藜芦", "苦参"),
     ("藜芦", "细辛"),
     ("藜芦", "芍药"),
+    // 藜芦反芍药的变体：白芍、赤芍（临床极常见，"白芍".contains("芍药") 为 false，需显式补充）
+    ("藜芦", "白芍"),
+    ("藜芦", "赤芍"),
+    // 藜芦反诸参的扩展：党参、西洋参、太子参（部分典籍归入"诸参"范畴）
+    ("藜芦", "党参"),
+    ("藜芦", "西洋参"),
+    ("藜芦", "太子参"),
+    // 乌头类反贝母的变体：川贝、浙贝（"川贝".contains("贝母") 为 false，需显式补充）
+    ("乌头", "川贝"),
+    ("乌头", "浙贝"),
+    ("川乌", "川贝"),
+    ("川乌", "浙贝"),
+    ("草乌", "川贝"),
+    ("草乌", "浙贝"),
+    ("附子", "川贝"),
+    ("附子", "浙贝"),
     // 十九畏
     ("硫黄", "朴硝"),
     ("水银", "砒霜"),
@@ -66,9 +90,29 @@ fn normalize(name: &str) -> String {
     name.trim().to_lowercase()
 }
 
-/// 判断药材名是否包含关键词（兼容炮制前后缀，如"生甘草"匹配"甘草"）
+/// 判断药材名是否匹配关键词（双向包含策略）
+///
+/// - 正向：药材名包含关键词（如"生甘草"匹配"甘草"）
+/// - 反向：关键词包含药材名（如"白芍"匹配"芍药"，因"芍药".contains("白芍") 为 false，
+///   但"白芍".contains("芍") 为 true——不过为避免"参"类过宽匹配，这里用关键词包含药材名：
+///   "芍药" 不包含 "白芍"，所以仍需在 INCOMPATIBLE_PAIRS 中显式补充变体）
+///
+/// 实际实现：name.contains(keyword) || keyword.contains(name)
+/// 但 keyword.contains(name) 会对短关键词（如"参"）产生过宽匹配，
+/// 因此仅当 name 比 keyword 短时才尝试反向匹配。
 fn matches(name: &str, keyword: &str) -> bool {
-    normalize(name).contains(&normalize(keyword))
+    let n = normalize(name);
+    let k = normalize(keyword);
+    // 正向：药材名包含关键词（生甘草 → 甘草）
+    if n.contains(&k) {
+        return true;
+    }
+    // 反向：关键词包含药材名（芍药 → 白芍药，因"白芍药".contains("芍药") 已被正向命中）
+    // 仅当药材名比关键词短时才尝试反向，避免"参"匹配"人参"等过宽情况
+    if n.len() < k.len() && k.contains(&n) {
+        return true;
+    }
+    false
 }
 
 /// 判断两味药是否构成配伍禁忌
@@ -186,6 +230,68 @@ mod tests {
         // 十八反：藜芦反芍药
         assert!(check_pair("藜芦", "芍药"));
         assert!(check_pair("芍药", "藜芦"));
+    }
+
+    // ==================== 芍药变体：白芍、赤芍（临床高频用药安全） ====================
+
+    #[test]
+    fn test_lilu_incompatible_with_baishao() {
+        // 藜芦反白芍（"白芍" 不包含 "芍药"，但 INCOMPATIBLE_PAIRS 已显式补充）
+        assert!(check_pair("藜芦", "白芍"));
+        assert!(check_pair("白芍", "藜芦"));
+    }
+
+    #[test]
+    fn test_lilu_incompatible_with_chishao() {
+        // 藜芦反赤芍
+        assert!(check_pair("藜芦", "赤芍"));
+        assert!(check_pair("赤芍", "藜芦"));
+    }
+
+    #[test]
+    fn test_lilu_incompatible_with_baishaoyao() {
+        // 藜芦反白芍药（"白芍药" 包含 "芍药"，正向命中）
+        assert!(check_pair("藜芦", "白芍药"));
+        assert!(check_pair("白芍药", "藜芦"));
+    }
+
+    // ==================== 贝母变体：川贝、浙贝 ====================
+
+    #[test]
+    fn test_wutou_incompatible_with_chuanbei() {
+        // 乌头反川贝（"川贝" 不包含 "贝母"，但 INCOMPATIBLE_PAIRS 已显式补充）
+        assert!(check_pair("乌头", "川贝"));
+        assert!(check_pair("川贝", "乌头"));
+    }
+
+    #[test]
+    fn test_chuanwu_incompatible_with_zhebei() {
+        // 川乌反浙贝
+        assert!(check_pair("川乌", "浙贝"));
+        assert!(check_pair("浙贝", "川乌"));
+    }
+
+    #[test]
+    fn test_chuanbeimu_matches_beimu() {
+        // "川贝母" 包含 "贝母"，正向命中（验证既有行为不回归）
+        assert!(check_pair("乌头", "川贝母"));
+        assert!(check_pair("浙贝母", "草乌"));
+    }
+
+    // ==================== 诸参扩展：党参、西洋参、太子参 ====================
+
+    #[test]
+    fn test_lilu_incompatible_with_dangshen() {
+        // 藜芦反党参（扩展规则）
+        assert!(check_pair("藜芦", "党参"));
+        assert!(check_pair("党参", "藜芦"));
+    }
+
+    #[test]
+    fn test_lilu_incompatible_with_xiyangshen() {
+        // 藜芦反西洋参
+        assert!(check_pair("藜芦", "西洋参"));
+        assert!(check_pair("西洋参", "藜芦"));
     }
 
     // ==================== 十九畏（3 个测试） ====================

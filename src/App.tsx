@@ -1,9 +1,11 @@
 import { lazy, Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { ConfigProvider, App as AntdApp, Spin } from 'antd';
+import { ConfigProvider, App as AntdApp, Spin, theme as antdTheme } from 'antd';
+import type { ThemeConfig } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import MainLayout from '@/layouts/MainLayout';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { ThemeProvider, useThemeMode, type ThemeMode } from '@/theme/ThemeContext';
 
 /** 路由懒加载：按需加载页面组件，减小首屏包体积 */
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
@@ -30,7 +32,7 @@ function PageLoading() {
  * 提升到模块顶层作为常量，避免 App 每次渲染都重建对象引用，
  * 减少 ConfigProvider 不必要的主题重计算。
  */
-const theme = {
+const lightTheme: ThemeConfig = {
   token: {
     colorPrimary: '#2D5F3F',
     colorSuccess: '#5B8C3E',
@@ -77,9 +79,67 @@ const theme = {
   },
 };
 
-function App() {
+/** 深色主题：保留草本绿品牌色，基于 antd darkAlgorithm 生成暗色体系
+ * 与 global.css 中 :root[data-theme='dark'] 的 CSS 变量覆盖配套 */
+const darkTheme: ThemeConfig = {
+  algorithm: antdTheme.darkAlgorithm,
+  token: {
+    colorPrimary: '#4C9566',
+    colorSuccess: '#6FA14E',
+    colorWarning: '#D4943A',
+    colorError: '#D4574A',
+    colorInfo: '#4C9566',
+    borderRadius: 8,
+    fontSize: 14,
+    colorBgLayout: '#171B18',
+    colorBorder: '#384039',
+    colorText: '#E8EAE8',
+    colorTextSecondary: '#B8BEB9',
+    fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif",
+  },
+  components: {
+    Layout: {
+      siderBg: '#14261C',
+      headerBg: '#1E2420',
+      headerHeight: 56,
+      bodyBg: '#171B18',
+    },
+    Menu: {
+      darkItemBg: '#14261C',
+      darkItemSelectedBg: 'rgba(217, 91, 63, 0.28)',
+      darkItemColor: 'rgba(232, 240, 234, 0.65)',
+      darkItemSelectedColor: '#FDFAF5',
+      darkItemHoverBg: 'rgba(255, 255, 255, 0.06)',
+      itemHeight: 40,
+      itemMarginInline: 0,
+    },
+    Table: {
+      headerBg: '#1E2420',
+      headerColor: '#B8BEB9',
+      rowHoverBg: 'rgba(76, 149, 102, 0.14)',
+      borderColor: '#2C332E',
+    },
+    Card: {
+      borderRadiusLG: 12,
+      colorBorderSecondary: '#2C332E',
+    },
+    Statistic: {
+      contentFontSize: 32,
+    },
+  },
+};
+
+/** 按模式选择主题配置（模块级常量，避免每次渲染重建） */
+const THEME_BY_MODE: Record<ThemeMode, ThemeConfig> = {
+  light: lightTheme,
+  dark: darkTheme,
+};
+
+/** 内部应用组件：根据当前主题模式选择对应的 antd 主题配置 */
+function AppInner() {
+  const { mode } = useThemeMode();
   return (
-    <ConfigProvider locale={zhCN} theme={theme}>
+    <ConfigProvider locale={zhCN} theme={THEME_BY_MODE[mode]}>
       <AntdApp>
         <HashRouter>
           <ErrorBoundary>
@@ -164,6 +224,15 @@ function App() {
         </HashRouter>
       </AntdApp>
     </ConfigProvider>
+  );
+}
+
+/** 根组件：ThemeProvider 包在 ConfigProvider 外层，供内部组件读取主题模式 */
+function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   );
 }
 

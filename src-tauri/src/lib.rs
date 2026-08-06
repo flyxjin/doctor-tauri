@@ -40,6 +40,7 @@ pub fn run() {
             // 库存管理
             commands::list_inventory,
             commands::update_stock,
+            commands::adjust_stock,
             commands::list_inventory_history,
             commands::list_expiring_batches,
             // 处方管理

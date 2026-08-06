@@ -1,17 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { Button, Space, Table, Tag } from 'antd';
+import { Button, Space, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   DatabaseOutlined,
   FileTextOutlined,
   MedicineBoxOutlined,
   PlusOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardData } from '@/api/tauri';
-import type { LowStockItem, Prescription } from '@/types';
+import type { DashboardDailyTrend, LowStockItem, Prescription } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
+import TrendChart from '@/components/TrendChart';
 import QueryErrorAlert from '@/components/QueryErrorAlert';
 
 export default function Dashboard() {
@@ -68,9 +70,20 @@ export default function Dashboard() {
 
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h1 className="page-title">首页概览</h1>
-        <p className="page-subtitle">系统关键指标与待办事项一览</p>
+      <div className="page-header-flex">
+        <div className="page-header">
+          <h1 className="page-title">首页概览</h1>
+          <p className="page-subtitle">系统关键指标与待办事项一览</p>
+        </div>
+        <Tooltip title="手动刷新看板数据">
+          <Button
+            icon={<ReloadOutlined spin={isFetching} />}
+            onClick={() => refetch()}
+            loading={isFetching && !isLoading}
+          >
+            刷新
+          </Button>
+        </Tooltip>
       </div>
 
       {isError && (
@@ -103,31 +116,52 @@ export default function Dashboard() {
       </div>
 
       <div className="stat-grid">
-        <StatCard
-          title="药材种类"
-          value={data?.medicine_count ?? 0}
-          loading={isLoading}
-          variant="success"
-        />
-        <StatCard
-          title="处方总数"
-          value={data?.prescription_count ?? 0}
-          loading={isLoading}
-        />
-        <StatCard
-          title="库存总值"
-          value={data?.total_stock_value ?? 0}
-          precision={2}
-          prefix="¥"
-          loading={isLoading}
-          variant="accent"
-        />
-        <StatCard
-          title="低库存预警"
-          value={data?.low_stock_count ?? 0}
-          loading={isLoading}
-          variant={data && data.low_stock_count > 0 ? 'warning' : 'default'}
-        />
+        {/* Tooltip 需包裹普通元素以承接 ref，StatCard 非 forwardRef 组件 */}
+        <Tooltip title="点击查看药材管理">
+          <div>
+            <StatCard
+              title="药材种类"
+              value={data?.medicine_count ?? 0}
+              loading={isLoading}
+              variant="success"
+              onClick={() => navigate('/medicines')}
+            />
+          </div>
+        </Tooltip>
+        <Tooltip title="点击查看处方历史">
+          <div>
+            <StatCard
+              title="处方总数"
+              value={data?.prescription_count ?? 0}
+              loading={isLoading}
+              onClick={() => navigate('/history')}
+            />
+          </div>
+        </Tooltip>
+        <Tooltip title="点击查看库存管理">
+          <div>
+            <StatCard
+              title="库存总值"
+              value={data?.total_stock_value ?? 0}
+              precision={2}
+              prefix="¥"
+              loading={isLoading}
+              variant="accent"
+              onClick={() => navigate('/inventory')}
+            />
+          </div>
+        </Tooltip>
+        <Tooltip title="点击查看库存管理">
+          <div>
+            <StatCard
+              title="低库存预警"
+              value={data?.low_stock_count ?? 0}
+              loading={isLoading}
+              variant={data && data.low_stock_count > 0 ? 'warning' : 'default'}
+              onClick={() => navigate('/inventory')}
+            />
+          </div>
+        </Tooltip>
       </div>
 
       {/* 快捷操作入口 */}
@@ -165,6 +199,23 @@ export default function Dashboard() {
           </Button>
         </Space>
       </div>
+
+      {/* 近 7 天营收趋势 */}
+      {data && data.daily_trend && data.daily_trend.length > 0 && (
+        <div className="table-card" style={{ marginBottom: 16 }}>
+          <div className="table-title">近 7 天营收趋势</div>
+          <TrendChart<DashboardDailyTrend>
+            data={data.daily_trend}
+            xKey="date"
+            height={240}
+            lines={[
+              // 使用 CSS 变量，浅色/深色主题下自动适配
+              { key: 'revenue', name: '营收', color: 'var(--accent-color)' },
+              { key: 'prescription_count', name: '处方数', color: 'var(--primary-color)', area: false },
+            ]}
+          />
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="table-card">

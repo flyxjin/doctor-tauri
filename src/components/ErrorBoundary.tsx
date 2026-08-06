@@ -64,7 +64,7 @@ export default class ErrorBoundary extends Component<
           ]}
           style={{ padding: '48px 24px' }}
         >
-          {this.state.error.stack && (
+          {import.meta.env.DEV && this.state.error.stack && (
             <pre
               style={{
                 textAlign: 'left',

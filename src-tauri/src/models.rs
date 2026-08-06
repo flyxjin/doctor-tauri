@@ -192,6 +192,14 @@ pub struct LowStockItem {
     pub unit: String,
 }
 
+/// 看板每日趋势（日期 + 营收 + 处方数）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardDailyTrend {
+    pub date: String,
+    pub revenue: f64,
+    pub prescription_count: i64,
+}
+
 /// 看板数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardData {
@@ -205,6 +213,8 @@ pub struct DashboardData {
     pub today_prescription_count: i64,
     /// 今日销售收入（按本地日期匹配）
     pub today_revenue: f64,
+    /// 近 7 天每日营收与处方数趋势
+    pub daily_trend: Vec<DashboardDailyTrend>,
 }
 
 /// 统计卡片
@@ -345,7 +355,7 @@ pub struct SilentUpdateResult {
 pub struct BackupInfo {
     pub backup_path: String,
     pub file_size: u64,
-    pub md5: String,
+    pub checksum: String,
     pub created_at: String,
 }
 
@@ -354,7 +364,7 @@ pub struct BackupInfo {
 pub struct BackupEntry {
     pub backup_path: String,
     pub file_size: u64,
-    pub md5: String,
+    pub checksum: String,
     pub created_at: String,
 }
 

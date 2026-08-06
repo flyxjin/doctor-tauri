@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Button,
-  Card,
   Col,
   Descriptions,
   Drawer,
@@ -28,7 +27,6 @@ import {
   ExportOutlined,
   EyeOutlined,
   PlusOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import {
   createPatient,
@@ -41,6 +39,8 @@ import {
 import type { Patient, PrescriptionWithItems } from '@/types';
 import EmptyState from '@/components/EmptyState';
 import LoadingCard from '@/components/LoadingCard';
+import QueryErrorAlert from '@/components/QueryErrorAlert';
+import StatCard from '@/components/StatCard';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
 import { useCopyToPrescription } from '@/hooks/useCopyToPrescription';
 import { useCsvExport } from '@/hooks/useCsvExport';
@@ -67,7 +67,7 @@ export default function Patients() {
   // CSV 导出：复用统一 hook
   const { exportCsv } = useCsvExport({ filenamePrefix: 'patients_export', label: '患者档案' });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['patients', keyword],
     queryFn: () => listPatients(keyword || undefined),
     // 患者档案变更频率低，缓存 5 分钟；CRUD 后由 useCrudMutations 失效
@@ -205,21 +205,26 @@ export default function Patients() {
         <p className="page-subtitle">维护患者档案：基本信息、过敏史、既往病史，关联查看处方历史与消费统计</p>
       </div>
 
-      {/* 统计卡片：患者总数 */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={8} md={6}>
-          <Card bordered={false} style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-            <Statistic
-              title="患者总数"
-              value={data?.length ?? 0}
-              prefix={<UserOutlined />}
-              valueStyle={{ color: '#2D5F3F' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {/* 统计卡片：复用统一 StatCard（深浅主题自动适配） */}
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 260px))' }}>
+        <StatCard
+          title="患者总数"
+          value={data?.length ?? 0}
+          suffix="人"
+          loading={isLoading}
+          variant="success"
+        />
+      </div>
 
       <div className="table-card">
+        {isError && (
+          <QueryErrorAlert
+            error={error}
+            onRetry={() => refetch()}
+            retrying={isFetching}
+            message="加载患者档案失败"
+          />
+        )}
         <Space style={{ marginBottom: 16 }} wrap>
           <Input.Search
             placeholder="按姓名 / 电话搜索"
@@ -305,7 +310,17 @@ export default function Patients() {
               <InputNumber min={0} max={150} style={{ width: '100%' }} placeholder="岁" />
             </Form.Item>
           </Space>
-          <Form.Item name="phone" label="联系电话">
+          <Form.Item
+            name="phone"
+            label="联系电话"
+            rules={[
+              {
+                // 手机号 / 座机 / 400 号码宽松校验；空值不拦截（非必填）
+                pattern: /^(1[3-9]\d{9}|0\d{2,3}-?\d{7,8}|400-?\d{3}-?\d{4})$/,
+                message: '电话格式不正确，请输入有效的手机号或座机号',
+              },
+            ]}
+          >
             <Input placeholder="如：13800138000" />
           </Form.Item>
           <Form.Item name="address" label="地址">
@@ -342,13 +357,25 @@ interface PatientDetailDrawerProps {
 /** 患者详情 Drawer：展示基本信息、处方历史、统计数据 */
 function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
   // 改用 listPrescriptions 获取带 items 的处方，以支持「复制到处方」
-  const { data: prescriptions, isLoading: loadingPrescriptions } = useQuery({
+  const {
+    data: prescriptions,
+    isLoading: loadingPrescriptions,
+    isError: prescriptionsError,
+    error: prescriptionsErr,
+    refetch: refetchPrescriptions,
+    isFetching: prescriptionsFetching,
+  } = useQuery({
     queryKey: ['patient-prescriptions', patient?.name],
     queryFn: () => listPrescriptions(patient!.name, undefined, undefined, 100),
     enabled: !!patient,
   });
 
-  const { data: statistics, isLoading: loadingStats } = useQuery({
+  const {
+    data: statistics,
+    isLoading: loadingStats,
+    isError: statsError,
+    error: statsErr,
+  } = useQuery({
     queryKey: ['patient-statistics', patient?.name],
     queryFn: () => getPatientStatistics(patient!.name),
     enabled: !!patient,
@@ -444,7 +471,10 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
           <Title level={5} style={{ marginTop: 16 }}>
             消费统计
           </Title>
-          <Row gutter={16}>
+          {statsError ? (
+            <QueryErrorAlert error={statsErr} message="加载消费统计失败" />
+          ) : (
+            <Row gutter={16}>
             <Col span={6}>
               <Statistic
                 title="处方数"
@@ -479,29 +509,39 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
               />
             </Col>
           </Row>
+          )}
 
           {/* 处方历史 */}
           <Title level={5} style={{ marginTop: 16 }}>
             处方历史
           </Title>
-          <Table<PrescriptionWithItems>
-            rowKey="id"
-            size="small"
-            columns={prescriptionColumns}
-            dataSource={prescriptions}
-            loading={loadingPrescriptions}
-            pagination={{ pageSize: 5, showSizeChanger: false }}
-            scroll={{ x: 620 }}
-            locale={{
-              emptyText: (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="该患者暂无处方记录"
-                  style={{ padding: '16px 0' }}
-                />
-              ),
-            }}
-          />
+          {prescriptionsError ? (
+            <QueryErrorAlert
+              error={prescriptionsErr}
+              onRetry={() => refetchPrescriptions()}
+              retrying={prescriptionsFetching}
+              message="加载处方历史失败"
+            />
+          ) : (
+            <Table<PrescriptionWithItems>
+              rowKey="id"
+              size="small"
+              columns={prescriptionColumns}
+              dataSource={prescriptions}
+              loading={loadingPrescriptions}
+              pagination={{ pageSize: 5, showSizeChanger: false }}
+              scroll={{ x: 620 }}
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="该患者暂无处方记录"
+                    style={{ padding: '16px 0' }}
+                  />
+                ),
+              }}
+            />
+          )}
         </>
       )}
     </Drawer>

@@ -25,12 +25,13 @@ import type {
   UpdateInfo,
 } from '@/types';
 
-/** 药材列表（支持关键字与分类筛选） */
+/** 药材列表（支持关键字、分类与药性筛选） */
 export async function listMedicines(
   keyword?: string,
   category?: string,
+  nature?: string,
 ): Promise<Medicine[]> {
-  return invoke<Medicine[]>('list_medicines', { keyword, category });
+  return invoke<Medicine[]>('list_medicines', { keyword, category, nature });
 }
 
 /** 新增药材，返回新 ID */
@@ -51,6 +52,25 @@ export async function deleteMedicine(id: number): Promise<void> {
 /** 库存列表 */
 export async function listInventory(): Promise<Inventory[]> {
   return invoke<Inventory[]>('list_inventory');
+}
+
+/**
+ * 库存调整：将指定批次库存设置为目标数量
+ *
+ * 用于盘点场景，差值自动记入变更历史
+ */
+export async function adjustStock(
+  inventoryId: number,
+  targetQuantity: number,
+  operator?: string,
+  notes?: string,
+): Promise<void> {
+  return invoke<void>('adjust_stock', {
+    inventoryId,
+    targetQuantity,
+    operator,
+    notes,
+  });
 }
 
 /**
