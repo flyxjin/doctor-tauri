@@ -1,7 +1,7 @@
 // 自动更新：检查 Gitee Release、下载更新、启动安装程序
 //
-// 与原 Python 项目 utils/updater.py 对齐：
-// - 调用 https://gitee.com/api/v5/repos/flyxjin/doctor/releases/latest
+// 仓库拆分后指向 Tauri 版主仓库 flyxjin/doctor-tauri：
+// - 调用 https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/latest
 // - 解析 tag_name / name / body / assets
 // - 流式下载到 %APPDATA%/com.medicine.system/downloads/
 //
@@ -22,7 +22,7 @@ use tauri::ipc::Channel;
 use tauri::Manager;
 use tokio::io::AsyncWriteExt;
 
-const GITEE_RELEASES_URL: &str = "https://gitee.com/api/v5/repos/flyxjin/doctor/releases/latest";
+const GITEE_RELEASES_URL: &str = "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/latest";
 
 /// 下载并发保护：同一时刻只允许一个下载任务
 /// 防止 check_and_download_silently 与用户手动 download_update 同时写同一文件
