@@ -324,6 +324,9 @@ pub struct UpdateInfo {
     pub changelog: String,
     pub download_url: String,
     pub file_size: u64,
+    /// 安装包 SHA256（十六进制小写），来自 Release 附带的 `.sha256` 侧车文件；
+    /// 旧版 Release 无此文件时为空串，此时跳过哈希校验（仅做大小校验）
+    pub checksum: String,
 }
 
 /// 下载进度（通过 Channel 推送给前端）

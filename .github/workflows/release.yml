@@ -1,23 +1,14 @@
 name: Release
 
 # tag 触发 Tauri 应用构建与 GitHub Release 发布
-# 对应 Gitee Issue IK3Y7P / ROADMAP.md P0 项
-# 与 Python 版的 release.yml 工作流对齐
 on:
   push:
     tags:
       - 'v*'
 
-defaults:
-  run:
-    working-directory: tauri_app
-
 jobs:
   build-installer:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: tauri_app
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +18,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: tauri_app/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: 安装 Rust stable-msvc
         uses: dtolnay/rust-toolchain@stable
@@ -37,23 +28,39 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tauri_app/src-tauri -> target
+          workspaces: src-tauri -> target
 
       - name: 安装前端依赖
         run: npm ci
 
       - name: TypeScript 类型检查
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: 前端单元测试（Vitest）
-        run: npx vitest run
+        run: npm test
 
       - name: Rust 单元测试
-        working-directory: tauri_app/src-tauri
+        working-directory: src-tauri
         run: cargo test --lib
 
       - name: 生产构建（Tauri bundler）
         run: npm run tauri:build
+
+      # 生成 .sha256 侧车文件：客户端 updater 下载后校验，防 Release 资产被替换
+      - name: 生成 SHA256 校验文件
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
+            Write-Host "已生成 $($_.Name).sha256"
+          }
+          $pe = "src-tauri/target/release/medicine-system.exe"
+          if (Test-Path $pe) {
+            $hash = (Get-FileHash -Path $pe -Algorithm SHA256).Hash.ToLower()
+            "$hash  medicine-system.exe" | Out-File -FilePath "$pe.sha256" -Encoding ascii
+            Write-Host "已生成 medicine-system.exe.sha256"
+          }
 
       - name: 验证构建产物
         shell: pwsh
@@ -83,17 +90,21 @@ jobs:
         with:
           name: medicine-system-tauri-setup-${{ github.ref_name }}
           path: |
-            tauri_app/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
-            tauri_app/src-tauri/target/release/medicine-system.exe
-          if-no-files-found: error
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sha256
+            src-tauri/target/release/medicine-system.exe
+            src-tauri/target/release/medicine-system.exe.sha256
+          if-no-files-found: warn
           retention-days: 30
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            tauri_app/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
-            tauri_app/src-tauri/target/release/medicine-system.exe
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sha256
+            src-tauri/target/release/medicine-system.exe
+            src-tauri/target/release/medicine-system.exe.sha256
           generate_release_notes: true
           draft: false
           prerelease: false

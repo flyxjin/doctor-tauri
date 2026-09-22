@@ -18,9 +18,10 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { checkAndDownloadSilently, installUpdate } from '@/api/tauri';
+import { checkAndDownloadSilently, installUpdate, listBackups } from '@/api/tauri';
 import { formatFileSize } from '@/utils/format';
 import { formatError } from '@/utils/formatError';
+import { hasUnsavedChanges } from '@/utils/unsavedGuard';
 import { APP_VERSION } from '@/constants/version';
 import { useThemeMode } from '@/theme/ThemeContext';
 
@@ -93,13 +94,62 @@ export default function MainLayout() {
         const n = Number(e.key);
         if (Number.isInteger(n) && n >= 1 && n <= NAV_ITEMS.length) {
           e.preventDefault();
-          navigate(NAV_ITEMS[n - 1].key);
+          const target = NAV_ITEMS[n - 1].key;
+          if (target === location.pathname) return;
+          if (hasUnsavedChanges()) {
+            // 开处方页有未保存内容：确认后跳转，避免误触快捷键丢失录入
+            modal.confirm({
+              title: '存在未保存的处方内容',
+              content: '离开当前页面后未保存的处方明细将丢失，确定要离开吗？',
+              okText: '离开',
+              cancelText: '留在此页',
+              okButtonProps: { danger: true },
+              onOk: () => navigate(target),
+            });
+          } else {
+            navigate(target);
+          }
         }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  }, [navigate, location.pathname, modal]);
+
+  // 备份提醒：距最近一次备份超过 7 天（或从未备份）时提示，商业数据安全标配
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      listBackups()
+        .then((entries) => {
+          const latest = entries
+            .map((b) => b.created_at)
+            .sort()
+            .at(-1);
+          const stale =
+            !latest ||
+            Date.now() - new Date(latest.replace(' ', 'T')).getTime() > 7 * 24 * 3600 * 1000;
+          if (!stale) return;
+          modal.confirm({
+            title: latest ? '数据库备份已超过 7 天' : '尚未创建过数据库备份',
+            width: 460,
+            content: (
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                备份可在意外断电、误删等情况下恢复全部经营数据。建议每周至少备份一次，
+                备份文件保存在应用数据目录的 backups/ 子目录中。
+              </Typography.Paragraph>
+            ),
+            okText: '前往备份',
+            cancelText: '稍后',
+            onOk: () => navigate('/settings'),
+          });
+        })
+        .catch(() => {
+          // 提醒失败不影响使用
+        });
+    }, 5000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 启动时静默检查更新：仅触发一次，失败不提示
   useEffect(() => {
@@ -157,8 +207,9 @@ export default function MainLayout() {
             );
           }
         })
-        .catch(() => {
-          // 静默失败：不干扰用户启动
+        .catch((err) => {
+          // 静默失败：不干扰用户启动，但输出 console.warn 便于开发者排查
+          console.warn('[updater] 静默更新检查失败:', err);
         });
     }, 1500);
 
@@ -310,14 +361,37 @@ export default function MainLayout() {
         </div>
       )}
 
-      {/* 快捷键帮助弹窗（F1 触发） */}
+      {/* 帮助与关于弹窗（F1 / 顶栏问号触发） */}
       <Modal
-        title="键盘快捷键"
+        title="帮助与关于"
         open={helpOpen}
         onCancel={() => setHelpOpen(false)}
         footer={null}
-        width={440}
+        width={480}
       >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 16px',
+            marginBottom: 16,
+            background: 'var(--primary-light)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          <div className="tcm-logo-icon" style={{ width: 40, height: 40, fontSize: 22 }}>
+            本
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontFamily: 'var(--font-display)' }}>
+              中药材销售管理系统
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              版本 v{APP_VERSION} · 数据存储于本机，不经云端传输
+            </div>
+          </div>
+        </div>
         <Table
           rowKey="key"
           size="small"
@@ -336,6 +410,7 @@ export default function MainLayout() {
         />
         <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
           提示：Ctrl+1 对应菜单第一项「首页概览」，依次类推至 Ctrl+9「系统设置」。
+          数据备份与软件更新位于「系统设置」页。
         </Typography.Paragraph>
       </Modal>
     </Layout>

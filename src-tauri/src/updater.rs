@@ -16,13 +16,14 @@
 
 use crate::models::{DownloadProgress, SilentUpdateResult, UpdateInfo};
 use futures_util::StreamExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::ipc::Channel;
 use tauri::Manager;
 use tokio::io::AsyncWriteExt;
 
-const GITEE_RELEASES_URL: &str = "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/latest";
+const GITEE_RELEASES_URL: &str =
+    "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/latest";
 
 /// 下载并发保护：同一时刻只允许一个下载任务
 /// 防止 check_and_download_silently 与用户手动 download_update 同时写同一文件
@@ -67,9 +68,11 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
     let release_name = body["name"].as_str().unwrap_or("").to_string();
     let changelog = body["body"].as_str().unwrap_or("").to_string();
 
-    // 在 assets 中找 .exe（排除 update 类的辅助文件）
+    // 在 assets 中找 .exe（排除 update 类的辅助文件），并查找配套的 .sha256 校验文件
     let mut download_url = String::new();
     let mut file_size: u64 = 0;
+    let mut exe_name = String::new();
+    let mut checksum = String::new();
     if let Some(assets) = body["assets"].as_array() {
         for asset in assets {
             let name = asset["name"].as_str().unwrap_or("");
@@ -80,7 +83,15 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
                     .unwrap_or("")
                     .to_string();
                 file_size = asset["size"].as_u64().unwrap_or(0);
+                exe_name = name.to_string();
                 break;
+            }
+        }
+        // 命名约定：<安装包文件名>.sha256（由 Release 工作流生成）
+        if let Some(sha_url) = find_sha256_asset(assets, &exe_name) {
+            match fetch_sha256_content(&client, &sha_url).await {
+                Some(sum) => checksum = sum,
+                None => eprintln!("[updater] 校验文件存在但解析失败，本次仅做大小校验"),
             }
         }
     }
@@ -91,21 +102,60 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
         changelog,
         download_url,
         file_size,
+        checksum,
     })
 }
 
+/// 从 Release assets 里找与安装包配套的 `.sha256` 校验文件的下载地址
+fn find_sha256_asset(assets: &[serde_json::Value], exe_name: &str) -> Option<String> {
+    if exe_name.is_empty() {
+        return None;
+    }
+    let expect = format!("{}.sha256", exe_name.to_lowercase());
+    assets.iter().find_map(|a| {
+        let name = a["name"].as_str()?;
+        let url = a["browser_download_url"].as_str()?;
+        (name.to_lowercase() == expect).then(|| url.to_string())
+    })
+}
+
+/// 下载并解析 `.sha256` 校验文件（sha256sum 格式："hex  filename" 或裸 hex）
+async fn fetch_sha256_content(client: &reqwest::Client, url: &str) -> Option<String> {
+    let resp = client.get(url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let text = resp.text().await.ok()?;
+    parse_sha256_content(&text)
+}
+
+/// 解析 sha256sum 文本，返回十六进制摘要；格式非法返回 None
+fn parse_sha256_content(text: &str) -> Option<String> {
+    let token = text.split_whitespace().next()?.trim().to_lowercase();
+    let valid = token.len() == 64 && token.chars().all(|c| c.is_ascii_hexdigit());
+    valid.then_some(token)
+}
+
 /// 下载更新到下载目录，通过 Channel 推送进度
+///
+/// `file_size` 由前端从 `check_for_update` 返回的 `UpdateInfo.file_size` 传入，
+/// 用于下载完成后完整性校验。`checksum` 为 Release 附带的 SHA256（可为空，
+/// 为空时仅做大小校验）。避免后端再次调用 Gitee API 重复请求。
 ///
 /// 返回下载完成的本地路径
 #[tauri::command]
 pub async fn download_update(
     url: String,
+    file_size: u64,
+    checksum: String,
     on_progress: Channel<DownloadProgress>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     if url.trim().is_empty() {
         return Err("下载地址为空".to_string());
     }
+    // 纵深防御：限制下载源为发布渠道 host，封死 IPC 拉取任意 URL 的链路
+    validate_download_url(&url)?;
 
     // 并发保护：若已有下载任务在进行，直接返回错误
     if DOWNLOADING.swap(true, Ordering::SeqCst) {
@@ -122,8 +172,7 @@ pub async fn download_update(
     let _guard = DownloadGuard;
 
     let save_path = build_download_path(&url, &app_handle)?;
-    let expected_size = check_for_update().await.ok().map(|i| i.file_size).unwrap_or(0);
-    download_to_path(&url, &save_path, Some(&on_progress), expected_size).await?;
+    download_to_path(&url, &save_path, Some(&on_progress), file_size, &checksum).await?;
     Ok(save_path.to_string_lossy().to_string())
 }
 
@@ -145,6 +194,8 @@ pub fn install_update(
     if !path.exists() {
         return Err(format!("安装程序文件不存在: {exe_path}"));
     }
+    // 纵深防御：仅允许执行应用下载目录内的 .exe，防止被注入的 renderer 借此执行任意程序
+    validate_install_path(&path, &app_handle)?;
 
     let do_silent = silent.unwrap_or(false);
     let mut cmd = std::process::Command::new(&path);
@@ -152,8 +203,7 @@ pub fn install_update(
         // NSIS 静默安装参数：/S（大小写敏感，必须大写）
         cmd.arg("/S");
     }
-    cmd.spawn()
-        .map_err(|e| format!("启动安装程序失败: {e}"))?;
+    cmd.spawn().map_err(|e| format!("启动安装程序失败: {e}"))?;
 
     if do_silent {
         // 静默模式下，立即退出当前应用，让安装程序接管覆盖安装。
@@ -226,9 +276,27 @@ pub async fn check_and_download_silently(
     let _guard = DownloadGuard;
 
     // 5. 静默下载到 downloads/ 目录（不推送进度）
+    // 同样校验下载源（URL 来自 Gitee API 响应，API 异常时不应拉取任意地址）
+    if let Err(e) = validate_download_url(&info.download_url) {
+        eprintln!("[updater] 静默下载 URL 校验失败: {e}");
+        return Ok(SilentUpdateResult {
+            has_update: true,
+            info,
+            downloaded_path: String::new(),
+        });
+    }
     let save_path = build_download_path(&info.download_url, &app_handle)?;
     let expected_size = info.file_size;
-    match download_to_path(&info.download_url, &save_path, None, expected_size).await {
+    let expected_checksum = info.checksum.clone();
+    match download_to_path(
+        &info.download_url,
+        &save_path,
+        None,
+        expected_size,
+        &expected_checksum,
+    )
+    .await
+    {
         Ok(_) => Ok(SilentUpdateResult {
             has_update: true,
             info,
@@ -249,6 +317,67 @@ pub async fn check_and_download_silently(
 
 // ==================== 内部辅助函数 ====================
 
+/// 更新包下载源的 host 白名单（当前仅 Gitee Release）
+///
+/// 纵深防御：renderer 进程若被注入（XSS/供应链），可通过 IPC 拉取任意 URL。
+/// 白名单将下载源限制在发布渠道，封死"下载任意 exe 再执行"的 RCE 链路。
+const DOWNLOAD_HOST_WHITELIST: [&str; 1] = ["gitee.com"];
+
+/// 校验下载 URL：必须为 https 且 host 在白名单内
+fn validate_download_url(url: &str) -> Result<(), String> {
+    let rest = url
+        .strip_prefix("https://")
+        .ok_or_else(|| "下载地址必须为 https 协议".to_string())?;
+    // Gitee Release 资产 URL 不含 user@host 形式的用户信息，
+    // 直接拒绝以排除 userinfo 与 host 混淆类绕过
+    if rest.contains('@') {
+        return Err("下载地址不应包含用户信息".to_string());
+    }
+    let host = rest
+        .split(['/', '?', '#'])
+        .next()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "下载地址缺少主机名".to_string())?;
+    let host = host.split(':').next().unwrap_or(host);
+    let host = host.to_ascii_lowercase();
+    let allowed = DOWNLOAD_HOST_WHITELIST
+        .iter()
+        .any(|h| host == *h || host.ends_with(&format!(".{h}")));
+    if !allowed {
+        return Err(format!("下载地址主机不在允许列表内: {host}"));
+    }
+    Ok(())
+}
+
+/// 校验安装程序路径：必须位于应用数据目录 downloads/ 下且为 .exe 文件
+///
+/// 防止 IPC 调用者以 install_update 为跳板执行任意路径的程序
+fn validate_install_path(exe_path: &Path, app_handle: &tauri::AppHandle) -> Result<(), String> {
+    let extension_ok = exe_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("exe"))
+        .unwrap_or(false);
+    if !extension_ok {
+        return Err("安装程序必须是 .exe 文件".to_string());
+    }
+    let download_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {e}"))?
+        .join("downloads");
+    let canonical_path = exe_path
+        .canonicalize()
+        .map_err(|_| format!("安装程序路径无效: {}", exe_path.display()))?;
+    let canonical_dir = download_dir
+        .canonicalize()
+        .map_err(|e| format!("下载目录无效: {e}"))?;
+    if !canonical_path.starts_with(&canonical_dir) {
+        return Err("安装程序必须位于应用下载目录内".to_string());
+    }
+    Ok(())
+}
+
 /// 根据 URL 推导下载文件本地保存路径
 fn build_download_path(url: &str, app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app_handle
@@ -256,8 +385,7 @@ fn build_download_path(url: &str, app_handle: &tauri::AppHandle) -> Result<PathB
         .app_data_dir()
         .map_err(|e| format!("无法获取应用数据目录: {e}"))?;
     let download_dir = app_data_dir.join("downloads");
-    std::fs::create_dir_all(&download_dir)
-        .map_err(|e| format!("创建下载目录失败: {e}"))?;
+    std::fs::create_dir_all(&download_dir).map_err(|e| format!("创建下载目录失败: {e}"))?;
 
     let filename = url
         .rsplit('/')
@@ -281,11 +409,15 @@ fn build_download_path(url: &str, app_handle: &tauri::AppHandle) -> Result<PathB
 /// v1.2.0 增强：
 /// - `expected_size` 用于下载完成后完整性校验（>0 时断言 downloaded == expected_size）
 /// - 单 chunk 读取超时（READ_TIMEOUT_SECS 秒），避免网络卡死导致永久挂起
+///
+/// v1.3.x 增强：
+/// - `expected_sha256` 非空时做哈希校验（防 Release 资产被替换），不一致删除文件并报错
 async fn download_to_path(
     url: &str,
     save_path: &PathBuf,
     on_progress: Option<&Channel<DownloadProgress>>,
     expected_size: u64,
+    expected_sha256: &str,
 ) -> Result<(), String> {
     // 大文件下载不能用总超时（否则下不完），仅限制连接阶段超时
     let client = reqwest::Client::builder()
@@ -360,23 +492,54 @@ async fn download_to_path(
         ));
     }
 
+    // SHA256 校验：防安装包在发布渠道被替换或传输损坏（校验失败已删除文件）
+    if !expected_sha256.trim().is_empty() {
+        if let Err(e) = verify_file_checksum(save_path, expected_sha256) {
+            return Err(e);
+        }
+    }
+
+    Ok(())
+}
+
+/// 校验下载文件的 SHA256 与期望值一致；不一致删除文件并返回错误
+fn verify_file_checksum(path: &Path, expected: &str) -> Result<(), String> {
+    let actual = crate::commands::compute_file_sha256(&path.to_path_buf())?;
+    if !actual.eq_ignore_ascii_case(expected.trim()) {
+        let _ = std::fs::remove_file(path);
+        return Err(format!(
+            "更新包 SHA256 校验失败：期望 {expected}，实际 {actual}（文件已删除，请重新下载）"
+        ));
+    }
     Ok(())
 }
 
 /// 语义化版本比较：返回 `remote > current` 时为 true
 ///
-/// 简化实现：按 `.` 分段，逐段比较数字大小；非数字段按字符串字典序比较。
+/// 按 `.` 分段，逐段比较数字大小；非数字段按 0 处理。
+/// 补齐到相同长度后比较，确保 `1.0` == `1.0.0`（语义化版本规范）。
 /// 例：`is_newer_version("0.3.2", "0.3.1") == true`
 fn is_newer_version(remote: &str, current: &str) -> bool {
-    version_segments(remote) > version_segments(current)
+    let r = version_segments(remote);
+    let c = version_segments(current);
+    // 补齐到相同长度，避免 [1,0] < [1,0,0] 的字典序问题
+    let max_len = r.len().max(c.len());
+    pad_segments(&r, max_len) > pad_segments(&c, max_len)
 }
 
-/// 将版本字符串解析为可比较的元组向量
+/// 将版本字符串解析为可比较的数字段向量
 fn version_segments(v: &str) -> Vec<u64> {
     v.trim_start_matches('v')
         .split('.')
         .map(|s| s.parse::<u64>().unwrap_or(0))
         .collect()
+}
+
+/// 将版本段补齐到指定长度，不足部分用 0 填充
+fn pad_segments(v: &[u64], len: usize) -> Vec<u64> {
+    let mut result = v.to_vec();
+    result.resize(len, 0);
+    result
 }
 
 // ==================== 单元测试 ====================
@@ -421,5 +584,92 @@ mod tests {
         // 非数字段解析为 0
         assert_eq!(version_segments("0.3.x"), vec![0, 3, 0]);
         assert_eq!(version_segments("a.b.c"), vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn test_is_newer_version_different_segment_lengths() {
+        // 1.0 与 1.0.0 语义相等，不应触发更新
+        assert!(!is_newer_version("1.0.0", "1.0"));
+        assert!(!is_newer_version("1.0", "1.0.0"));
+        // 1.0.1 > 1.0
+        assert!(is_newer_version("1.0.1", "1.0"));
+        // 1.1 > 1.0.9
+        assert!(is_newer_version("1.1", "1.0.9"));
+    }
+
+    #[test]
+    fn test_validate_download_url() {
+        // 合法：Gitee Release 资产
+        assert!(validate_download_url(
+            "https://gitee.com/owner/repo/releases/download/v1.3.0/app_1.3.0_x64-setup.exe"
+        )
+        .is_ok());
+        // 合法：子域名（.gitee.com 结尾）
+        assert!(validate_download_url("https://cdn.gitee.com/owner/repo/app.exe").is_ok());
+        // 合法：大写 host + 端口
+        assert!(validate_download_url("https://GITEE.COM:443/a/b.exe").is_ok());
+
+        // 非法：http 明文
+        assert!(validate_download_url("http://gitee.com/a.exe").is_err());
+        // 非法：ftp
+        assert!(validate_download_url("ftp://gitee.com/a.exe").is_err());
+        // 非法：仿冒域名（gitee.com.evil.io 以 gitee.com 开头但不是其子域名）
+        assert!(validate_download_url("https://gitee.com.evil.io/a.exe").is_err());
+        assert!(validate_download_url("https://notgitee.com/a.exe").is_err());
+        // 非法：其他 host
+        assert!(validate_download_url("https://evil.com/a.exe").is_err());
+        // 非法：user@host 形式的用户信息（含 gitee.com@evil.com 反向绕过）
+        assert!(validate_download_url("https://evil.com@gitee.com/a.exe").is_err());
+        assert!(validate_download_url("https://gitee.com@evil.com/a.exe").is_err());
+        // 非法：空 host
+        assert!(validate_download_url("https:///a.exe").is_err());
+    }
+
+    #[test]
+    fn test_parse_sha256_content() {
+        // sha256sum 标准格式："hex  filename"
+        let hex = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678abcdef0123456789012345ab";
+        assert_eq!(
+            parse_sha256_content(&format!("{hex}  app_1.3.1_x64-setup.exe")),
+            Some(hex.to_string())
+        );
+        // 裸 hex
+        assert_eq!(parse_sha256_content(hex), Some(hex.to_string()));
+        // 大写转小写
+        assert_eq!(
+            parse_sha256_content(&hex.to_uppercase()),
+            Some(hex.to_string())
+        );
+        // 长度不对 / 非十六进制 / 空文本
+        assert_eq!(parse_sha256_content("abc123"), None);
+        assert_eq!(
+            parse_sha256_content(&"z".repeat(64)),
+            None
+        );
+        assert_eq!(parse_sha256_content(""), None);
+    }
+
+    #[test]
+    fn test_find_sha256_asset() {
+        let assets: Vec<serde_json::Value> = serde_json::json!([
+            {"name": "medicine-system_1.3.1_x64-setup.exe", "browser_download_url": "https://gitee.com/a.exe"},
+            {"name": "medicine-system_1.3.1_x64-setup.exe.sha256", "browser_download_url": "https://gitee.com/a.exe.sha256"},
+            {"name": "README.md", "browser_download_url": "https://gitee.com/readme"}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+        assert_eq!(
+            find_sha256_asset(&assets, "medicine-system_1.3.1_x64-setup.exe").as_deref(),
+            Some("https://gitee.com/a.exe.sha256")
+        );
+        // 大小写不敏感匹配
+        assert_eq!(
+            find_sha256_asset(&assets, "Medicine-System_1.3.1_x64-Setup.EXE").as_deref(),
+            Some("https://gitee.com/a.exe.sha256")
+        );
+        // 无配套校验文件
+        assert_eq!(find_sha256_asset(&assets, "other.exe"), None);
+        assert_eq!(find_sha256_asset(&assets, ""), None);
     }
 }

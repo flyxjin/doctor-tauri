@@ -59,10 +59,12 @@ for (const rel of ['install.bat', 'distrib/install.bat']) {
     /set\s+"APP_VERSION=\d+\.\d+\.\d+[^"]*"/,
     `set "APP_VERSION=${version}"`,
   );
-  // 替换 Set-ItemProperty -Name 'DisplayVersion' -Value 'x.y.z'
+  // 替换 Set-ItemProperty [-Path <key>] -Name 'DisplayVersion' -Value 'x.y.z'
+  // 实际 bat 写法是 `Set-ItemProperty -Path $key -Name 'DisplayVersion'`，
+  // -Path 与 -Name 之间可省略，两种形态都要匹配
   batOut = batOut.replace(
-    /Set-ItemProperty\s+-Name\s+'DisplayVersion'\s+-Value\s+'[^']+'/g,
-    `Set-ItemProperty -Name 'DisplayVersion' -Value '${version}'`,
+    /(Set-ItemProperty\s+(?:-Path\s+\S+\s+)?-Name\s+'DisplayVersion'\s+-Value\s+)'[^']+'/g,
+    `$1'${version}'`,
   );
   if (batSrc === batOut) {
     console.log(`[sync-version] ${rel}: 已是最新`);

@@ -18,7 +18,6 @@ import type {
   OperationLog,
   Patient,
   PatientStatistics,
-  Prescription,
   PrescriptionWithItems,
   SilentUpdateResult,
   StatisticsData,
@@ -250,11 +249,6 @@ export async function deletePatient(id: number): Promise<void> {
   return invoke<void>('delete_patient', { id });
 }
 
-/** 查询某患者的处方历史（通过 patient_name 关联） */
-export async function getPatientPrescriptions(name: string): Promise<Prescription[]> {
-  return invoke<Prescription[]>('get_patient_prescriptions', { name });
-}
-
 /** 患者统计数据：处方数、总金额、首诊/末诊日期 */
 export async function getPatientStatistics(name: string): Promise<PatientStatistics> {
   return invoke<PatientStatistics>('get_patient_statistics', { name });
@@ -292,14 +286,21 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 /**
  * 下载更新到下载目录，返回本地路径。
  * 通过 Channel 接收下载进度。
+ *
+ * @param url 下载地址（来自 checkForUpdate 返回的 download_url）
+ * @param fileSize 文件大小（来自 checkForUpdate 返回的 file_size，用于完整性校验）
+ * @param checksum 安装包 SHA256（来自 checkForUpdate 返回的 checksum，可为空）
+ * @param onProgress 下载进度回调
  */
 export async function downloadUpdate(
   url: string,
+  fileSize: number,
+  checksum: string,
   onProgress: (progress: DownloadProgress) => void,
 ): Promise<string> {
   const channel = new Channel<DownloadProgress>();
   channel.onmessage = onProgress;
-  return invoke<string>('download_update', { url, onProgress: channel });
+  return invoke<string>('download_update', { url, fileSize, checksum, onProgress: channel });
 }
 
 /** 启动下载好的安装程序 */

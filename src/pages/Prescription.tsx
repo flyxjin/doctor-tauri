@@ -36,6 +36,7 @@ import { formatError } from '@/utils/formatError';
 import { aggregateInventory } from '@/utils/inventory';
 import { checkAllergy } from '@/utils/allergy';
 import { parseDefaultDosage } from '@/utils/dosage';
+import { setUnsavedChanges } from '@/utils/unsavedGuard';
 import type { Medicine, Patient, PrescriptionItem } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
 import { PRESCRIPTION_COPY_KEY } from '@/constants/prescription';
@@ -58,6 +59,12 @@ export default function PrescriptionPage() {
   const [keyword, setKeyword] = useState('');
   const [items, setItems] = useState<PrescriptionItem[]>([]);
   const [createdDate, setCreatedDate] = useState<dayjs.Dayjs>(dayjs());
+
+  // 未保存脏标记：供全局快捷键跳转前拦截确认，避免误触丢失已录入处方
+  useEffect(() => {
+    setUnsavedChanges(items.length > 0);
+    return () => setUnsavedChanges(false);
+  }, [items.length]);
   const [lastCreatedId, setLastCreatedId] = useState<number | null>(null);
   const [printing, setPrinting] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -71,9 +78,9 @@ export default function PrescriptionPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // 药材搜索
+  // 药材搜索（4 元 key 与 MedicineList 页保持一致，共用同一份缓存）
   const { data: medicines, isError: medicinesError, error: medicinesErr, refetch: refetchMedicines, isFetching: medicinesFetching } = useQuery({
-    queryKey: ['medicines', keyword, undefined],
+    queryKey: ['medicines', keyword, undefined, undefined],
     queryFn: () => listMedicines(keyword || undefined, undefined),
     staleTime: 5 * 60 * 1000,
   });
@@ -225,10 +232,16 @@ export default function PrescriptionPage() {
     mutationFn: createPrescription,
     onSuccess: (id) => {
       message.success(`处方已保存（编号 ${id}）`);
+      // 开方扣减库存，需失效库存/效期/统计/患者视图等全部关联缓存；
+      // ['prescriptions'] 前缀匹配不到 ['patient-prescriptions', ...]
       queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-history'] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-prescriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-statistics'] });
       setLastCreatedId(id);
       // 重置
       form.resetFields();
@@ -286,8 +299,13 @@ export default function PrescriptionPage() {
       const found: { medicine: Medicine; quantity: number }[] = [];
       const missing: string[] = [];
 
-      // 2. 一次拉取全部药材，内存中按名称匹配（消除 N 次 invoke 调用）
-      const allMedicines = await listMedicines(undefined, undefined);
+      // 2. 一次拉取全部药材，内存中按名称匹配（消除 N 次 invoke 调用）；
+      //    fetchQuery 命中 ['medicines', ...] 缓存（staleTime 5 分钟内不发请求）
+      const allMedicines = await queryClient.fetchQuery({
+        queryKey: ['medicines', undefined, undefined, undefined],
+        queryFn: () => listMedicines(undefined, undefined),
+        staleTime: 5 * 60 * 1000,
+      });
       const medicineByName = new Map(allMedicines.map((m) => [m.name, m]));
       for (const tpl of template.items) {
         const matched = medicineByName.get(tpl.name);
@@ -670,11 +688,11 @@ export default function PrescriptionPage() {
               <Form.Item name="created_by" label="开方人" style={{ width: 140 }}>
                 <Input placeholder="如：李医生" />
               </Form.Item>
-              <Form.Item label="开方日期" style={{ width: 180 }}>
+              <Form.Item label="开方日期" style={{ width: 160 }}>
                 <DatePicker
-                  showTime
                   value={createdDate}
                   onChange={(v) => setCreatedDate(v ?? dayjs())}
+                  format="YYYY-MM-DD"
                 />
               </Form.Item>
             </Space>

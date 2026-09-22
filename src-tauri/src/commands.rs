@@ -10,6 +10,7 @@ use crate::db::DbState;
 use crate::models::*;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use tauri::{Manager, State};
 
@@ -104,10 +105,7 @@ pub fn get_medicine(id: i64, state: State<'_, DbState>) -> Result<Medicine, Stri
 
 /// 新增药材
 #[tauri::command]
-pub fn create_medicine(
-    medicine: Medicine,
-    state: State<'_, DbState>,
-) -> Result<i64, String> {
+pub fn create_medicine(medicine: Medicine, state: State<'_, DbState>) -> Result<i64, String> {
     if medicine.name.trim().is_empty() {
         return Err("药材名称不能为空".to_string());
     }
@@ -143,17 +141,20 @@ pub fn create_medicine(
     )
     .map_err(|e| format!("创建药材失败: {e}"))?;
     let id = tx.last_insert_rowid();
-    log_operation(&tx, "CREATE", "medicine", id, &format!("创建药材: {}", medicine.name))?;
+    log_operation(
+        &tx,
+        "CREATE",
+        "medicine",
+        id,
+        &format!("创建药材: {}", medicine.name),
+    )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(id)
 }
 
 /// 更新药材
 #[tauri::command]
-pub fn update_medicine(
-    medicine: Medicine,
-    state: State<'_, DbState>,
-) -> Result<(), String> {
+pub fn update_medicine(medicine: Medicine, state: State<'_, DbState>) -> Result<(), String> {
     let id = medicine.id.ok_or("药材ID不能为空".to_string())?;
     if medicine.name.trim().is_empty() {
         return Err("药材名称不能为空".to_string());
@@ -190,7 +191,13 @@ pub fn update_medicine(
         ],
     )
     .map_err(|e| format!("更新药材失败: {e}"))?;
-    log_operation(&tx, "UPDATE", "medicine", id, &format!("更新药材: {}", medicine.name))?;
+    log_operation(
+        &tx,
+        "UPDATE",
+        "medicine",
+        id,
+        &format!("更新药材: {}", medicine.name),
+    )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
@@ -256,15 +263,16 @@ pub fn delete_medicine(id: i64, state: State<'_, DbState>) -> Result<(), String>
 pub fn list_inventory(state: State<'_, DbState>) -> Result<Vec<Inventory>, String> {
     let conn = state.lock()?;
     let list: Vec<Inventory> = {
-        let mut stmt = conn.prepare(
-            "SELECT i.id, i.medicine_id, i.batch_no, i.production_date, i.expiry_date,
+        let mut stmt = conn
+            .prepare(
+                "SELECT i.id, i.medicine_id, i.batch_no, i.production_date, i.expiry_date,
                     i.quantity, i.unit, i.price, i.min_stock, i.notes, i.created_at, i.updated_at,
                     m.name, m.category
              FROM inventory i
              LEFT JOIN medicines m ON i.medicine_id = m.id
              ORDER BY i.medicine_id ASC, i.batch_no ASC",
-        )
-        .map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map((), |row| {
                 Ok(Inventory {
@@ -296,6 +304,16 @@ pub fn list_inventory(state: State<'_, DbState>) -> Result<Vec<Inventory>, Strin
     Ok(list)
 }
 
+/// 校验日期字符串为严格的 YYYY-MM-DD
+///
+/// 效期/生产日期直接参与 FEFO 字符串排序与 date() 效期预警计算，
+/// 录入 "2026/9/1" 之类格式会静默导致排序错乱、预警漏报，必须在入口拒绝。
+fn validate_ymd(s: &str, label: &str) -> Result<(), String> {
+    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+        .map(|_| ())
+        .map_err(|_| format!("{label} 格式必须为 YYYY-MM-DD：'{s}'"))
+}
+
 /// 入库 / 出库（批次版）
 ///
 /// - `medicine_id`：药材 ID
@@ -304,6 +322,8 @@ pub fn list_inventory(state: State<'_, DbState>) -> Result<Vec<Inventory>, Strin
 /// - `batch_no`：批次号（入库时指定，为空则自动生成；出库时忽略，按 FEFO 自动选批次）
 /// - `production_date`：生产日期 YYYY-MM-DD（入库时录入，可选）
 /// - `expiry_date`：效期 YYYY-MM-DD（入库时录入，可选）
+// Tauri 命令的扁平参数即 IPC 契约，聚合为结构体反而破坏前端 invoke 调用形态
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn update_stock(
     medicine_id: i64,
@@ -345,6 +365,12 @@ pub fn update_stock(
         };
         let prod = production_date.filter(|s| !s.is_empty());
         let exp = expiry_date.filter(|s| !s.is_empty());
+        if let Some(p) = &prod {
+            validate_ymd(p, "生产日期")?;
+        }
+        if let Some(e) = &exp {
+            validate_ymd(e, "效期")?;
+        }
 
         // 查是否已有同批次
         let row: Option<(i64, f64, f64, String)> = tx
@@ -365,6 +391,15 @@ pub fn update_stock(
                     params![qty + change, id],
                 )
                 .map_err(|e| e.to_string())?;
+                // 用户重新填写了效期/生产日期时以新值覆盖（COALESCE 保留未填项），
+                // 效期直接影响 FEFO 排序与效期预警，不能静默丢弃
+                if prod.is_some() || exp.is_some() {
+                    tx.execute(
+                        "UPDATE inventory SET production_date=COALESCE(?1, production_date), expiry_date=COALESCE(?2, expiry_date), updated_at=CURRENT_TIMESTAMP WHERE id=?3",
+                        params![prod, exp, id],
+                    )
+                    .map_err(|e| e.to_string())?;
+                }
                 (id, qty, price, unit)
             }
             None => {
@@ -400,30 +435,36 @@ pub fn update_stock(
             "STOCK",
             "inventory",
             inv_id,
-            &format!("{}: {} {}{} (批次:{})", hist_type, medicine_name, change, unit, batch),
+            &format!(
+                "{}: {} {}{} (批次:{})",
+                hist_type, medicine_name, change, unit, batch
+            ),
         )?;
     } else {
         // ========== 出库逻辑（FEFO 近效期优先） ==========
         // select_batches_fefo 内部已校验库存充足，不足时直接返回错误
         let batches = select_batches_fefo(&tx, medicine_id, change)?;
-        for (batch_id, batch_qty, deduct, price, unit, batch_no) in &batches {
+        for b in &batches {
             tx.execute(
                 "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-                params![batch_qty - deduct, batch_id],
+                params![b.batch_qty - b.deduct, b.batch_id],
             )
             .map_err(|e| e.to_string())?;
-            let total_amount = deduct * price;
+            let total_amount = b.deduct * b.price;
             tx.execute(
                 "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-                params![medicine_id, &medicine_name, hist_type, deduct, price, total_amount, &operator_str, &notes_str, batch_id],
+                params![medicine_id, &medicine_name, hist_type, b.deduct, b.price, total_amount, &operator_str, &notes_str, b.batch_id],
             )
             .map_err(|e| e.to_string())?;
             log_operation(
                 &tx,
                 "STOCK",
                 "inventory",
-                *batch_id,
-                &format!("{}: {} {}{} (批次:{})", hist_type, medicine_name, deduct, unit, batch_no),
+                b.batch_id,
+                &format!(
+                    "{}: {} {}{} (批次:{})",
+                    hist_type, medicine_name, b.deduct, b.unit, b.batch_no
+                ),
             )?;
         }
     }
@@ -432,14 +473,24 @@ pub fn update_stock(
     Ok(())
 }
 
+/// FEFO 单批次的扣减计划（`select_batches_fefo` 的返回行）
+struct BatchDeduction {
+    batch_id: i64,
+    /// 扣减前该批次的当前库存
+    batch_qty: f64,
+    /// 本次实际扣减量
+    deduct: f64,
+    price: f64,
+    unit: String,
+    batch_no: String,
+}
+
 /// FEFO 批次选择：近效期优先出库，无效期的最后出库
-///
-/// 返回 Vec<(batch_id, 当前库存, 本次扣减量, 单价, 单位, 批次号)>
 fn select_batches_fefo(
     tx: &Connection,
     medicine_id: i64,
     needed: f64,
-) -> Result<Vec<(i64, f64, f64, f64, String, String)>, String> {
+) -> Result<Vec<BatchDeduction>, String> {
     let mut stmt = tx
         .prepare(
             "SELECT id, batch_no, quantity, price, unit FROM inventory
@@ -469,18 +520,23 @@ fn select_batches_fefo(
         if remaining <= 0.0 {
             break;
         }
-        let deduct = if qty >= remaining {
-            remaining
-        } else {
-            qty
-        };
-        result.push((batch_id, qty, deduct, price, unit, batch_no));
+        let deduct = if qty >= remaining { remaining } else { qty };
+        result.push(BatchDeduction {
+            batch_id,
+            batch_qty: qty,
+            deduct,
+            price,
+            unit,
+            batch_no,
+        });
         remaining -= deduct;
     }
-    if remaining > 0.001 {
+    // 浮点容差：1e-6 足过克/个单位的最小精度，避免浮点累加残值误判库存不足
+    const STOCK_EPSILON: f64 = 1e-6;
+    if remaining > STOCK_EPSILON {
+        let available = needed - remaining;
         return Err(format!(
-            "库存不足，需要 {}，可用库存不足",
-            needed
+            "库存不足：需要 {needed}，可用 {available}，缺口 {remaining}"
         ));
     }
     Ok(result)
@@ -513,15 +569,16 @@ pub fn list_inventory_history(
             pv.push(SqlValue::Text(ht.clone()));
         }
     }
+    // 半开区间过滤（同 list_prescriptions）：保留 created_at 索引，且与 UTC 存储对齐
     if let Some(sd) = &start_date {
         if !sd.is_empty() {
-            sql.push_str(" AND date(created_at) >= date(?)");
+            sql.push_str(" AND created_at >= datetime(?, 'utc')");
             pv.push(SqlValue::Text(sd.clone()));
         }
     }
     if let Some(ed) = &end_date {
         if !ed.is_empty() {
-            sql.push_str(" AND date(created_at) <= date(?)");
+            sql.push_str(" AND created_at < datetime(?, '+1 day', 'utc')");
             pv.push(SqlValue::Text(ed.clone()));
         }
     }
@@ -577,7 +634,15 @@ pub fn adjust_stock(
              FROM inventory i JOIN medicines m ON i.medicine_id=m.id
              WHERE i.id=?1",
             params![inventory_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .optional()
         .map_err(|e| e.to_string())?
@@ -592,8 +657,16 @@ pub fn adjust_stock(
     let abs_diff = diff.abs();
     let operator_str = operator.unwrap_or_default();
     let notes_str = notes.unwrap_or_default();
-    let detail = format!("库存调整: {} {}{} → {}{} (差值:{}{})",
-        medicine_name, old_qty, unit, target_quantity, unit, if diff > 0.0 { "+" } else { "" }, diff);
+    let detail = format!(
+        "库存调整: {} {}{} → {}{} (差值:{}{})",
+        medicine_name,
+        old_qty,
+        unit,
+        target_quantity,
+        unit,
+        if diff > 0.0 { "+" } else { "" },
+        diff
+    );
 
     // 更新库存数量
     tx.execute(
@@ -632,7 +705,7 @@ pub fn list_expiring_batches(
              JOIN medicines m ON i.medicine_id = m.id
              WHERE i.expiry_date IS NOT NULL
                AND i.expiry_date != ''
-               AND date(i.expiry_date) <= date('now', ?1)
+               AND date(i.expiry_date) <= date('now', 'localtime', ?1)
                AND i.quantity > 0
              ORDER BY i.expiry_date ASC",
         )
@@ -687,15 +760,18 @@ pub fn list_prescriptions(
             pv.push(SqlValue::Text(pat));
         }
     }
+    // 日期过滤用半开区间 [start, end+1day) 并直接比较 created_at，
+    // 避免对列包 date() 函数导致 idx_prescriptions_created_at 失效；
+    // 用户传入的是本地日期，先经 'utc' 修饰符转为 UTC 与 created_at（UTC 存储）对齐
     if let Some(sd) = &start_date {
         if !sd.is_empty() {
-            sql.push_str(" AND date(created_at) >= date(?)");
+            sql.push_str(" AND created_at >= datetime(?, 'utc')");
             pv.push(SqlValue::Text(sd.clone()));
         }
     }
     if let Some(ed) = &end_date {
         if !ed.is_empty() {
-            sql.push_str(" AND date(created_at) <= date(?)");
+            sql.push_str(" AND created_at < datetime(?, '+1 day', 'utc')");
             pv.push(SqlValue::Text(ed.clone()));
         }
     }
@@ -729,7 +805,10 @@ pub fn list_prescriptions(
     let all_items: Vec<PrescriptionItem> = {
         let mut stmt = conn.prepare(&items_sql).map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map(params_from_iter(id_params.iter()), map_prescription_item_row)
+            .query_map(
+                params_from_iter(id_params.iter()),
+                map_prescription_item_row,
+            )
             .map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         for r in rows {
@@ -786,7 +865,9 @@ pub fn create_prescription(
 
     // 服务端强制重新计算总金额，防止前端传入不一致数据
     // 注意：使用 round_amount 避免浮点精度累积
-    let total: f64 = input.items.iter()
+    let total: f64 = input
+        .items
+        .iter()
         .map(|i| round_amount(i.quantity * i.price))
         .sum::<f64>();
     let total = round_amount(total);
@@ -829,7 +910,7 @@ pub fn create_prescription(
             .map_err(|e| format!("药材 '{}' {}", item.medicine_name, e))?;
 
         // 取第一个扣减批次作为处方明细的 batch_id（主要批次，用于列表展示参考）
-        let primary_batch_id = batches.first().map(|b| b.0);
+        let primary_batch_id = batches.first().map(|b| b.batch_id);
 
         // 服务端重算 amount = quantity * price，防止前端传入不一致数据
         // 使用 round_amount 避免浮点精度问题
@@ -852,10 +933,10 @@ pub fn create_prescription(
         let item_id = tx.last_insert_rowid();
 
         // 逐批次扣减库存 + 写出库历史 + 记录扣减明细（用于删除时精确回扣）
-        for (batch_id, batch_qty, deduct, batch_price, _unit, _batch_no) in &batches {
+        for b in &batches {
             tx.execute(
                 "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-                params![batch_qty - deduct, batch_id],
+                params![b.batch_qty - b.deduct, b.batch_id],
             )
             .map_err(|e| format!("扣减库存失败: {e}"))?;
 
@@ -865,12 +946,12 @@ pub fn create_prescription(
                     item.medicine_id,
                     &item.medicine_name,
                     "出库",
-                    deduct,
-                    batch_price,
-                    deduct * batch_price,
+                    b.deduct,
+                    b.price,
+                    b.deduct * b.price,
                     &p.created_by,
                     "处方出库",
-                    batch_id,
+                    b.batch_id,
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -878,7 +959,7 @@ pub fn create_prescription(
             // 记录批次扣减明细，删除处方时按此精确回扣
             tx.execute(
                 "INSERT INTO prescription_item_batches (prescription_item_id, batch_id, quantity, price) VALUES (?1,?2,?3,?4)",
-                params![item_id, batch_id, deduct, batch_price],
+                params![item_id, b.batch_id, b.deduct, b.price],
             )
             .map_err(|e| format!("写入批次扣减明细失败: {e}"))?;
         }
@@ -957,10 +1038,7 @@ fn fetch_batch_deductions(
 }
 
 /// 查找回扣目标批次：优先"初始库存"，否则第一个批次
-fn find_fallback_batch_id(
-    tx: &Connection,
-    medicine_id: i64,
-) -> Result<Option<i64>, String> {
+fn find_fallback_batch_id(tx: &Connection, medicine_id: i64) -> Result<Option<i64>, String> {
     tx.query_row(
         "SELECT id FROM inventory WHERE medicine_id=?1 ORDER BY CASE WHEN batch_no='初始库存' THEN 0 ELSE 1 END, id ASC LIMIT 1",
         params![medicine_id],
@@ -984,11 +1062,7 @@ fn batch_exists(tx: &Connection, batch_id: i64) -> Result<bool, String> {
 }
 
 /// 给指定批次加回库存
-fn restore_stock_to_batch(
-    tx: &Connection,
-    batch_id: i64,
-    qty: f64,
-) -> Result<(), String> {
+fn restore_stock_to_batch(tx: &Connection, batch_id: i64, qty: f64) -> Result<(), String> {
     tx.execute(
         "UPDATE inventory SET quantity = quantity + ?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
         params![qty, batch_id],
@@ -1017,29 +1091,45 @@ fn insert_refund_history(
 
 /// 老数据回扣（009 迁移前无批次扣减明细）：整量回扣到"初始库存"或第一个批次
 ///
-/// 退库历史 price/total_amount 记为 0（无原始价格信息），batch_id 记实际回扣目标
+/// 退库历史 price/total_amount 记为 0（无原始价格信息），batch_id 记实际回扣目标。
+/// 若该药材所有批次均已删除（find_fallback_batch_id 返回 None），自动创建一个
+/// "退库恢复"批次接收回扣库存，避免库存数据静默丢失。
 fn restore_old_data_stock(
     tx: &Connection,
     medicine_id: i64,
     medicine_name: &str,
     total_qty: f64,
 ) -> Result<(), String> {
-    let target_batch = find_fallback_batch_id(tx, medicine_id)?;
-    if let Some(bid) = target_batch {
-        restore_stock_to_batch(tx, bid, total_qty)?;
-    }
+    let actual_batch_id = match find_fallback_batch_id(tx, medicine_id)? {
+        Some(bid) => {
+            restore_stock_to_batch(tx, bid, total_qty)?;
+            bid
+        }
+        None => create_recovery_batch(tx, medicine_id, total_qty)?,
+    };
     // 老数据无原始价格，记 0 以保持金额可追溯
     tx.execute(
         "INSERT INTO inventory_history (medicine_id, medicine_name, type, quantity, price, total_amount, operator, notes, batch_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-        params![medicine_id, medicine_name, "退库", total_qty, 0.0, 0.0, "", "删除处方回扣(老数据)", target_batch],
+        params![medicine_id, medicine_name, "退库", total_qty, 0.0, 0.0, "", "删除处方回扣(老数据)", actual_batch_id],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
 }
 
+/// 创建"退库恢复"批次接收回扣量（该药材所有批次均已删除时的兜底，避免库存静默丢失）
+fn create_recovery_batch(tx: &Connection, medicine_id: i64, qty: f64) -> Result<i64, String> {
+    tx.execute(
+        "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1, '退库恢复', NULL, NULL, ?2, 'g', 0, 0)",
+        params![medicine_id, qty],
+    )
+    .map_err(|e| format!("创建退库恢复批次失败: {e}"))?;
+    Ok(tx.last_insert_rowid())
+}
+
 /// 新数据回扣：按批次扣减明细逐条精确回扣
 ///
-/// 原批次仍存在则回扣到原批次；原批次已删则回扣到"初始库存"或第一个批次。
+/// 原批次仍存在则回扣到原批次；原批次已删则回扣到"初始库存"或第一个批次；
+/// 全部批次均已删除时懒创建一个"退库恢复"批次接收全部回扣量。
 /// 退库历史 batch_id 记原始扣减批次（即使实际回扣到 fallback），保持可追溯。
 fn restore_new_data_stock(
     tx: &Connection,
@@ -1047,11 +1137,17 @@ fn restore_new_data_stock(
     medicine_name: &str,
     pib_rows: &[(i64, f64, f64)],
 ) -> Result<(), String> {
+    let mut recovery_batch: Option<i64> = None;
     for (batch_id, qty, price) in pib_rows {
         let target = if batch_exists(tx, *batch_id)? {
             Some(*batch_id)
+        } else if let Some(bid) = find_fallback_batch_id(tx, medicine_id)? {
+            Some(bid)
         } else {
-            find_fallback_batch_id(tx, medicine_id)?
+            if recovery_batch.is_none() {
+                recovery_batch = Some(create_recovery_batch(tx, medicine_id, 0.0)?);
+            }
+            recovery_batch
         };
         if let Some(bid) = target {
             restore_stock_to_batch(tx, bid, *qty)?;
@@ -1070,24 +1166,46 @@ fn restore_new_data_stock(
     Ok(())
 }
 
+/// 回扣处方占用的全部库存（删除处方时调用，命令与测试共用）
+///
+/// - 新数据（有批次扣减明细）：按明细精确回扣。
+///   批次扣减明细按 (处方, 药材) 聚合、覆盖该药材的全部明细行，
+///   因此同一药材出现多行时必须按药材去重，只回扣一次，否则库存虚增。
+/// - 老数据（009 迁移前无明细记录）：各明细行独立整量回扣到 fallback 批次。
+fn restore_prescription_stock(tx: &Connection, prescription_id: i64) -> Result<(), String> {
+    let items = fetch_prescription_items(tx, prescription_id)?;
+    let mut restored_via_pib: HashSet<i64> = HashSet::new();
+    for (medicine_id, medicine_name, total_qty) in &items {
+        let pib_rows = fetch_batch_deductions(tx, prescription_id, *medicine_id)?;
+        if pib_rows.is_empty() {
+            restore_old_data_stock(tx, *medicine_id, medicine_name, *total_qty)?;
+        } else if restored_via_pib.insert(*medicine_id) {
+            restore_new_data_stock(tx, *medicine_id, medicine_name, &pib_rows)?;
+        }
+    }
+    Ok(())
+}
+
 /// 删除处方（事务：回扣库存 + 记录退库历史 + 级联删除明细）
 #[tauri::command]
 pub fn delete_prescription(id: i64, state: State<'_, DbState>) -> Result<(), String> {
     let conn = state.lock()?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
 
-    let items = fetch_prescription_items(&tx, id)?;
-
-    for (medicine_id, medicine_name, total_qty) in &items {
-        let pib_rows = fetch_batch_deductions(&tx, id, *medicine_id)?;
-        if pib_rows.is_empty() {
-            // 老数据（009 迁移前无关联表记录）：整量回扣
-            restore_old_data_stock(&tx, *medicine_id, medicine_name, *total_qty)?;
-        } else {
-            // 新数据：按批次扣减明细精确回扣
-            restore_new_data_stock(&tx, *medicine_id, medicine_name, &pib_rows)?;
-        }
+    // 校验处方存在，避免删除不存在的处方产生误导性审计日志
+    let exists: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM prescriptions WHERE id=?1",
+            params![id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if exists.is_none() {
+        return Err(format!("处方 id={id} 不存在"));
     }
+
+    restore_prescription_stock(&tx, id)?;
 
     // 删除关联表明细、处方明细与处方（关联表 ON DELETE CASCADE 会自动清理 pib，但显式删更安全）
     tx.execute(
@@ -1095,8 +1213,11 @@ pub fn delete_prescription(id: i64, state: State<'_, DbState>) -> Result<(), Str
         params![id],
     )
     .map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM prescription_items WHERE prescription_id=?1", params![id])
-        .map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM prescription_items WHERE prescription_id=?1",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM prescriptions WHERE id=?1", params![id])
         .map_err(|e| format!("删除处方失败: {e}"))?;
     log_operation(&tx, "DELETE", "prescription", id, "删除处方（回扣库存）")?;
@@ -1178,7 +1299,13 @@ pub fn create_patient(patient: Patient, state: State<'_, DbState>) -> Result<i64
     )
     .map_err(|e| format!("创建患者失败: {e}"))?;
     let id = tx.last_insert_rowid();
-    log_operation(&tx, "CREATE", "patient", id, &format!("创建患者: {}", patient.name))?;
+    log_operation(
+        &tx,
+        "CREATE",
+        "patient",
+        id,
+        &format!("创建患者: {}", patient.name),
+    )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(id)
 }
@@ -1207,7 +1334,13 @@ pub fn update_patient(patient: Patient, state: State<'_, DbState>) -> Result<(),
         ],
     )
     .map_err(|e| format!("更新患者失败: {e}"))?;
-    log_operation(&tx, "UPDATE", "patient", id, &format!("更新患者: {}", patient.name))?;
+    log_operation(
+        &tx,
+        "UPDATE",
+        "patient",
+        id,
+        &format!("更新患者: {}", patient.name),
+    )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
@@ -1227,9 +1360,9 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    
+
     let name = name.ok_or_else(|| format!("患者 id={id} 不存在"))?;
-    
+
     // 检查是否有关联处方记录（通过 patient_name 匹配）
     let prescription_count: i64 = tx
         .query_row(
@@ -1238,22 +1371,16 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
             |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
-    
+
     if prescription_count > 0 {
         return Err(format!(
             "该患者有 {prescription_count} 张处方记录，无法删除。建议保留患者档案以维持审计轨迹"
         ));
     }
-    
+
     tx.execute("DELETE FROM patients WHERE id=?1", params![id])
         .map_err(|e| format!("删除患者失败: {e}"))?;
-    log_operation(
-        &tx,
-        "DELETE",
-        "patient",
-        id,
-        &format!("删除患者: {}", name),
-    )?;
+    log_operation(&tx, "DELETE", "patient", id, &format!("删除患者: {}", name))?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
 }
@@ -1300,14 +1427,7 @@ pub fn get_patient_statistics(
             "SELECT COUNT(*), COALESCE(SUM(total_amount),0), MIN(created_at), MAX(created_at)
              FROM prescriptions WHERE patient_name = ?1",
             params![&name],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                ))
-            },
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .map_err(|e| format!("查询患者统计失败: {e}"))?;
     Ok(PatientStatistics {
@@ -1322,9 +1442,7 @@ pub fn get_patient_statistics(
 
 /// 首页看板数据
 #[tauri::command]
-pub fn get_dashboard_data(
-    state: State<'_, DbState>,
-) -> Result<DashboardData, String> {
+pub fn get_dashboard_data(state: State<'_, DbState>) -> Result<DashboardData, String> {
     let conn = state.lock()?;
 
     let medicine_count: i64 = conn
@@ -1342,10 +1460,13 @@ pub fn get_dashboard_data(
         .map_err(|e| e.to_string())?;
     let low_stock_count: i64 = conn
         .query_row(
-            // 按药材聚合后比较总库存与最低库存阈值（取该药材所有批次的最小 min_stock）
+            // 与 low_stock_list 使用同一聚合键（medicine_id+name+unit），
+            // 否则同一药材批次单位不同时两处行数对不上
             "SELECT COUNT(*) FROM (
-                SELECT medicine_id, SUM(quantity) as total_qty, MIN(min_stock) as min_threshold
-                FROM inventory GROUP BY medicine_id
+                SELECT i.medicine_id, m.name, i.unit,
+                       SUM(i.quantity) as total_qty, MIN(i.min_stock) as min_threshold
+                FROM inventory i JOIN medicines m ON i.medicine_id=m.id
+                GROUP BY i.medicine_id, m.name, i.unit
                 HAVING total_qty <= min_threshold
             )",
             (),
@@ -1398,26 +1519,26 @@ pub fn get_dashboard_data(
         out
     };
 
-    // 今日开方数与销售收入（按本地日期匹配，与前端 dayjs 本地时间一致）
+    // 今日开方数与销售收入。created_at 以 UTC 存储（CURRENT_TIMESTAMP 默认值），
+    // 必须转到本地日期再比较，否则本地 00:00-08:00 开的处方向前错一天
     let (today_prescription_count, today_revenue): (i64, f64) = {
-        let mut stmt = conn.prepare(
-            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0)
+        let mut stmt = conn
+            .prepare(
+                "SELECT COUNT(*), COALESCE(SUM(total_amount), 0)
              FROM prescriptions
-             WHERE date(created_at) = date('now', 'localtime')",
-        )
-        .map_err(|e| e.to_string())?;
-        stmt.query_row((), |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?))
-        })
-        .map_err(|e| e.to_string())?
+             WHERE date(created_at, 'localtime') = date('now', 'localtime')",
+            )
+            .map_err(|e| e.to_string())?;
+        stmt.query_row((), |row| Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?)))
+            .map_err(|e| e.to_string())?
     };
 
-    // 近 7 天每日营收与处方数趋势（供前端趋势图使用）
+    // 近 7 天每日营收与处方数趋势（供前端趋势图使用；分组日期同为本地口径）
     let daily_trend: Vec<DashboardDailyTrend> = {
         let mut stmt = conn.prepare(
-            "SELECT date(created_at) as d, COALESCE(SUM(total_amount),0), COUNT(*)
+            "SELECT date(created_at, 'localtime') as d, COALESCE(SUM(total_amount),0), COUNT(*)
              FROM prescriptions
-             WHERE date(created_at) BETWEEN date('now', 'localtime', '-6 days') AND date('now', 'localtime')
+             WHERE date(created_at, 'localtime') BETWEEN date('now', 'localtime', '-6 days') AND date('now', 'localtime')
              GROUP BY d ORDER BY d ASC",
         )
         .map_err(|e| e.to_string())?;
@@ -1461,7 +1582,8 @@ pub fn get_statistics(
 
     let (prescription_count, total_amount): (i64, f64) = conn
         .query_row(
-            "SELECT COUNT(*), COALESCE(SUM(total_amount),0) FROM prescriptions WHERE date(created_at) BETWEEN date(?1) AND date(?2)",
+            // created_at 为 UTC 存储，按本地日期过滤（前端传入本地日期区间）
+            "SELECT COUNT(*), COALESCE(SUM(total_amount),0) FROM prescriptions WHERE date(created_at, 'localtime') BETWEEN date(?1) AND date(?2)",
             params![&start_date, &end_date],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -1471,7 +1593,7 @@ pub fn get_statistics(
         .query_row(
             "SELECT COUNT(DISTINCT pi.medicine_id)
              FROM prescription_items pi JOIN prescriptions p ON pi.prescription_id=p.id
-             WHERE date(p.created_at) BETWEEN date(?1) AND date(?2)",
+             WHERE date(p.created_at, 'localtime') BETWEEN date(?1) AND date(?2)",
             params![&start_date, &end_date],
             |row| row.get(0),
         )
@@ -1490,13 +1612,14 @@ pub fn get_statistics(
     };
 
     let top_medicines: Vec<TopMedicine> = {
-        let mut stmt = conn.prepare(
-            "SELECT pi.medicine_name, SUM(pi.quantity) AS q, SUM(pi.amount) AS amt
+        let mut stmt = conn
+            .prepare(
+                "SELECT pi.medicine_name, SUM(pi.quantity) AS q, SUM(pi.amount) AS amt
              FROM prescription_items pi JOIN prescriptions p ON pi.prescription_id=p.id
-             WHERE date(p.created_at) BETWEEN date(?1) AND date(?2)
+             WHERE date(p.created_at, 'localtime') BETWEEN date(?1) AND date(?2)
              GROUP BY pi.medicine_name ORDER BY amt DESC LIMIT 10",
-        )
-        .map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map(params![&start_date, &end_date], |row| {
                 Ok(TopMedicine {
@@ -1515,9 +1638,9 @@ pub fn get_statistics(
 
     let daily_trend: Vec<DailyTrend> = {
         let mut stmt = conn.prepare(
-            "SELECT date(created_at) AS d, COUNT(*) AS c, COALESCE(SUM(total_amount),0) AS a
+            "SELECT date(created_at, 'localtime') AS d, COUNT(*) AS c, COALESCE(SUM(total_amount),0) AS a
              FROM prescriptions
-             WHERE date(created_at) BETWEEN date(?1) AND date(?2)
+             WHERE date(created_at, 'localtime') BETWEEN date(?1) AND date(?2)
              GROUP BY d ORDER BY d ASC",
         )
         .map_err(|e| e.to_string())?;
@@ -1557,11 +1680,17 @@ pub fn check_compatibility(
 // ==================== 批量导入 / 导出 ====================
 
 /// 把字符串安全解析为 f64，失败时返回默认值 0.0
+///
+/// 非有限值（inf/NaN）按解析失败处理：Rust 的 f64::from_str 接受 "inf"/"NaN"，
+/// 直接入库会污染 SUM 统计或被绑定为 NULL，属于脏数据。
 fn parse_f64_or(s: &Option<String>, default: f64) -> Result<f64, String> {
     match s {
-        Some(v) if !v.trim().is_empty() => {
-            v.trim().parse::<f64>().map_err(|_| format!("无法解析数值: '{v}'"))
-        }
+        Some(v) if !v.trim().is_empty() => v
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|x| x.is_finite())
+            .ok_or_else(|| format!("无法解析数值: '{v}'")),
         _ => Ok(default),
     }
 }
@@ -1581,6 +1710,9 @@ pub fn batch_import_medicines(
     let mut inserted: u32 = 0;
     let mut updated: u32 = 0;
     let mut errors: Vec<String> = Vec::new();
+
+    // 本次导入的唯一标识（毫秒级时间戳），用于批次号前缀，避免同秒多次导入冲突
+    let import_ts = chrono::Local::now().format("%Y%m%d%H%M%S%3f").to_string();
 
     // 批量预查：一次性获取所有已存在的同名药材 ID，消除 N+1 查询
     let names: Vec<String> = records
@@ -1657,8 +1789,12 @@ pub fn batch_import_medicines(
             .map_err(|e| format!("更新药材 '{name}' 失败: {e}"))
             .and_then(|_| {
                 // 批次改造：已有药材的新库存作为新批次入库（不再覆盖旧库存）
-                // 用"导入批次-{时间戳}-{行号}"作为批次号，避免同批导入内冲突
-                let batch_no = format!("导入批次-{}-{}", chrono::Local::now().format("%Y%m%d%H%M%S"), row_no);
+                // 用"导入批次-{导入时间戳}-{行号}"作为批次号，毫秒级时间戳避免跨导入冲突
+                // 数量为 0/负时不建批次不写历史，避免多次导入后零数量批次污染库存列表
+                if quantity <= 0.0 {
+                    return Ok(());
+                }
+                let batch_no = format!("导入批次-{import_ts}-{row_no}");
                 tx.execute(
                     "INSERT INTO inventory (medicine_id, batch_no, production_date, expiry_date, quantity, unit, price, min_stock) VALUES (?1,?2,NULL,NULL,?3,?4,?5,?6)",
                     params![id, &batch_no, quantity, &unit, price, min_stock],
@@ -1719,7 +1855,10 @@ pub fn batch_import_medicines(
         "IMPORT",
         "medicine",
         0,
-        &format!("批量导入: 新增 {inserted} 条, 更新 {updated} 条, 错误 {} 条", errors.len()),
+        &format!(
+            "批量导入: 新增 {inserted} 条, 更新 {updated} 条, 错误 {} 条",
+            errors.len()
+        ),
     )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
 
@@ -1728,6 +1867,21 @@ pub fn batch_import_medicines(
         updated,
         errors,
     })
+}
+
+/// CSV 公式注入防护：Excel/WPS 会把以 = + - @ 开头的单元格当公式执行，
+/// 对这类字段前置单引号使其按文本处理。"-3" 之类的负数不前置，避免误伤数字。
+fn sanitize_csv_formula(s: &str) -> String {
+    let is_dangerous = match s.chars().next() {
+        Some('=' | '+' | '@' | '\t') => true,
+        Some('-') => !s[1..].starts_with(|c: char| c.is_ascii_digit() || c == '.'),
+        _ => false,
+    };
+    if is_dangerous {
+        format!("'{s}")
+    } else {
+        s.to_string()
+    }
 }
 
 /// 导出全量药材为 CSV 字符串（UTF-8 with BOM，前端可直接写入文件）
@@ -1761,8 +1915,18 @@ pub fn export_medicines_csv(state: State<'_, DbState>) -> Result<String, String>
         .map_err(|e| format!("查询药材失败: {e}"))?;
 
     let headers = [
-        "name", "alias", "category", "nature", "taste", "meridian",
-        "efficacy", "indications", "usage", "dosage", "contraindication", "notes",
+        "name",
+        "alias",
+        "category",
+        "nature",
+        "taste",
+        "meridian",
+        "efficacy",
+        "indications",
+        "usage",
+        "dosage",
+        "contraindication",
+        "notes",
     ];
 
     // UTF-8 BOM，便于 Excel 正确识别中文
@@ -1776,6 +1940,7 @@ pub fn export_medicines_csv(state: State<'_, DbState>) -> Result<String, String>
             .iter()
             .map(|s| {
                 // 完善 CSV 转义：处理逗号、双引号、换行符、回车符、首尾空格
+                let s = sanitize_csv_formula(s);
                 let needs_quote = s.contains(',')
                     || s.contains('"')
                     || s.contains('\n')
@@ -1786,7 +1951,7 @@ pub fn export_medicines_csv(state: State<'_, DbState>) -> Result<String, String>
                     let escaped = s.replace('"', "\"\"");
                     format!("\"{escaped}\"")
                 } else {
-                    s.clone()
+                    s
                 }
             })
             .collect();
@@ -1801,21 +1966,60 @@ pub fn export_medicines_csv(state: State<'_, DbState>) -> Result<String, String>
 #[tauri::command]
 pub fn download_import_template() -> Result<String, String> {
     let headers = [
-        "name", "alias", "category", "nature", "taste", "meridian",
-        "efficacy", "indications", "usage", "dosage", "contraindication",
-        "notes", "quantity", "unit", "price", "min_stock",
+        "name",
+        "alias",
+        "category",
+        "nature",
+        "taste",
+        "meridian",
+        "efficacy",
+        "indications",
+        "usage",
+        "dosage",
+        "contraindication",
+        "notes",
+        "quantity",
+        "unit",
+        "price",
+        "min_stock",
     ];
 
     let samples: Vec<Vec<&str>> = vec![
         vec![
-            "人参", "黄参", "补虚药", "温", "甘、微苦", "脾、肺、心经",
-            "大补元气", "体虚欲脱", "煎服", "3-9g", "实证忌服", "",
-            "500", "g", "85", "50",
+            "人参",
+            "黄参",
+            "补虚药",
+            "温",
+            "甘、微苦",
+            "脾、肺、心经",
+            "大补元气",
+            "体虚欲脱",
+            "煎服",
+            "3-9g",
+            "实证忌服",
+            "",
+            "500",
+            "g",
+            "85",
+            "50",
         ],
         vec![
-            "黄芪", "黄耆", "补虚药", "微温", "甘", "脾、肺经",
-            "补气升阳", "气虚乏力", "煎服", "9-30g", "实证禁服", "",
-            "600", "g", "42", "60",
+            "黄芪",
+            "黄耆",
+            "补虚药",
+            "微温",
+            "甘",
+            "脾、肺经",
+            "补气升阳",
+            "气虚乏力",
+            "煎服",
+            "9-30g",
+            "实证禁服",
+            "",
+            "600",
+            "g",
+            "42",
+            "60",
         ],
     ];
 
@@ -1854,8 +2058,7 @@ pub fn save_text_to_downloads(
         .map_err(|e| format!("无法获取下载目录: {e}"))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("创建下载目录失败: {e}"))?;
     let path = dir.join(&filename);
-    std::fs::write(&path, content.as_bytes())
-        .map_err(|e| format!("写入文件失败: {e}"))?;
+    std::fs::write(&path, content.as_bytes()).map_err(|e| format!("写入文件失败: {e}"))?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -1890,15 +2093,16 @@ pub fn list_operation_logs(
             pv.push(SqlValue::Text(tt.clone()));
         }
     }
+    // 半开区间过滤（同 list_prescriptions）：保留 created_at 索引，且与 UTC 存储对齐
     if let Some(sd) = &start_date {
         if !sd.is_empty() {
-            sql.push_str(" AND date(created_at) >= date(?)");
+            sql.push_str(" AND created_at >= datetime(?, 'utc')");
             pv.push(SqlValue::Text(sd.clone()));
         }
     }
     if let Some(ed) = &end_date {
         if !ed.is_empty() {
-            sql.push_str(" AND date(created_at) <= date(?)");
+            sql.push_str(" AND created_at < datetime(?, '+1 day', 'utc')");
             pv.push(SqlValue::Text(ed.clone()));
         }
     }
@@ -1991,23 +2195,21 @@ pub fn generate_prescription_html(
     let created_at = html_escape(p.created_at.as_deref().unwrap_or(""));
 
     let mut rows_html = String::new();
-    let mut idx = 1u32;
-    for item in &items {
+    for (i, item) in items.iter().enumerate() {
+        let price = format!("¥{:.2}", item.price);
+        let amount = format!("¥{:.2}", item.amount);
         rows_html.push_str(&format!(
-            "<tr><td style='text-align:center'>{idx}</td>\
-             <td>{name}</td>\
-             <td style='text-align:right'>{qty}</td>\
-             <td style='text-align:center'>{unit}</td>\
+            "<tr><td style='text-align:center'>{}</td>\
+             <td>{}</td>\
+             <td style='text-align:right'>{}</td>\
+             <td style='text-align:center'>{}</td>\
              <td style='text-align:right'>{price}</td>\
              <td style='text-align:right'>{amount}</td></tr>",
-            idx = idx,
-            name = html_escape(&item.medicine_name),
-            qty = item.quantity,
-            unit = html_escape(&item.unit),
-            price = format!("¥{:.2}", item.price),
-            amount = format!("¥{:.2}", item.amount),
+            i + 1,
+            html_escape(&item.medicine_name),
+            item.quantity,
+            html_escape(&item.unit),
         ));
-        idx += 1;
     }
 
     let html = format!(
@@ -2086,11 +2288,24 @@ pub fn generate_prescription_html(
 // ==================== 数据备份与恢复 ====================
 
 /// 计算文件 SHA256（十六进制小写，每个字节零填充到 2 位）
-fn compute_file_sha256(path: &PathBuf) -> Result<String, String> {
+///
+/// 分块流式读取，避免大文件一次性载入内存。
+/// updater 模块复用此函数做更新包完整性校验。
+pub(crate) fn compute_file_sha256(path: &PathBuf) -> Result<String, String> {
     use sha2::{Digest, Sha256};
-    let bytes = std::fs::read(path).map_err(|e| format!("读取文件失败: {e}"))?;
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).map_err(|e| format!("读取文件失败: {e}"))?;
     let mut hasher = Sha256::new();
-    hasher.update(&bytes);
+    let mut buffer = vec![0u8; 1024 * 1024];
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .map_err(|e| format!("读取文件失败: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
     let digest = hasher.finalize();
     let hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
     Ok(hex)
@@ -2128,8 +2343,7 @@ pub fn create_backup(
         let conn = state.lock()?;
         conn.execute_batch("PRAGMA wal_checkpoint(FULL);")
             .map_err(|e| format!("数据库 checkpoint 失败: {e}"))?;
-        std::fs::copy(&db_path, &backup_path)
-            .map_err(|e| format!("复制数据库失败: {e}"))?;
+        std::fs::copy(&db_path, &backup_path).map_err(|e| format!("复制数据库失败: {e}"))?;
     }
 
     let file_size = std::fs::metadata(&backup_path)
@@ -2148,8 +2362,7 @@ pub fn create_backup(
     let manifest_path = backup_dir.join(format!("medicine_system_{timestamp}.json"));
     std::fs::write(
         &manifest_path,
-        serde_json::to_string_pretty(&manifest)
-            .map_err(|e| format!("序列化清单失败: {e}"))?,
+        serde_json::to_string_pretty(&manifest).map_err(|e| format!("序列化清单失败: {e}"))?,
     )
     .map_err(|e| format!("写入清单失败: {e}"))?;
 
@@ -2172,9 +2385,7 @@ pub fn create_backup(
 
 /// 列出所有备份（按时间倒序）
 #[tauri::command]
-pub fn list_backups(
-    app_handle: tauri::AppHandle,
-) -> Result<Vec<BackupEntry>, String> {
+pub fn list_backups(app_handle: tauri::AppHandle) -> Result<Vec<BackupEntry>, String> {
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
@@ -2185,8 +2396,7 @@ pub fn list_backups(
     }
 
     let mut entries: Vec<BackupEntry> = Vec::new();
-    let read = std::fs::read_dir(&backup_dir)
-        .map_err(|e| format!("读取备份目录失败: {e}"))?;
+    let read = std::fs::read_dir(&backup_dir).map_err(|e| format!("读取备份目录失败: {e}"))?;
 
     for entry in read.flatten() {
         let path = entry.path();
@@ -2260,10 +2470,9 @@ pub fn restore_backup(
     let db_path = app_data_dir.join("medicine_system.db");
 
     // 路径遍历防护：验证备份文件必须在 backups 目录下
-    if let (Ok(canonical_src), Ok(canonical_backup_dir)) = (
-        src.canonicalize(),
-        backup_dir.canonicalize(),
-    ) {
+    if let (Ok(canonical_src), Ok(canonical_backup_dir)) =
+        (src.canonicalize(), backup_dir.canonicalize())
+    {
         if !canonical_src.starts_with(&canonical_backup_dir) {
             return Err("备份文件必须位于 backups 目录下".to_string());
         }
@@ -2280,16 +2489,15 @@ pub fn restore_backup(
 
     // 先复制到临时文件，再原子替换，避免还原失败导致数据丢失
     let tmp_path = db_path.with_extension("db.restoring");
-    std::fs::copy(&src, &tmp_path)
-        .map_err(|e| format!("还原备份失败: {e}"))?;
+    std::fs::copy(&src, &tmp_path).map_err(|e| format!("还原备份失败: {e}"))?;
 
     // 校验 SHA256（如果备份清单存在）
     let manifest_path = src.with_extension("json");
     if manifest_path.exists() {
         let manifest_str = std::fs::read_to_string(&manifest_path)
             .map_err(|e| format!("读取备份清单失败: {e}"))?;
-        let manifest: serde_json::Value = serde_json::from_str(&manifest_str)
-            .map_err(|e| format!("解析备份清单失败: {e}"))?;
+        let manifest: serde_json::Value =
+            serde_json::from_str(&manifest_str).map_err(|e| format!("解析备份清单失败: {e}"))?;
         // 兼容旧版 md5 和新版 checksum
         if let Some(expected) = manifest["checksum"]
             .as_str()
@@ -2298,19 +2506,25 @@ pub fn restore_backup(
             let actual = compute_file_sha256(&tmp_path)?;
             if actual != expected {
                 let _ = std::fs::remove_file(&tmp_path);
-                return Err(format!(
-                    "备份文件校验失败，期望 {expected}，实际 {actual}"
-                ));
+                return Err(format!("备份文件校验失败，期望 {expected}，实际 {actual}"));
             }
         }
     }
 
     // 用临时文件覆盖原数据库
-    std::fs::rename(&tmp_path, &db_path)
-        .map_err(|e| format!("替换数据库文件失败: {e}"))?;
+    std::fs::rename(&tmp_path, &db_path).map_err(|e| format!("替换数据库文件失败: {e}"))?;
+
+    // 清理旧库残留的 -wal/-shm：checkpoint 后到 rename 之间仍可能有旧 WAL 残留，
+    // 新连接打开新 .db 时若误回放旧 WAL 帧会导致数据损坏。此刻旧连接已不再写入。
+    let _ = std::fs::remove_file(db_path.with_extension("db-wal"));
+    let _ = std::fs::remove_file(db_path.with_extension("db-shm"));
 
     // 重新初始化数据库连接（关键修复：替换文件后必须重新打开连接）
     state.reopen(&db_path)?;
+
+    // 恢复的备份 schema 可能落后于当前代码（如 008/009 迁移前的备份），
+    // 必须立即补跑迁移（幂等），否则后续 SQL 会因缺表/缺列全部失败
+    state.run_migrations()?;
 
     let conn = state.lock()?;
     log_operation(
@@ -2326,10 +2540,12 @@ pub fn restore_backup(
 
 /// 删除指定备份文件及其清单
 ///
-/// 安全检查：禁止删除当前数据库文件（medicine_system.db）
+/// 安全检查：禁止删除当前数据库文件（medicine_system.db），
+/// 且文件必须位于应用数据目录的 backups 目录下（canonicalize 校验，与 restore_backup 一致）
 #[tauri::command]
 pub fn delete_backup(
     backup_path: String,
+    app_handle: tauri::AppHandle,
     state: State<'_, DbState>,
 ) -> Result<(), String> {
     let src = PathBuf::from(&backup_path);
@@ -2337,26 +2553,29 @@ pub fn delete_backup(
         return Err(format!("备份文件不存在: {backup_path}"));
     }
     // 禁止删除当前数据库文件
-    let file_name = src
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or_default();
+    let file_name = src.file_name().and_then(|n| n.to_str()).unwrap_or_default();
     if file_name == "medicine_system.db" {
         return Err("不能删除当前数据库文件".to_string());
     }
-    // 仅允许删除 backups 目录下的文件，避免任意文件删除
-    let parent = src
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or_default();
-    if parent != "backups" {
-        return Err("仅允许删除 backups 目录下的备份文件".to_string());
+    // 路径遍历防护：仅允许删除应用数据目录 backups 下的文件（直接比较父目录名
+    // 可被 C:\任意\backups\x.db 绕过，必须 canonicalize 后校验真实归属）
+    let backup_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {e}"))?
+        .join("backups");
+    if let (Ok(canonical_src), Ok(canonical_backup_dir)) =
+        (src.canonicalize(), backup_dir.canonicalize())
+    {
+        if !canonical_src.starts_with(&canonical_backup_dir) {
+            return Err("仅允许删除 backups 目录下的备份文件".to_string());
+        }
+    } else {
+        return Err("无效的备份路径".to_string());
     }
 
     // 删除备份文件
-    std::fs::remove_file(&src)
-        .map_err(|e| format!("删除备份文件失败: {e}"))?;
+    std::fs::remove_file(&src).map_err(|e| format!("删除备份文件失败: {e}"))?;
     // 删除对应清单文件（如果存在）
     let manifest_path = src.with_extension("json");
     if manifest_path.exists() {
@@ -2788,7 +3007,8 @@ mod tests {
         let items = fetch_prescription_items(&tx, pid).expect("查询处方明细应成功");
         assert_eq!(items.len(), 1, "应有 1 条明细");
         for (medicine_id, medicine_name, total_qty) in &items {
-            let pib_rows = fetch_batch_deductions(&tx, pid, *medicine_id).expect("查询批次扣减应成功");
+            let pib_rows =
+                fetch_batch_deductions(&tx, pid, *medicine_id).expect("查询批次扣减应成功");
             assert!(pib_rows.is_empty(), "老数据无批次扣减明细");
             restore_old_data_stock(&tx, *medicine_id, medicine_name, *total_qty)
                 .expect("老数据回扣应成功");
@@ -2798,8 +3018,11 @@ mod tests {
             params![pid],
         )
         .unwrap();
-        tx.execute("DELETE FROM prescription_items WHERE prescription_id=?1", params![pid])
-            .unwrap();
+        tx.execute(
+            "DELETE FROM prescription_items WHERE prescription_id=?1",
+            params![pid],
+        )
+        .unwrap();
         tx.execute("DELETE FROM prescriptions WHERE id=?1", params![pid])
             .unwrap();
         tx.commit().unwrap();
@@ -2874,7 +3097,9 @@ mod tests {
         let id_params: Vec<SqlValue> = ids.iter().map(|id| SqlValue::Integer(*id)).collect();
         let mut stmt = conn.prepare(&sql).unwrap();
         let rows = stmt
-            .query_map(params_from_iter(id_params.iter()), |row| row.get::<_, i64>(0))
+            .query_map(params_from_iter(id_params.iter()), |row| {
+                row.get::<_, i64>(0)
+            })
             .unwrap();
         let collected: Vec<i64> = rows.map(|r| r.unwrap()).collect();
         // 5 个处方各 1 条明细，共 5 条
@@ -3067,7 +3292,7 @@ mod tests {
         // 验证：已存在的 2 味应被识别，新药材不在 HashMap 中
         assert_eq!(existing_map.get("已存在药材A"), Some(&id1));
         assert_eq!(existing_map.get("已存在药材B"), Some(&id2));
-        assert!(existing_map.get("新药材C").is_none());
+        assert!(!existing_map.contains_key("新药材C"));
 
         // 模拟新建后更新 HashMap（处理同批次重复名称）
         let new_id = id2 + 1; // 模拟 last_insert_rowid
@@ -3082,7 +3307,7 @@ mod tests {
         let conn = db.lock().unwrap();
 
         // 模拟两条同名记录导入
-        let names = vec!["重复药材".to_string(), "重复药材".to_string()];
+        let names = ["重复药材".to_string(), "重复药材".to_string()];
         let placeholders = names.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let sql = format!("SELECT id, name FROM medicines WHERE name IN ({placeholders})");
         let name_params: Vec<SqlValue> = names.iter().map(|n| SqlValue::Text(n.clone())).collect();
@@ -3102,7 +3327,7 @@ mod tests {
         }
 
         // 第一条：existing_map 为空 → 模拟 INSERT + 更新 HashMap
-        assert!(existing_map.get("重复药材").is_none(), "首条应判定为新建");
+        assert!(!existing_map.contains_key("重复药材"), "首条应判定为新建");
         let new_id = insert_test_medicine(&conn, "重复药材");
         existing_map.insert("重复药材".to_string(), new_id);
 
@@ -3116,6 +3341,33 @@ mod tests {
 
     // 避免未使用警告
     #[test]
+    fn test_sanitize_csv_formula() {
+        // 公式注入字符需前置单引号
+        assert_eq!(sanitize_csv_formula("=SUM(A1)"), "'=SUM(A1)");
+        assert_eq!(sanitize_csv_formula("+1+1"), "'+1+1");
+        assert_eq!(sanitize_csv_formula("@cmd"), "'@cmd");
+        assert_eq!(sanitize_csv_formula("\tx"), "'\tx");
+        // 负数不误伤
+        assert_eq!(sanitize_csv_formula("-3"), "-3");
+        assert_eq!(sanitize_csv_formula("-3.5"), "-3.5");
+        // 非数字开头的 '-' 仍视为危险
+        assert_eq!(sanitize_csv_formula("-cmd"), "'-cmd");
+        // 普通文本不动
+        assert_eq!(sanitize_csv_formula("甘草"), "甘草");
+        assert_eq!(sanitize_csv_formula("3-9g"), "3-9g");
+    }
+
+    #[test]
+    fn test_validate_ymd() {
+        assert!(validate_ymd("2026-09-22", "效期").is_ok());
+        // 斜杠格式会被 date()/字符串排序错误处理，必须拒绝
+        assert!(validate_ymd("2026/9/1", "效期").is_err());
+        assert!(validate_ymd("20260901", "效期").is_err());
+        assert!(validate_ymd("不是日期", "效期").is_err());
+        // 非法日历日（2 月 30 日）应拒绝
+        assert!(validate_ymd("2026-02-30", "效期").is_err());
+    }
+
     fn _ensure_arc_used() {
         let _ = Arc::new(1);
     }
@@ -3147,28 +3399,40 @@ mod tests {
         let pid = tx.last_insert_rowid();
         tx.execute(
             "INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id) VALUES (?1,?2,'跨批回扣测试',40,'g',11,440,?3)",
-            params![pid, mid, batches[0].0],
+            params![pid, mid, batches[0].batch_id],
         )
         .unwrap();
         let item_id = tx.last_insert_rowid();
         // 扣库存 + 写关联表
-        for (batch_id, batch_qty, deduct, price, _unit, _batch_no) in &batches {
+        for b in &batches {
             tx.execute(
                 "UPDATE inventory SET quantity=?1 WHERE id=?2",
-                params![batch_qty - deduct, batch_id],
+                params![b.batch_qty - b.deduct, b.batch_id],
             )
             .unwrap();
             tx.execute(
                 "INSERT INTO prescription_item_batches (prescription_item_id, batch_id, quantity, price) VALUES (?1,?2,?3,?4)",
-                params![item_id, batch_id, deduct, price],
+                params![item_id, b.batch_id, b.deduct, b.price],
             )
             .unwrap();
         }
         tx.commit().unwrap();
 
         // 验证扣减后：B1=0, B2=40
-        let b1_qty: f64 = conn.query_row("SELECT quantity FROM inventory WHERE id=?1", params![b1], |r| r.get(0)).unwrap();
-        let b2_qty: f64 = conn.query_row("SELECT quantity FROM inventory WHERE id=?1", params![b2], |r| r.get(0)).unwrap();
+        let b1_qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b1],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let b2_qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b2],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(b1_qty, 0.0, "B1 扣减后应为 0");
         assert_eq!(b2_qty, 40.0, "B2 扣减后应为 40");
 
@@ -3177,7 +3441,8 @@ mod tests {
         let items = fetch_prescription_items(&tx, pid).expect("查询处方明细应成功");
         assert_eq!(items.len(), 1, "应有 1 条明细");
         for (medicine_id, medicine_name, _total_qty) in &items {
-            let pib_rows = fetch_batch_deductions(&tx, pid, *medicine_id).expect("查询批次扣减应成功");
+            let pib_rows =
+                fetch_batch_deductions(&tx, pid, *medicine_id).expect("查询批次扣减应成功");
             assert_eq!(pib_rows.len(), 2, "关联表应有 2 条扣减明细");
             restore_new_data_stock(&tx, *medicine_id, medicine_name, &pib_rows)
                 .expect("新数据精确回扣应成功");
@@ -3187,15 +3452,30 @@ mod tests {
             params![pid],
         )
         .unwrap();
-        tx.execute("DELETE FROM prescription_items WHERE prescription_id=?1", params![pid])
-            .unwrap();
+        tx.execute(
+            "DELETE FROM prescription_items WHERE prescription_id=?1",
+            params![pid],
+        )
+        .unwrap();
         tx.execute("DELETE FROM prescriptions WHERE id=?1", params![pid])
             .unwrap();
         tx.commit().unwrap();
 
         // 验证回扣后：B1=30, B2=50（精确回扣到原批次，不是整量回扣到 B1）
-        let b1_after: f64 = conn.query_row("SELECT quantity FROM inventory WHERE id=?1", params![b1], |r| r.get(0)).unwrap();
-        let b2_after: f64 = conn.query_row("SELECT quantity FROM inventory WHERE id=?1", params![b2], |r| r.get(0)).unwrap();
+        let b1_after: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b1],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let b2_after: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b2],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(b1_after, 30.0, "B1 精确回扣后应恢复为 30");
         assert_eq!(b2_after, 50.0, "B2 精确回扣后应恢复为 50");
         // 新数据回扣应写入 2 条退库历史（每个批次一条）
@@ -3207,6 +3487,107 @@ mod tests {
             )
             .unwrap();
         assert_eq!(hist_count, 2, "应写入 2 条新数据退库历史（每批次一条）");
+    }
+
+    #[test]
+    fn test_delete_prescription_duplicate_medicine_restores_once() {
+        // 回归：同一药材在同一处方出现多行时，删除处方只应回扣一次。
+        // 批次扣减明细按 (处方, 药材) 聚合，若逐明细行循环调用会重复回扣导致库存虚增。
+        let db = setup_db();
+        let conn = db.lock().unwrap();
+        let mid = insert_test_medicine(&conn, "同药多行回扣测试");
+        let b1 = insert_test_batch(&conn, mid, "B1", Some("2026-09-01"), 30.0, 10.0);
+        let b2 = insert_test_batch(&conn, mid, "B2", Some("2027-06-01"), 50.0, 12.0);
+
+        // 模拟 create_prescription：两条明细同一药材（20 + 10），FEFO 全扣在 B1
+        let tx = conn.unchecked_transaction().unwrap();
+        tx.execute(
+            "INSERT INTO prescriptions (patient_name, total_amount, created_by) VALUES ('多行测试', 330, '医生')",
+            [],
+        )
+        .unwrap();
+        let pid = tx.last_insert_rowid();
+        let mut pib_data: Vec<(i64, f64)> = Vec::new();
+        for qty in [20.0, 10.0] {
+            tx.execute(
+                "INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, quantity, unit, price, amount, batch_id) VALUES (?1,?2,'同药多行回扣测试',?3,'g',11,?4,NULL)",
+                params![pid, mid, qty, qty * 11.0],
+            )
+            .unwrap();
+            let item_id = tx.last_insert_rowid();
+            let batches = select_batches_fefo(&tx, mid, qty).expect("FEFO 应成功");
+            for b in &batches {
+                tx.execute(
+                    "UPDATE inventory SET quantity=?1 WHERE id=?2",
+                    params![b.batch_qty - b.deduct, b.batch_id],
+                )
+                .unwrap();
+                tx.execute(
+                    "INSERT INTO prescription_item_batches (prescription_item_id, batch_id, quantity, price) VALUES (?1,?2,?3,?4)",
+                    params![item_id, b.batch_id, b.deduct, b.price],
+                )
+                .unwrap();
+                pib_data.push((b.batch_id, b.deduct));
+            }
+        }
+        tx.commit().unwrap();
+
+        // 扣减后：B1 = 0（30 全扣），B2 = 50
+        let b1_qty: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b1],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(b1_qty, 0.0, "B1 应被两条明细合计扣完");
+
+        // 删除处方：走与命令一致的回扣 helper
+        let tx = conn.unchecked_transaction().unwrap();
+        restore_prescription_stock(&tx, pid).expect("回扣应成功");
+        tx.execute(
+            "DELETE FROM prescription_item_batches WHERE prescription_item_id IN (SELECT id FROM prescription_items WHERE prescription_id=?1)",
+            params![pid],
+        )
+        .unwrap();
+        tx.execute(
+            "DELETE FROM prescription_items WHERE prescription_id=?1",
+            params![pid],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        // 修复前：两条明细各回扣一次合计 30 → B1 变 60（库存虚增）
+        // 修复后：按药材去重只回扣一次 30 → B1 恢复 30
+        let b1_after: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b1],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let b2_after: f64 = conn
+            .query_row(
+                "SELECT quantity FROM inventory WHERE id=?1",
+                params![b2],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(b1_after, 30.0, "B1 应回扣 30（去重后只回扣一次）");
+        assert_eq!(b2_after, 50.0, "B2 不应被误回扣");
+        // 退库历史每条批次明细一条（共 2 条），而非每明细行 × 每明细行（4 条）
+        let hist_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM inventory_history WHERE medicine_id=?1 AND notes='删除处方回扣'",
+                params![mid],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            hist_count,
+            pib_data.len() as i64,
+            "退库历史应与批次扣减明细一一对应"
+        );
     }
 
     #[test]
@@ -3277,7 +3658,6 @@ mod tests {
         assert_eq!(hist, Some(original_batch), "历史应记录原扣减批次 id");
     }
 
-
     // ---------- 批次 + 效期 + FEFO 出库测试 ----------
     // 008 迁移后的核心新逻辑：一药多批、近效期优先、跨批次扣减
 
@@ -3298,11 +3678,11 @@ mod tests {
 
         assert_eq!(batches.len(), 2, "应跨 2 个批次扣减");
         // 第一扣减项应为 B2（效期最近）
-        assert_eq!(batches[0].5, "B2", "近效期批次应优先");
-        assert_eq!(batches[0].2, 30.0, "B2 应全部扣减");
+        assert_eq!(batches[0].batch_no, "B2", "近效期批次应优先");
+        assert_eq!(batches[0].deduct, 30.0, "B2 应全部扣减");
         // 第二扣减项应为 B1
-        assert_eq!(batches[1].5, "B1");
-        assert_eq!(batches[1].2, 30.0, "B1 应扣减剩余 30");
+        assert_eq!(batches[1].batch_no, "B1");
+        assert_eq!(batches[1].deduct, 30.0, "B1 应扣减剩余 30");
     }
 
     #[test]
@@ -3320,10 +3700,10 @@ mod tests {
         tx.commit().unwrap();
 
         assert_eq!(batches.len(), 2);
-        assert_eq!(batches[0].5, "有期", "有效期批次应优先于无效期");
-        assert_eq!(batches[0].2, 20.0);
-        assert_eq!(batches[1].5, "无期", "无效期批次应最后扣减");
-        assert_eq!(batches[1].2, 10.0);
+        assert_eq!(batches[0].batch_no, "有期", "有效期批次应优先于无效期");
+        assert_eq!(batches[0].deduct, 20.0);
+        assert_eq!(batches[1].batch_no, "无期", "无效期批次应最后扣减");
+        assert_eq!(batches[1].deduct, 10.0);
     }
 
     #[test]
@@ -3439,10 +3819,10 @@ mod tests {
         // 出库 40：应扣 B1 全部 30 + B2 10
         let tx = conn.unchecked_transaction().unwrap();
         let batches = select_batches_fefo(&tx, mid, 40.0).expect("FEFO 应成功");
-        for (batch_id, batch_qty, deduct, _price, _unit, _batch_no) in &batches {
+        for b in &batches {
             tx.execute(
                 "UPDATE inventory SET quantity=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
-                params![batch_qty - deduct, batch_id],
+                params![b.batch_qty - b.deduct, b.batch_id],
             )
             .unwrap();
         }

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
 import {
   Alert,
   App,
@@ -47,6 +48,8 @@ export default function BatchImportPage() {
       message.success(`导入完成：新增 ${data.inserted} 条，更新 ${data.updated} 条`);
       queryClient.invalidateQueries({ queryKey: ['medicines'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      // 导入会新建批次，影响效期预警横幅
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setResult(data);
     },
@@ -114,7 +117,8 @@ export default function BatchImportPage() {
   const handleExportCsv = async () => {
     try {
       const csv = await exportMedicinesCsv();
-      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      // 本地日期（dayjs），避免 UTC 口径在 0-8 点把文件名日期标成前一天
+      const ts = dayjs().format('YYYYMMDD');
       const path = await saveTextToDownloads(`medicines_export_${ts}.csv`, csv);
       message.success(`已导出到：${path}`);
     } catch (e) {
@@ -242,7 +246,7 @@ export default function BatchImportPage() {
                     : `共 ${result.errors.length} 条错误`
                 }
               />
-              <ul style={{ margin: 0, paddingLeft: 18, color: '#dc2626' }}>
+              <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--danger-color)' }}>
                 {errorList.map((err, i) => (
                   <li key={i} style={{ fontSize: 13, lineHeight: 1.8 }}>
                     {err}

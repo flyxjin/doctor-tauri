@@ -209,6 +209,8 @@ export interface UpdateInfo {
   changelog: string;
   download_url: string;
   file_size: number;
+  /** 安装包 SHA256（十六进制小写），来自 Release 附带的 .sha256 文件；旧版 Release 为空串 */
+  checksum: string;
 }
 
 /** 下载进度（由 Channel 推送） */

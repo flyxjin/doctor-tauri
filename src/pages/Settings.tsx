@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -53,6 +53,12 @@ import type { BackupEntry, DownloadProgress, OperationLog, UpdateInfo } from '@/
 
 const { Paragraph, Text } = Typography;
 
+// 下载状态的模块级存储：下载期间切换页面会卸载本组件，
+// 组件 state 丢失会导致"下载完成后回到设置页拿不到安装包路径"。
+// 把关键结果提升到模块级，重新挂载时恢复展示。
+let completedDownloadPath = '';
+let activeDownload: { url: string } | null = null;
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -60,7 +66,9 @@ export default function SettingsPage() {
 
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
-  const [downloadedPath, setDownloadedPath] = useState<string>('');
+  const [downloadedPath, setDownloadedPath] = useState<string>(() => completedDownloadPath);
+  // 进入页面时若已有后台下载在进行，展示只读提示（进度回调属于原组件实例，无法续接）
+  const [bgDownloading, setBgDownloading] = useState(() => activeDownload !== null);
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [logType, setLogType] = useState<string | undefined>(undefined);
@@ -119,7 +127,7 @@ export default function SettingsPage() {
                 style={{
                   maxHeight: 240,
                   overflow: 'auto',
-                  background: '#f5f7fa',
+                  background: 'var(--bg-color)', color: 'var(--text-color)',
                   padding: 8,
                   borderRadius: 4,
                   fontSize: 12,
@@ -141,8 +149,21 @@ export default function SettingsPage() {
   });
 
   const downloadMutation = useMutation({
-    mutationFn: (url: string) =>
-      downloadUpdate(url, (p) => setDownloadProgress(p)),
+    mutationFn: async (url: string) => {
+      activeDownload = { url };
+      try {
+        const path = await downloadUpdate(
+          url,
+          updateInfo?.file_size ?? 0,
+          updateInfo?.checksum ?? '',
+          (p) => setDownloadProgress(p),
+        );
+        completedDownloadPath = path;
+        return path;
+      } finally {
+        activeDownload = null;
+      }
+    },
     onSuccess: (path) => {
       setDownloadedPath(path);
       message.success(`下载完成：${path}`);
@@ -150,6 +171,20 @@ export default function SettingsPage() {
     onError: (e: unknown) => message.error(`下载失败：${formatError(e)}`),
     onSettled: () => setDownloading(false),
   });
+
+  // 后台下载进行中：轮询模块级完成标记，下载完成后在本页恢复展示安装入口
+  useEffect(() => {
+    if (!bgDownloading) return;
+    const timer = setInterval(() => {
+      if (!activeDownload && completedDownloadPath) {
+        setDownloadedPath(completedDownloadPath);
+        setBgDownloading(false);
+        setDownloadProgress(null);
+        message.success(`后台下载已完成：${completedDownloadPath}`);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [bgDownloading, message]);
 
   const createBackupMutation = useMutation({
     mutationFn: createBackup,
@@ -458,6 +493,15 @@ export default function SettingsPage() {
               }
             />
           </div>
+        )}
+        {bgDownloading && !downloading && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginTop: 16 }}
+            message="更新包正在后台下载"
+            description="下载期间可以离开本页面，完成后回到这里会自动显示安装入口。"
+          />
         )}
         {downloadedPath && !downloading && (
           <Alert

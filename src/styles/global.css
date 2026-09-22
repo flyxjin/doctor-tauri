@@ -720,6 +720,23 @@ body,
   border-color: var(--primary-hover) !important;
 }
 
+/* 深色模式下主色提亮为文字色时，按钮底色需要压暗保证白字对比度（WCAG AA ≥4.5:1） */
+:root[data-theme='dark'] .ant-btn-primary {
+  background: #3a7a52 !important;
+  border-color: #3a7a52 !important;
+}
+
+:root[data-theme='dark'] .ant-btn-primary:hover {
+  background: #458a5f !important;
+  border-color: #458a5f !important;
+}
+
+:root[data-theme='dark'] .ant-btn-primary:disabled {
+  background: rgba(58, 122, 82, 0.35) !important;
+  border-color: transparent !important;
+  color: rgba(253, 250, 245, 0.45) !important;
+}
+
 /* 输入框 */
 .ant-input,
 .ant-input-affix-wrapper,

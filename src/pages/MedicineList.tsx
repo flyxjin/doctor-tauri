@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Button,
   Descriptions,
@@ -29,6 +29,7 @@ import LoadingCard from '@/components/LoadingCard';
 import QueryErrorAlert from '@/components/QueryErrorAlert';
 import { useCrudMutations } from '@/hooks/useCrudMutations';
 import { useCsvExport } from '@/hooks/useCsvExport';
+import { aggregateInventory } from '@/utils/inventory';
 
 const { Text } = Typography;
 
@@ -79,6 +80,8 @@ export default function MedicineList() {
     queryFn: () => listMedicines(keyword || undefined, category, nature),
     // 药材库变更频率低，缓存 5 分钟；CRUD 后由 useCrudMutations 失效
     staleTime: 5 * 60 * 1000,
+    // 搜索/筛选切换时保留上一次结果，避免表格闪烁；仅搜索列表场景使用
+    placeholderData: keepPreviousData,
   });
 
   // 获取库存数据用于显示库存量与最低库存列
@@ -88,25 +91,13 @@ export default function MedicineList() {
     staleTime: 60 * 1000,
   });
 
-  // 按药材 ID 聚合库存（跨批次合并）
-  const stockMap = useMemo(() => {
-    const map = new Map<number, { qty: number; minStock: number; price: number }>();
-    for (const inv of inventoryData ?? []) {
-      const existing = map.get(inv.medicine_id);
-      if (existing) {
-        existing.qty += inv.quantity;
-        existing.minStock = Math.min(existing.minStock, inv.min_stock);
-      } else {
-        map.set(inv.medicine_id, { qty: inv.quantity, minStock: inv.min_stock, price: inv.price });
-      }
-    }
-    return map;
-  }, [inventoryData]);
+  // 按药材 ID 聚合库存（跨批次合并），复用统一口径工具
+  const stockMap = useMemo(() => aggregateInventory(inventoryData ?? []), [inventoryData]);
 
   const { create: createMutation, update: updateMutation, remove: deleteMutation } =
     useCrudMutations<Medicine>({
       queryKey: ['medicines'],
-      invalidateKeys: [['dashboard'], ['inventory']],
+      invalidateKeys: [['dashboard'], ['inventory'], ['expiring-batches']],
       createFn: createMedicine,
       updateFn: updateMedicine,
       deleteFn: deleteMedicine,
@@ -190,13 +181,14 @@ export default function MedicineList() {
       width: 100,
       align: 'right',
       sorter: (a, b) => {
-        const sa = stockMap.get(a.id!)?.qty ?? 0;
-        const sb = stockMap.get(b.id!)?.qty ?? 0;
+        const sa = stockMap.get(a.id!)?.totalQty ?? 0;
+        const sb = stockMap.get(b.id!)?.totalQty ?? 0;
         return sa - sb;
       },
       render: (_v, r) => {
         const s = stockMap.get(r.id!);
-        return s ? `${s.qty.toFixed(1)} g` : '-';
+        // 单位取药材首批次的实际单位（g/包/盒等），不再硬编码
+        return s ? `${s.totalQty.toFixed(1)} ${s.unit}` : '-';
       },
     },
     {
@@ -307,7 +299,7 @@ export default function MedicineList() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1240 }}
             pagination={{ pageSize: 15, showSizeChanger: true }}
             onRow={(record) => ({
               onDoubleClick: () => setDetailMedicine(record),

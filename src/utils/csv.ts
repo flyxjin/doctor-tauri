@@ -2,13 +2,26 @@
 import type { MedicineImportRecord } from '@/types';
 
 /**
- * 转义单个 CSV 字段：含逗号/引号/换行的字段用双引号包裹，内部双引号用 "" 转义。
+ * CSV 公式注入防护：Excel/WPS 会把以 = + - @ 开头的单元格当公式执行，
+ * 对这类字段前置单引号使其按文本处理；"-3" 之类的负数不前置，避免误伤数字。
+ */
+function sanitizeCsvFormula(s: string): string {
+  const c = s.charAt(0);
+  const dangerous =
+    c === '=' || c === '+' || c === '@' || c === '\t' || (c === '-' && !/^[.\d]/.test(s.slice(1)));
+  return dangerous ? `'${s}` : s;
+}
+
+/**
+ * 转义单个 CSV 字段：含逗号/引号/换行的字段用双引号包裹，内部双引号用 "" 转义；
+ * 公式注入字符前置单引号（与后端 export_medicines_csv 防护一致）。
  *
  * 统一了原 Inventory.tsx 与 History.tsx 中两处不一致的转义实现。
  */
 export function escapeCsvField(v: string | number | null | undefined): string {
   const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  const safe = sanitizeCsvFormula(s);
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /**
@@ -56,13 +69,48 @@ export function parseCsvLine(line: string): string[] {
   return fields;
 }
 
+/**
+ * 将 CSV 文本拆分为逻辑行：引号内的换行属于字段内容（RFC 4180），
+ * 需合并到同一逻辑行，否则导出的多行字段（功效/主治等）在回导时会被裂成多条脏记录。
+ */
+export function splitCsvLines(text: string): string[] {
+  const lines: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      current += ch;
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+      current += ch;
+    } else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
+      lines.push(current);
+      current = '';
+      if (ch === '\r') i++;
+    } else {
+      current += ch;
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
 /** 解析 CSV 文本为药材导入记录数组（自动剥离 UTF-8 BOM） */
 export function parseCsvText(text: string): MedicineImportRecord[] {
   let normalized = text;
   if (normalized.charCodeAt(0) === 0xfeff) {
     normalized = normalized.slice(1);
   }
-  const lines = normalized.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const lines = splitCsvLines(normalized).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return [];
 
   const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());

@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { parseCsvLine, parseCsvText } from './csv';
+import { escapeCsvField, parseCsvLine, parseCsvText, rowsToCsv, splitCsvLines } from './csv';
+
+describe('escapeCsvField 公式注入防护', () => {
+  it('公式字符前置单引号', () => {
+    expect(escapeCsvField('=SUM(A1)')).toBe("'=SUM(A1)");
+    expect(escapeCsvField('+8613800138000')).toBe("'+8613800138000");
+    expect(escapeCsvField('@cmd')).toBe("'@cmd");
+  });
+
+  it('负数不误伤', () => {
+    expect(escapeCsvField(-3)).toBe('-3');
+    expect(escapeCsvField(-3.5)).toBe('-3.5');
+    expect(escapeCsvField('-cmd')).toBe("'-cmd");
+  });
+
+  it('普通文本与数字不变', () => {
+    expect(escapeCsvField('甘草')).toBe('甘草');
+    expect(escapeCsvField(3.14)).toBe('3.14');
+    expect(escapeCsvField(null)).toBe('');
+  });
+});
 
 describe('parseCsvLine', () => {
   it('简单逗号分隔', () => {
@@ -83,5 +103,42 @@ describe('parseCsvText', () => {
     const records = parseCsvText(csv);
     expect(records[0].name).toBe('人参');
     expect(records[0].alias).toBe('');
+  });
+
+  it('引号内的换行不拆行（RFC 4180 多行字段）', () => {
+    const csv = 'name,efficacy\n甘草,"补脾益气\n清热解毒"\n黄芪,补气';
+    const records = parseCsvText(csv);
+    expect(records).toHaveLength(2);
+    expect(records[0].name).toBe('甘草');
+    expect(records[0].efficacy).toBe('补脾益气\n清热解毒');
+    expect(records[1].name).toBe('黄芪');
+  });
+
+  it('rowsToCsv + parseCsvText 往返：多行字段不丢数据', () => {
+    const records = parseCsvText(
+      rowsToCsv([
+        ['name', 'efficacy', 'indications'],
+        ['甘草', '补脾益气\r\n清热解毒', '脾虚\r\n咳嗽'],
+        ['黄芪', '补气固表', '自汗'],
+      ]),
+    );
+    expect(records).toHaveLength(2);
+    expect(records[0].efficacy).toBe('补脾益气\r\n清热解毒');
+    expect(records[0].indications).toBe('脾虚\r\n咳嗽');
+    expect(records[1].efficacy).toBe('补气固表');
+  });
+});
+
+describe('splitCsvLines', () => {
+  it('LF/CRLF 正常拆行', () => {
+    expect(splitCsvLines('a\nb\r\nc')).toEqual(['a', 'b', 'c']);
+  });
+
+  it('引号内的换行合并为同一逻辑行', () => {
+    expect(splitCsvLines('a,"b\nc",d')).toEqual(['a,"b\nc",d']);
+  });
+
+  it('引号内转义引号后仍继续合并换行', () => {
+    expect(splitCsvLines('"x\n""y""\n"\nz')).toEqual(['"x\n""y""\n"', 'z']);
   });
 });

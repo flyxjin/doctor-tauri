@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Button,
   Col,
@@ -72,6 +72,8 @@ export default function Patients() {
     queryFn: () => listPatients(keyword || undefined),
     // 患者档案变更频率低，缓存 5 分钟；CRUD 后由 useCrudMutations 失效
     staleTime: 5 * 60 * 1000,
+    // 关键字搜索切换时保留上一次结果，避免表格闪烁；仅搜索列表场景使用
+    placeholderData: keepPreviousData,
   });
 
   const { create: createMutation, update: updateMutation, remove: deleteMutation } =
@@ -214,6 +216,14 @@ export default function Patients() {
           loading={isLoading}
           variant="success"
         />
+        {/* 过敏史患者是中药处方安全的关键提示指标，单独统计便于复诊时快速核对 */}
+        <StatCard
+          title="过敏史患者"
+          value={(data ?? []).filter((p) => p.allergy && p.allergy.trim()).length}
+          suffix="人"
+          loading={isLoading}
+          variant="warning"
+        />
       </div>
 
       <div className="table-card">
@@ -251,7 +261,7 @@ export default function Patients() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1180 }}
             pagination={{ pageSize: 15, showSizeChanger: true }}
             onRow={(record) => ({
               onDoubleClick: () => setDetailPatient(record),
@@ -489,7 +499,7 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
                 precision={2}
                 prefix="¥"
                 loading={loadingStats}
-                valueStyle={{ color: '#B83A2E' }}
+                valueStyle={{ color: 'var(--danger-color)' }}
               />
             </Col>
             <Col span={6}>

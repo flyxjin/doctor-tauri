@@ -18,8 +18,7 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .map_err(|e| format!("无法获取应用数据目录: {e}"))?;
-            std::fs::create_dir_all(&app_data_dir)
-                .map_err(|e| format!("创建数据目录失败: {e}"))?;
+            std::fs::create_dir_all(&app_data_dir).map_err(|e| format!("创建数据目录失败: {e}"))?;
             let db_path = app_data_dir.join("medicine_system.db");
 
             // 初始化数据库连接（单例，由 Tauri State 管理）

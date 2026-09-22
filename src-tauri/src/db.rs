@@ -17,7 +17,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "002_seed_medicines",
         include_str!("../migrations/002_seed_medicines.sql"),
     ),
-    ("003_patients", include_str!("../migrations/003_patients.sql")),
+    (
+        "003_patients",
+        include_str!("../migrations/003_patients.sql"),
+    ),
     (
         "004_supplement_herbs",
         include_str!("../migrations/004_supplement_herbs.sql"),
@@ -41,6 +44,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
     (
         "009_prescription_item_batches",
         include_str!("../migrations/009_prescription_item_batches.sql"),
+    ),
+    (
+        "010_add_indexes",
+        include_str!("../migrations/010_add_indexes.sql"),
     ),
 ];
 
@@ -138,7 +145,10 @@ impl DbState {
     /// 雪崩为整个会话的数据库不可用。代价是可能读到 panic 时的中间状态，但这比"应用挂掉"
     /// 更可恢复——用户重启应用即可回到干净状态。
     pub fn lock(&self) -> Result<MutexGuard<'_, Connection>, String> {
-        Ok(self.conn.lock().unwrap_or_else(|poison| poison.into_inner()))
+        Ok(self
+            .conn
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()))
     }
 
     /// 重新打开数据库连接（用于备份恢复后刷新连接）
@@ -146,8 +156,7 @@ impl DbState {
     /// 替换文件后，原连接持有的文件句柄和缓存已失效，必须重新打开
     pub fn reopen(&self, path: &Path) -> Result<(), String> {
         let mut guard = self.conn.lock().map_err(|_| "锁中毒".to_string())?;
-        let new_conn = Connection::open(path)
-            .map_err(|e| format!("重新打开数据库失败: {e}"))?;
+        let new_conn = Connection::open(path).map_err(|e| format!("重新打开数据库失败: {e}"))?;
         new_conn
             .execute_batch(CONNECTION_PRAGMAS)
             .map_err(|e| format!("设置 PRAGMA 失败: {e}"))?;
@@ -243,11 +252,9 @@ mod tests {
         let conn = db.lock().unwrap();
         // schema_migrations 中记录数应等于 MIGRATIONS 长度，不重复
         let count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM schema_migrations",
-                (),
-                |row| row.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM schema_migrations", (), |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count as usize, MIGRATIONS.len());
     }
@@ -347,11 +354,8 @@ mod tests {
             .unwrap();
         assert_eq!(count_before, 1);
         // 删除药材，触发级联删除
-        conn.execute(
-            "DELETE FROM medicines WHERE id = ?1",
-            params![medicine_id],
-        )
-        .unwrap();
+        conn.execute("DELETE FROM medicines WHERE id = ?1", params![medicine_id])
+            .unwrap();
         // 库存应被级联删除
         let count_after: i64 = conn
             .query_row(
@@ -376,8 +380,7 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM medicines", (), |row| row.get(0))
             .unwrap();
         assert_eq!(
-            medicine_count,
-            EXPECTED_MEDICINE_COUNT,
+            medicine_count, EXPECTED_MEDICINE_COUNT,
             "种子+补充+扩充应共 {} 味药材",
             EXPECTED_MEDICINE_COUNT
         );

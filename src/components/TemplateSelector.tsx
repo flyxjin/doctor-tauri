@@ -80,11 +80,11 @@ export default function TemplateSelector({ open, onClose, onSelect }: Props) {
                 </span>
                 <Tag color="green">{item.category}</Tag>
               </div>
-              <div style={{ fontSize: 12, color: '#8B8580' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 组成：
                 {item.items.map((i) => `${i.name}${i.quantity}${i.unit}`).join('、')}
               </div>
-              <div style={{ fontSize: 12, color: '#8B8580', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 主治：{item.indication}
               </div>
             </div>

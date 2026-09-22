@@ -184,8 +184,10 @@ export default function InventoryPage() {
     onSuccess: (_d, vars) => {
       message.success(`${vars.form.is_in ? '入库' : '出库'}成功`);
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['expiring-batches', EXPIRY_WARN_DAYS] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      // 历史抽屉的 30 秒 staleTime 内可能看不到刚写入的变更，主动失效
+      queryClient.invalidateQueries({ queryKey: ['inventory-history'] });
       setModalOpen(false);
     },
     onError: (e: unknown) => message.error(formatError(e)),
@@ -203,8 +205,9 @@ export default function InventoryPage() {
     onSuccess: () => {
       message.success('库存调整成功');
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['expiring-batches', EXPIRY_WARN_DAYS] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-history'] });
       setAdjustTarget(null);
     },
     onError: (e: unknown) => message.error(formatError(e)),
@@ -360,7 +363,7 @@ export default function InventoryPage() {
       align: 'right',
       render: (_v, r) => `¥${(r.quantity * r.price).toFixed(2)}`,
     },
-    { title: '备注', dataIndex: 'notes', key: 'notes', ellipsis: true },
+    { title: '备注', dataIndex: 'notes', key: 'notes', ellipsis: true, width: 120 },
     {
       title: '操作',
       key: 'action',
@@ -550,7 +553,7 @@ export default function InventoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={filteredData}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1400 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           rowClassName={(record) => {
             const summary = medicineSummary.get(record.medicine_id);

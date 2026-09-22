@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  Alert,
   App,
   Button,
   DatePicker,
@@ -79,6 +80,8 @@ export default function HistoryPage() {
     queryFn: () => listPrescriptions(keyword || undefined, startDate, endDate, 500),
     // 处方历史变更频率中等，缓存 1 分钟；新建/删除后由 mutation 失效
     staleTime: 60 * 1000,
+    // 关键字/日期筛选切换时保留上一次结果，避免表格闪烁；仅搜索列表场景使用
+    placeholderData: keepPreviousData,
   });
 
   // 从 Dashboard 跳转而来时，自动定位并打开对应处方详情
@@ -109,6 +112,12 @@ export default function HistoryPage() {
       queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      // 删除处方会回扣库存并影响统计与患者视图；注意 ['prescriptions'] 前缀
+      // 匹配不到 ['patient-prescriptions', ...] / ['patient-statistics', ...]
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-batches'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-prescriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['patient-statistics'] });
       setDetail(null);
     },
     onError: (e: unknown) => message.error(formatError(e)),
@@ -319,6 +328,17 @@ export default function HistoryPage() {
           valueStyle={{ color: 'var(--danger-color)' }}
         />
       </div>
+
+      {/* 单次查询上限提示：汇总与导出仅覆盖当前返回的 500 条 */}
+      {data && data.length >= 500 && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="结果较多，仅显示最近 500 条处方"
+          description="上方汇总与 CSV 导出仅覆盖当前返回的记录。如需查看更早的处方，请使用搜索关键字或日期范围缩小查询范围。"
+        />
+      )}
 
       <div className="table-card">
         {isError && (

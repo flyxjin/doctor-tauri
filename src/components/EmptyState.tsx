@@ -38,9 +38,10 @@ export default function EmptyState({
       style={{ padding: '24px 0' }}
       description={
         <div>
-          <div style={{ color: '#1A1A1A', fontWeight: 500, fontSize: 14 }}>{title}</div>
+          {/* 使用主题变量，深色模式下保持可读 */}
+          <div style={{ color: 'var(--text-color)', fontWeight: 500, fontSize: 14 }}>{title}</div>
           {description && (
-            <div style={{ color: '#8B8580', fontSize: 13, marginTop: 4 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
               {description}
             </div>
           )}
