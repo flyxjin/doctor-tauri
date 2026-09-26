@@ -177,7 +177,8 @@ async function main() {
     return;
   }
 
-  // ---- 5. 推送 tag ----
+  // ---- 5. 推送 tag（Gitee + GitHub 双推：Gitee 仓库镜像是定时同步，
+  //      tag 只推 Gitee 会延迟到达 GitHub，导致 release.yml 不能及时触发）----
   const changelog = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8');
   const notes = extractChangelogSection(changelog, version) || `Release ${tag}`;
   const existingTags = git('tag').split('\n');
@@ -188,6 +189,17 @@ async function main() {
     log(`标签 ${tag} 已存在，跳过创建`);
   }
   run(`git push origin ${tag}`);
+  const hasGithubRemote = git('remote').split('\n').includes('github');
+  if (hasGithubRemote) {
+    try {
+      run(`git push github ${tag}`);
+      log('已推送 tag 到 github 远程（触发 release.yml 构建）');
+    } catch {
+      log(`⚠️ 推送 github 远程失败（仓库不存在或未登录？）。请手动执行：git push github ${tag}`);
+    }
+  } else {
+    log('⚠️ 未配置 github 远程，跳过 CI 构建（release.yml 仅在 GitHub Actions 运行）');
+  }
 
   // ---- 6. 创建 Gitee Release ----
   let release;
