@@ -2,6 +2,14 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [未发布]
+
+### 工程化
+
+- **自动创建发行版**（[scripts/release.mjs](scripts/release.mjs)）— `npm run release` 一键发布：预检（master/工作区干净/版本高于线上）→ 构建 → 生成 SHA256 侧车 → 推 tag → 调 Gitee API 创建 Release 并上传全部产物；支持 `--dry-run`（只打印计划）、`--skip-build`（复用已有产物）、`--force`（重发）。CI 侧 release.yml 补「同步发布到 Gitee」步骤（GitHub 镜像 + GITEE_TOKEN 时 tag 推送全自动，未配置自动跳过）
+
+---
+
 ## [1.4.0] - 2026-09-24 — 数据正确性修复 + 安全加固 + UI/商业功能完善
 
 ### 数据正确性修复（重要）

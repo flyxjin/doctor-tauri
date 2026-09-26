@@ -344,13 +344,26 @@ const MIGRATIONS: &[(&str, &str)] = &[
 
 ### 发布新版本
 
-1. 修改 `package.json` 的 `version` 字段
-2. 执行 `npm run version:sync` 同步版本号到所有文件
-3. 更新 `CHANGELOG.md`
-4. 运行 `npm run tauri:build`
-5. 提交代码并推送到 Gitee
-6. 在 Gitee 创建新 Release（tag `v1.4.x`），上传 NSIS 安装包及配套的 `.sha256` 校验文件（客户端更新时自动做 SHA256 完整性校验）
-7. 用户端启动时自动检测并提示更新
+**方式一：本地一键发布（推荐）**
+
+```bash
+# 1. 到 https://gitee.com/profile/personal_access_tokens 创建私人令牌（勾选 projects 权限）
+# 2. 更新 package.json 版本号 -> npm run version:sync -> 更新 CHANGELOG.md -> 提交
+# 3. 一键发布（自动：构建 -> SHA256 -> 推 tag -> 创建 Gitee Release 并上传产物）
+GITEE_TOKEN=你的令牌 npm run release
+
+# 只预览发布计划不实际发布：
+npm run release:dry
+# 产物已存在时跳过构建 / 允许重发已有版本：
+npm run release -- --skip-build
+npm run release -- --force
+```
+
+**方式二：GitHub Actions 自动发布**（需将仓库镜像到 GitHub，并在 GitHub 仓库 Secrets 配置 `GITEE_TOKEN`）：推送 `v*` tag 后自动构建 Windows 安装包，同时创建 GitHub Release 并同步发布到 Gitee（含 SHA256 侧车文件）；未配置令牌时 Gitee 步骤自动跳过。
+
+**方式三：手动发布**：`npm run tauri:build` 后，在 Gitee Release 页面上传 NSIS 安装包及配套的 `.sha256` 校验文件（客户端更新时自动做 SHA256 完整性校验）。
+
+发布完成后用户端启动时自动检测并提示更新。
 
 ---
 
