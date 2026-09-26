@@ -39,13 +39,15 @@ src-tauri/gen
 distrib/*.exe
 distrib/*-setup.exe
 
-# 本地探针临时文件
-*.html
-c*.json
-rel.json
-repo*.json
-runs.json
-wf.json
+# 本地探针临时文件（根目录锚定，避免误伤子目录同名文件）
+/actions.html
+/c1.json
+/c2.json
+/rel.json
+/repo.json
+/repo2.json
+/runs.json
+/wf.json
 
 # 本地代码工具目录
 .arts/
