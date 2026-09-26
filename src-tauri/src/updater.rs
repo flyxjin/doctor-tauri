@@ -494,9 +494,7 @@ async fn download_to_path(
 
     // SHA256 校验：防安装包在发布渠道被替换或传输损坏（校验失败已删除文件）
     if !expected_sha256.trim().is_empty() {
-        if let Err(e) = verify_file_checksum(save_path, expected_sha256) {
-            return Err(e);
-        }
+        verify_file_checksum(save_path, expected_sha256)?;
     }
 
     Ok(())
@@ -642,10 +640,7 @@ mod tests {
         );
         // 长度不对 / 非十六进制 / 空文本
         assert_eq!(parse_sha256_content("abc123"), None);
-        assert_eq!(
-            parse_sha256_content(&"z".repeat(64)),
-            None
-        );
+        assert_eq!(parse_sha256_content(&"z".repeat(64)), None);
         assert_eq!(parse_sha256_content(""), None);
     }
 

@@ -49,6 +49,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "010_add_indexes",
         include_str!("../migrations/010_add_indexes.sql"),
     ),
+    (
+        "011_cleanup_indexes",
+        include_str!("../migrations/011_cleanup_indexes.sql"),
+    ),
 ];
 
 /// 统一的连接级 PRAGMA 调优配置（new/reopen 共用，避免两处配置漂移）
@@ -185,7 +189,7 @@ mod tests {
         db
     }
 
-    /// 测试 run_migrations 创建所有 8 张业务表 + schema_migrations 追踪表
+    /// 测试 run_migrations 创建所有业务表 + schema_migrations 追踪表
     #[test]
     fn test_run_migrations_creates_all_tables() {
         let db = setup_in_memory();
@@ -197,7 +201,7 @@ mod tests {
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
-        // 7 张业务表
+        // 8 张业务表（001 六张 + 003 patients + 009 prescription_item_batches）
         for expected in [
             "medicines",
             "inventory",
@@ -205,7 +209,8 @@ mod tests {
             "prescription_items",
             "inventory_history",
             "operation_logs",
-            "data_version",
+            "patients",
+            "prescription_item_batches",
         ] {
             assert!(
                 tables.contains(&expected.to_string()),
@@ -214,14 +219,20 @@ mod tests {
         }
         // 迁移追踪表
         assert!(tables.contains(&"schema_migrations".to_string()));
-        // 业务表数量至少 8 张
+        // 011 迁移已清理 001 遗留的 data_version 死表
+        assert!(
+            !tables.contains(&"data_version".to_string()),
+            "data_version 死表应已被 011 迁移删除"
+        );
+        // 业务表数量恰好 8 张
         let business_tables: Vec<_> = tables
             .iter()
             .filter(|t| !t.starts_with("sqlite_") && t.as_str() != "schema_migrations")
             .collect();
-        assert!(
-            business_tables.len() >= 8,
-            "业务表数量不足 8 张: {business_tables:?}"
+        assert_eq!(
+            business_tables.len(),
+            8,
+            "业务表应为 8 张: {business_tables:?}"
         );
     }
 
