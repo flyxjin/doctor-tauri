@@ -84,7 +84,7 @@ function extractChangelogSection(changelog, version) {
 function sha256File(path) {
   const h = createHash('sha256');
   h.update(readFileSync(path));
-  return h.hexdigest();
+  return h.digest('hex');
 }
 
 function writeSidecar(path) {
