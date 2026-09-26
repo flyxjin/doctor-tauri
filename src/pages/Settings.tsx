@@ -7,6 +7,7 @@ import {
   App,
   Button,
   Card,
+  DatePicker,
   Descriptions,
   Popconfirm,
   Progress,
@@ -16,6 +17,8 @@ import {
   Tag,
   Typography,
 } from 'antd';
+
+const { RangePicker } = DatePicker;
 import type { ColumnsType } from 'antd/es/table';
 import {
   CheckCircleOutlined,
@@ -72,6 +75,8 @@ export default function SettingsPage() {
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [logType, setLogType] = useState<string | undefined>(undefined);
+  // 操作日志日期范围筛选（后端支持半开区间过滤，保留 created_at 索引）
+  const [logDateRange, setLogDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   // 数据导入导出入口的加载态
   const [templateLoading, setTemplateLoading] = useState(false);
   const [exportMedLoading, setExportMedLoading] = useState(false);
@@ -82,8 +87,15 @@ export default function SettingsPage() {
   });
 
   const { data: operationLogs, isLoading: logsLoading, isError: logsError, error: logsErr, refetch: refetchLogs, isFetching: logsFetching } = useQuery({
-    queryKey: ['operation-logs', logType],
-    queryFn: () => listOperationLogs(logType, undefined, undefined, undefined, 100),
+    queryKey: ['operation-logs', logType, logDateRange?.[0]?.format('YYYY-MM-DD'), logDateRange?.[1]?.format('YYYY-MM-DD')],
+    queryFn: () =>
+      listOperationLogs(
+        logType,
+        undefined,
+        logDateRange?.[0]?.format('YYYY-MM-DD'),
+        logDateRange?.[1]?.format('YYYY-MM-DD'),
+        100,
+      ),
   });
 
   const checkUpdateMutation = useMutation({
@@ -629,14 +641,25 @@ export default function SettingsPage() {
           </Space>
         }
         extra={
-          <Select
-            placeholder="筛选操作类型"
-            allowClear
-            style={{ width: 140 }}
-            options={LOG_TYPE_OPTIONS}
-            value={logType}
-            onChange={(v) => setLogType(v || undefined)}
-          />
+          <Space>
+            <RangePicker
+              size="small"
+              value={logDateRange}
+              onChange={(dates) =>
+                setLogDateRange(dates?.[0] && dates?.[1] ? [dates[0], dates[1]] : null)
+              }
+              placeholder={['开始日期', '结束日期']}
+              allowClear
+            />
+            <Select
+              placeholder="筛选操作类型"
+              allowClear
+              style={{ width: 140 }}
+              options={LOG_TYPE_OPTIONS}
+              value={logType}
+              onChange={(v) => setLogType(v || undefined)}
+            />
+          </Space>
         }
         style={{ marginTop: 16 }}
       >
