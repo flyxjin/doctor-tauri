@@ -1,6 +1,6 @@
-# 中药材销售管理系统 v1.0.0
+# 中药材销售管理系统 v1.4.0
 
-> 面向中医诊所 / 中药房的桌面端开方与销售管理软件，内置 400 味药材库、32 张经典方剂模板、十八反十九畏配伍禁忌实时预警、患者过敏史冲突检测、批次效期 FEFO 出库。
+> 面向中医诊所 / 中药房的桌面端开方与销售管理软件，内置 400 味药材库、53 张经典方剂模板、十八反十九畏配伍禁忌实时预警、患者过敏史冲突检测、批次效期 FEFO 出库。
 
 基于 **Tauri 2.x + React 18 + Rust** 构建，安装包仅 3 MB，启动秒开，原生 Windows 体验。
 
@@ -10,13 +10,13 @@
 
 - **首页看板**：今日营收与处方数横幅、近 7 天营收趋势、低库存预警（带「去入库」直达）、最近 5 张处方（双击跳转详情）
 - **药材管理**：400 味内置中药材（含别名、分类、药性、归经、功效、主治、用法、用量、禁忌、备注）、按分类筛选、CSV 批量导入导出、详情 Drawer
-- **智能开方**：药材检索 + 32 张经典方剂一键导入 + 十八反十九畏自动预警 + **患者过敏史冲突检测** + 默认剂量从 `dosage` 字段解析
+- **智能开方**：药材检索 + 53 张经典方剂一键导入 + 十八反十九畏自动预警 + **患者过敏史冲突检测** + 默认剂量从 `dosage` 字段解析 + 未保存处方切换页面拦截确认
 - **库存管理**：批次 + 效期管理、FEFO 近效期优先出库、入库/出库 Modal 带余量提示、低/零库存行背景高亮、库存变更历史 Drawer、效期预警横幅
 - **处方历史**：日期范围 + 关键字后端筛选、处方打印、删除自动按批次精确回扣库存、CSV 导出、复制到处方（复诊一键带入原方）
 - **销售统计**：5 种时间范围 + 纯 SVG 销售趋势折线图（销售额 + 处方数双线）、热销药材 TOP10、CSV 导出
 - **患者档案**：患者 CRUD + 过敏史 + 既往病史、详情 Drawer 展示历史处方 + 消费统计 + 复诊一键复制处方
-- **系统设置**：数据备份与还原（MD5 校验）+ 备份删除、操作日志查询、Gitee 无感自动更新（启动后台静默下载 + 弹窗提示安装）
-- **安全加固**：CSP 策略、SQL 全参数化、路径遍历防护、金额服务端重算、CRUD 全事务原子化、处方删除按批次精确回扣
+- **系统设置**：数据备份与还原（SHA256 校验）+ 备份删除、超 7 天未备份启动提醒、操作日志查询（类型 + 日期范围筛选）、Gitee 无感自动更新（静默下载 + 下载后 SHA256 完整性校验 + 弹窗提示安装）、帮助/关于弹窗（F1）
+- **安全加固**：CSP 策略、SQL 全参数化、路径遍历防护、金额服务端重算、CRUD 全事务原子化、处方删除按批次精确回扣、更新包 SHA256 校验 + 下载源白名单 + 安装程序路径校验、CSV 公式注入防护（前后端）
 
 ---
 
@@ -24,13 +24,13 @@
 
 | 层 | 技术 | 说明 |
 |----|------|------|
-| 后端 | Rust + Tauri 2.x | `#[tauri::command]` 暴露 39 个 IPC 命令 |
-| 数据库 | rusqlite (bundled SQLite) | WAL 模式 + 5 项 PRAGMA 优化，10 张业务表 |
+| 后端 | Rust + Tauri 2.x | `#[tauri::command]` 暴露 37 个 IPC 命令 |
+| 数据库 | rusqlite (bundled SQLite) | WAL 模式 + 5 项 PRAGMA 优化，8 张业务表 |
 | 前端 | React 18 + TypeScript 严格模式 | 函数组件 + Hooks |
 | UI 库 | Ant Design 5.x | 中文 locale，路由懒加载，侧边栏可折叠 |
 | 状态 | TanStack Query 5 | 服务端状态 + 自动失效 + staleTime 分级缓存 |
 | 构建 | Vite 5 | 生产产物分包：antd / react / query / icons / date 五 vendor chunk |
-| 测试 | Vitest + cargo test | 前端 67 测试 + 后端 62 测试 |
+| 测试 | Vitest + cargo test | 前端 75 测试 + 后端 76 测试 |
 
 ---
 
@@ -106,7 +106,7 @@ npm run version:sync
 - **过敏史冲突检测**：实时校验处方药材与患者过敏史，区分「药材名直接匹配」与「禁忌字段提及」两种命中
 - **默认剂量解析**：从 `Medicine.dosage` 字段（如"3-9g"）解析推荐起始用量取下限，无法解析时回退 10g
 - **配伍禁忌预警**：完整实现中医十八反（31 对）+ 十九畏（10 对），匹配采用「包含」策略兼容炮制前后缀（如「生甘草」匹配「甘草」）
-- **经典方剂模板**：32 张经典方（四君子汤、六味地黄丸、桂枝汤等）一键导入，自动匹配药材
+- **经典方剂模板**：53 张经典方（四君子汤、六味地黄丸、小柴胡汤等）一键导入，自动匹配药材
 - **处方明细库存余量**：每味药下方显示当前库存，不足时红色预警
 - 保存处方时跨批次 FEFO 扣减库存（事务保证，库存不足自动回滚）
 - 总金额由服务端重新 sum 计算，不信任前端传入
@@ -165,14 +165,14 @@ npm run version:sync
 - **版本信息**：当前版本 + 最新版本对比 + 更新日志
 - **无感自动更新**：启动后延迟 1.5s 后台静默检查 Gitee Release，发现新版本流式下载到 `%APPDATA%/com.medicine.system/downloads/`，下载完成后弹窗提示"立即更新"，用户确认后调用 NSIS 静默安装（`/S`）+ 应用自动退出
 - **手动更新路径**：手动点击"启动安装程序"显式走 NSIS 安装向导 UI
-- **数据备份**：一键创建备份（含 MD5 校验），备份列表支持还原与删除
+- **数据备份**：一键创建备份（含 SHA256 校验），备份列表支持还原与删除
 - **操作日志**：最近 100 条操作记录，按类型筛选（CREATE / UPDATE / DELETE / STOCK / IMPORT），颜色标识
 
 ---
 
 ## 数据库设计
 
-数据库文件位于 `%APPDATA%\com.medicine.system\medicine_system.db`，10 张业务表 + 1 张迁移追踪表：
+数据库文件位于 `%APPDATA%\com.medicine.system\medicine_system.db`，8 张业务表 + 1 张迁移追踪表：
 
 | 表名 | 用途 |
 |------|------|
@@ -186,7 +186,7 @@ npm run version:sync
 | `operation_logs` | 操作日志（CREATE / UPDATE / DELETE / STOCK / IMPORT） |
 | `schema_migrations` | SQL 迁移版本追踪（幂等执行） |
 
-迁移脚本位于 `src-tauri/migrations/`（9 个文件），编译期 `include_str!` 嵌入二进制，启动时自动执行未应用的迁移。
+迁移脚本位于 `src-tauri/migrations/`（11 个文件），编译期 `include_str!` 嵌入二进制，启动时自动执行未应用的迁移。
 
 ### SQLite 性能优化
 
@@ -218,7 +218,7 @@ PRAGMA foreign_keys = ON;        -- 外键级联
 ```
 tauri_app/
 ├── src/                          # React 前端
-│   ├── api/tauri.ts              # Tauri invoke 封装（39 个命令）
+│   ├── api/tauri.ts              # Tauri invoke 封装（37 个命令）
 │   ├── components/               # EmptyState / ErrorBoundary / StatCard / TrendChart / QueryErrorAlert 等
 │   ├── data/                     # 处方模板 JSON
 │   ├── hooks/                    # useCrudMutations / useCsvExport / useCopyToPrescription
@@ -239,12 +239,12 @@ tauri_app/
 ├── src-tauri/                    # Rust 后端
 │   ├── src/
 │   │   ├── lib.rs                # 应用入口 + 命令注册
-│   │   ├── commands.rs           # 39 个 Tauri 命令 + 62 个单元测试
+│   │   ├── commands.rs           # 37 个 Tauri 命令 + 单元测试（含回扣回归/SHA256/URL 白名单等）
 │   │   ├── compatibility.rs      # 配伍禁忌引擎
 │   │   ├── db.rs                 # 数据库管理 + 迁移
 │   │   ├── models.rs             # 数据模型
 │   │   └── updater.rs            # 自动更新（含静默下载）
-│   ├── migrations/               # SQL 迁移（9 个文件）
+│   ├── migrations/               # SQL 迁移（11 个文件）
 │   └── tauri.conf.json           # Tauri 配置
 ├── scripts/sync-version.mjs      # 版本号 SSOT 同步脚本
 ├── distrib/                      # 便携版分发目录（install.bat / uninstall.bat）
@@ -256,7 +256,7 @@ tauri_app/
 
 ## 测试
 
-### 后端测试（62 个）
+### 后端测试（76 个）
 
 ```powershell
 cd src-tauri
@@ -273,7 +273,7 @@ cargo test --lib
 - 数据库迁移与外键
 - 版本比较工具函数
 
-### 前端测试（67 个）
+### 前端测试（75 个）
 
 ```powershell
 npm run test -- --run
