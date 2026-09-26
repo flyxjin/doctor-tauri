@@ -1,0 +1,13 @@
+# 统一行尾：仓库内一律 LF，避免 Windows autocrlf 反复转换产生噪音
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF（cmd.exe 要求）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不做任何转换
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+*.db binary
