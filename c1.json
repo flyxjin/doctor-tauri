@@ -1,0 +1,34 @@
+[
+  {
+    "name": "ci.yml",
+    "path": ".github/workflows/ci.yml",
+    "sha": "5410f0375621dc4e92d4f76f1ca45ff1757dd42d",
+    "size": 1942,
+    "url": "https://api.github.com/repos/flyxjin/doctor-tauri/contents/.github/workflows/ci.yml?ref=master",
+    "html_url": "https://github.com/flyxjin/doctor-tauri/blob/master/.github/workflows/ci.yml",
+    "git_url": "https://api.github.com/repos/flyxjin/doctor-tauri/git/blobs/5410f0375621dc4e92d4f76f1ca45ff1757dd42d",
+    "download_url": "https://raw.githubusercontent.com/flyxjin/doctor-tauri/master/.github/workflows/ci.yml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/flyxjin/doctor-tauri/contents/.github/workflows/ci.yml?ref=master",
+      "git": "https://api.github.com/repos/flyxjin/doctor-tauri/git/blobs/5410f0375621dc4e92d4f76f1ca45ff1757dd42d",
+      "html": "https://github.com/flyxjin/doctor-tauri/blob/master/.github/workflows/ci.yml"
+    }
+  },
+  {
+    "name": "release.yml",
+    "path": ".github/workflows/release.yml",
+    "sha": "0d5837f426b07017e027c80e1565a1b38ebaf50c",
+    "size": 6490,
+    "url": "https://api.github.com/repos/flyxjin/doctor-tauri/contents/.github/workflows/release.yml?ref=master",
+    "html_url": "https://github.com/flyxjin/doctor-tauri/blob/master/.github/workflows/release.yml",
+    "git_url": "https://api.github.com/repos/flyxjin/doctor-tauri/git/blobs/0d5837f426b07017e027c80e1565a1b38ebaf50c",
+    "download_url": "https://raw.githubusercontent.com/flyxjin/doctor-tauri/master/.github/workflows/release.yml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/flyxjin/doctor-tauri/contents/.github/workflows/release.yml?ref=master",
+      "git": "https://api.github.com/repos/flyxjin/doctor-tauri/git/blobs/0d5837f426b07017e027c80e1565a1b38ebaf50c",
+      "html": "https://github.com/flyxjin/doctor-tauri/blob/master/.github/workflows/release.yml"
+    }
+  }
+]
