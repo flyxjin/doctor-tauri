@@ -110,3 +110,47 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 同步发布到 Gitee（客户端 updater 读 Gitee releases/latest）。
+      # 前提：仓库镜像到 GitHub，并在 GitHub 仓库 Secrets 配置 GITEE_TOKEN
+      # （Gitee 私人令牌，权限勾选 projects）。未配置时此步骤自动跳过。
+      - name: 检查 Gitee 凭据
+        id: gitee
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ($env:GITEE_TOKEN) { "has_token=true" >> $env:GITHUB_OUTPUT } else { "has_token=false" >> $env:GITHUB_OUTPUT }
+
+      - name: 同步发布到 Gitee
+        if: steps.gitee.outputs.has_token == 'true'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_TAG: ${{ github.ref_name }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:GITEE_TAG
+          # 1. 创建 Gitee Release（已存在则查询复用）
+          $headers = @{ Authorization = "Bearer $env:GITEE_TOKEN" }
+          $body = @{ tag_name = $tag; name = "中药材销售管理系统 $tag"; prerelease = $false } | ConvertTo-Json
+          try {
+            $rel = Invoke-RestMethod -Method Post -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases" -Headers $headers -ContentType "application/json; charset=utf-8" -Body $body
+            Write-Host "已创建 Gitee Release #$($rel.id) ($tag)"
+          } catch {
+            Write-Host "创建失败，尝试复用已有 Release..."
+            $list = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases?direction=desc&per_page=20" -Headers $headers
+            $rel = $list | Where-Object { $_.tag_name -eq $tag } | Select-Object -First 1
+            if (-not $rel) { throw "无法创建或找到 $tag 的 Release" }
+            Write-Host "复用已有 Release #$($rel.id)"
+          }
+          # 2. 上传全部产物（exe + sha256）
+          $files = @(Get-ChildItem "src-tauri/target/release/bundle/nsis") | Where-Object { $_.Name -like "*_x64-setup.exe*" }
+          $pe = "src-tauri/target/release/medicine-system.exe"
+          if (Test-Path $pe) { $files += Get-Item "$pe", "$pe.sha256" }
+          foreach ($f in $files) {
+            $uri = "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/$($rel.id)/attach_files"
+            curl.exe -sf -X POST -H "Authorization: Bearer $env:GITEE_TOKEN" -F "file=@$($f.FullName)" $uri | Out-Null
+            Write-Host "已上传 $($f.Name)"
+          }
+          Write-Host "Gitee 发布完成：https://gitee.com/flyxjin/doctor-tauri/releases/tag/$tag"
