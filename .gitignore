@@ -39,6 +39,14 @@ src-tauri/gen
 distrib/*.exe
 distrib/*-setup.exe
 
+# 本地探针临时文件
+*.html
+c*.json
+rel.json
+repo*.json
+runs.json
+wf.json
+
 # 本地代码工具目录
 .arts/
 .codeartsdoer/
