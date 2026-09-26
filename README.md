@@ -349,7 +349,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
 3. 更新 `CHANGELOG.md`
 4. 运行 `npm run tauri:build`
 5. 提交代码并推送到 Gitee
-6. 在 Gitee 创建新 Release（tag `v0.3.x`），上传 NSIS 安装包
+6. 在 Gitee 创建新 Release（tag `v1.4.x`），上传 NSIS 安装包及配套的 `.sha256` 校验文件（客户端更新时自动做 SHA256 完整性校验）
 7. 用户端启动时自动检测并提示更新
 
 ---
@@ -363,16 +363,19 @@ A: 检查 WebView2 Runtime 是否安装（Win11 自带，Win10 需手动安装�
 A: `%APPDATA%\com.medicine.system\medicine_system.db`。删除后重启应用会自动重建表结构与种子数据。
 
 **Q: 如何重置数据？**
-A: 删除数据库文件后重启，或在 Settings 页面还原早期备份。
+A: 删除数据库文件后重启，或在 Settings 页面还原早期备份。应用启动时会检测备份是否超过 7 天并提醒。
 
 **Q: 打印无响应？**
 A: 确保系统已安装打印机驱动，Tauri 使用系统打印对话框。
 
 **Q: 自动更新失败？**
-A: 检查网络、确认 Gitee Release 已发布且包含 `.exe` 安装包，或手动下载覆盖安装。
+A: 检查网络、确认 Gitee Release 已发布且包含 `.exe` 安装包与 `.sha256` 校验文件，或手动下载覆盖安装。
 
 **Q: Windows SmartScreen 提示「未知发布者」？**
 A: 因未购买代码签名证书，首次安装时会提示。点击「仍要运行」即可。后续考虑购买 OV/EV 证书消除警告（见 [issue IK3Y7P](https://gitee.com/flyxjin/doctor/issues/IK3Y7P)）。
+
+**Q: 没有后端也想看界面？**
+A: `npm run dev` 后用普通浏览器打开 <http://localhost:1420> 即进入演示模式（内置拟真数据，仅内存不落盘）；Tauri 窗口内不受影响。
 
 ---
 
@@ -380,6 +383,9 @@ A: 因未购买代码签名证书，首次安装时会提示。点击「仍要�
 
 详见 [CHANGELOG.md](CHANGELOG.md)。
 
+- **v1.4.0**（2026-09-24）：**数据正确性修复 + 安全加固 + UI/商业功能完善** — 删除处方双重回扣库存修复、时区口径统一、更新包 SHA256 校验 + 下载源白名单 + 安装路径校验、未保存处方拦截、备份提醒、帮助/关于弹窗、浏览器演示模式、深色模式对比度修复、CI 工作流修复（详见 [CHANGELOG.md](CHANGELOG.md)）
+- **v1.3.0**（2026-08-06）：性能调优 + 全局快捷键 + 主题切换 + 方剂模板扩充 + 数据导入导出统一入口
+- **v1.2.0**（2026-08-02）：健壮性增强 + 错误 UI 完善
 - **v1.1.0**（2026-07-28）：处方 PDF 导出功能 + GitHub Actions CI/Release 工作流
 - **v1.0.0**（2026-07-28）：**里程碑版本** — 功能完成度达到 1.0 标准，定位为生产主推版本；Python 版同步进入维护模式。详见 [docs/ROADMAP.md](docs/ROADMAP.md)
 - **v0.3.16**（2026-07-28）：新增用户操作手册（软著申请材料）

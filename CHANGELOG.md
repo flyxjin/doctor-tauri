@@ -2,6 +2,63 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.4.0] - 2026-09-24 — 数据正确性修复 + 安全加固 + UI/商业功能完善
+
+### 数据正确性修复（重要）
+
+- **删除处方双重回扣库存**（[src-tauri/src/commands.rs](src-tauri/src/commands.rs)）— 同一药材在同一处方出现多行时，删除处方可把库存回扣两倍（批次扣减明细按"处方+药材"聚合，而删除逻辑逐明细行循环）。提取 `restore_prescription_stock` 统一入口并按药材去重，附回归测试
+- **删除处方时回扣量静默丢失** — 原批次已删且该药材无任何批次时，新数据回扣路径不入库仅写历史；现与老数据路径一致，自动创建"退库恢复"批次接住回扣量
+- **时区口径统一** — `created_at` 以 UTC 存储，但"今日开方数/营收/7 天趋势/销售统计/历史筛选"此前按 UTC 日期比较，每天 0-8 点开的处方向前错一天；统一为本地日期口径（`date(created_at,'localtime')`），列表筛选改为半开区间直接比较 `created_at`（同时修复日期函数包列导致的索引失效）
+- **效期/生产日期入口校验**（`validate_ymd`）— 录入 "2026/9/1" 之类格式会静默导致 FEFO 排序错乱、效期预警漏报，现于入库入口拒绝；同批次合并入库时重新填写的效期以新值覆盖（COALESCE 保留未填项），不再静默丢弃
+- **CSV 数值解析拒绝 inf/NaN** — `parse_f64_or` 过滤非有限值，避免污染 SUM 统计或绑定为 NULL
+- **批量导入零数量不再建空批次** — 已存在药材导入数量 ≤0 时跳过建批与历史写入，避免零数量批次污染库存列表
+- **看板低库存计数与列表聚合口径统一**（medicine_id+name+unit）
+- **效期预警日期口径** — `list_expiring_batches` 改用本地日期（与前端 dayjs 一致）
+
+### 安全加固
+
+- **更新包 SHA256 完整性校验** — Release 工作流自动生成 `.sha256` 侧车文件，客户端检查更新时解析（`UpdateInfo.checksum`），下载后校验不一致即删除文件；旧版 Release 无侧车文件时回退纯大小校验
+- **更新下载源白名单**（`validate_download_url`）— 仅允许 https + gitee.com（含 userinfo 混淆绕过防护），封死"renderer 被注入后借 IPC 拉取任意 URL"链路
+- **安装程序路径校验**（`validate_install_path`）— `install_update` 仅允许执行应用下载目录内的 .exe（canonicalize 防路径伪造）
+- **删除备份路径校验升级** — `delete_backup` 与 `restore_backup` 一致使用 canonicalize 归属校验（原父子目录名比较可被 `C:\任意\backups\x.db` 绕过）
+- **恢复备份后补跑迁移** — 恢复旧版本备份后立即幂等执行 `run_migrations`，避免该会话内所有 SQL 因缺表失败；替换 .db 文件时清理残留 `-wal`/`-shm` 防止误回放旧 WAL 损坏数据
+- **CSV 公式注入防护（前后端）** — `=`/`+`/`@`/`-`（非数字）开头字段前置单引号，负数不误伤；前端 `escapeCsvField` 与后端 `sanitize_csv_formula` 对齐
+
+### 新功能（商业标准）
+
+- **未保存处方拦截** — 开方有内容时按 `Ctrl+1~9` 切页弹确认框（`unsavedGuard` 脏标记），杜绝误触快捷键丢失已录入处方
+- **备份提醒** — 启动时检测最近备份超 7 天或从未备份，弹窗引导至设置页
+- **帮助/关于弹窗**（F1）— 品牌标识 + 版本号 + "数据存储于本机"说明 + 快捷键表
+- **浏览器演示模式**（[src/mocks/tauriMock.ts](src/mocks/tauriMock.ts)）— 非 Tauri 环境拦截 invoke 返回拟真内存数据（36 味药材/8 患者/47 处方），UI 开发与演示不依赖 Rust 后端；Tauri 窗口内永不生效，生产构建为独立 chunk 不加载
+- **下载状态跨页恢复** — 更新包下载中切换页面再返回，可恢复"下载完成"路径与后台下载提示
+- **处方历史 500 条上限提示** — 达到上限时明确告知汇总与导出仅覆盖当前 500 条
+- **设置页操作日志日期范围筛选**（后端半开区间参数已支持，前端补齐 RangePicker）
+- **客户管理新增过敏史患者统计卡**
+
+### UI 改进
+
+- **深色模式修复** — 主按钮对比度提升到 WCAG AA（#3A7A52）；修复 EmptyState/模板选择器/更新日志/患者消费统计等处硬编码深色文字导致"深底深字"不可见
+- **搜索列表防闪烁收窄** — 移除全局 `placeholderData`（切换患者/药材/统计区间时会短暂显示上一实体数据），仅 History/MedicineList/Patients 三个搜索列表显式使用 `keepPreviousData`
+- **缓存失效补齐** — 开方/删处方/出入库/导入后补齐 patient-prescriptions、patient-statistics、statistics、expiring-batches、inventory-history 失效（此前最长错 2 分钟）
+- **CSV 解析器支持引号内换行**（RFC 4180）— 此前"导出再回导"会把功效/主治等多行字段裂成多条脏记录，重写行拆分器并附往返测试
+- **开方页** — 开方日期控件去掉时间显示；药材搜索缓存 key 与药材页统一（共用缓存）；方剂模板药材改走 `fetchQuery` 命中缓存
+- **药材列表** — 复用 `aggregateInventory` 统一聚合口径，库存单位不再硬编码 "g"；导入文件名 UTC 日期改本地
+
+### 工程化
+
+- **CI/Release 工作流修复** — 此前路径指向不存在的 `tauri_app/` 目录完全失效，重写为根目录结构并加并发取消；Release 新增 SHA256 生成步骤
+- **版本同步脚本正则修复** — `DisplayVersion` 正则从未匹配（注册表卸载项停在 0.3.13），已修复
+- **迁移 010/011** — 补 `prescriptions.patient_name`、`operation_logs.operation_type/created_at` 索引；清理 001 遗留的 `data_version` 死表
+- **删除 installer.iss**（Python 旧版遗留 Inno Setup 脚本，实际打包走 NSIS）
+- `cargo fmt` 全库格式化、clippy 警告清零（CI `-D warnings` 门禁可通过）；新增 `typecheck` 脚本；tsconfig.node.json 覆盖 vitest 配置；.gitignore 补齐本地工具目录
+
+### 测试
+
+- 前端：75 个测试全部通过（新增 CSV 引号换行/公式注入/往返测试），TypeScript 0 错误，ESLint 0 错误
+- 后端：76 个测试全部通过（新增双重回扣回归、SHA256 解析、URL 白名单、日期校验、公式注入防护测试）
+
+---
+
 ## [1.3.0] - 2026-08-06 — 性能调优 + 全局快捷键 + 主题切换 + 功能扩展
 
 ### 性能优化
