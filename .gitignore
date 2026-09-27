@@ -39,6 +39,9 @@ src-tauri/gen
 distrib/*.exe
 distrib/*-setup.exe
 
+# Mimosa 安全钩子内部状态（不入库）
+.mimosa/
+
 # 软著鉴别材料生成目录（含完整源代码，不入库）
 /copyright-output/
 
