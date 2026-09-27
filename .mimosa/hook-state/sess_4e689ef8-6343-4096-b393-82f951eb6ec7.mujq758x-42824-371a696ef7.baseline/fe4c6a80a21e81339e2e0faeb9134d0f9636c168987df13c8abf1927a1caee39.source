@@ -1,0 +1,47 @@
+[package]
+name = "medicine-system"
+version = "1.4.0"
+description = "中药材销售管理系统"
+authors = ["medicine-system"]
+edition = "2021"
+rust-version = "1.70"
+
+# 库：桌面端 main 通过 rlib 复用；移动端构建时需追加 "cdylib"
+# 注：Windows GNU 工具链下 cdylib 导出符号数超过 65535 上限会触发
+# "export ordinal too large" 链接错误，因此默认仅保留 rlib/staticlib。
+# 移动端（Android/iOS）构建请改为 crate-type = ["staticlib", "cdylib", "rlib"]
+[lib]
+name = "medicine_system_lib"
+crate-type = ["staticlib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-shell = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+# 网络请求（自动更新）与流式下载
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["fs", "io-util", "rt"] }
+# 备份文件 SHA256 校验
+sha2 = "0.10"
+
+# 可选：通过 tauri-plugin-sql 暴露 SQL 能力给前端（本项目后端直接使用 rusqlite，默认不启用）
+tauri-plugin-sql = { version = "2.0", features = ["sqlite"], optional = true }
+
+[features]
+# 默认不启用 sql 插件，后端通过 rusqlite + Tauri State 管理
+default = []
+sql-plugin = ["tauri-plugin-sql"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

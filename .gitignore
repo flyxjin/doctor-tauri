@@ -39,6 +39,9 @@ src-tauri/gen
 distrib/*.exe
 distrib/*-setup.exe
 
+# 软著鉴别材料生成目录（含完整源代码，不入库）
+/copyright-output/
+
 # 本地探针临时文件（根目录锚定，避免误伤子目录同名文件）
 /actions.html
 /c1.json

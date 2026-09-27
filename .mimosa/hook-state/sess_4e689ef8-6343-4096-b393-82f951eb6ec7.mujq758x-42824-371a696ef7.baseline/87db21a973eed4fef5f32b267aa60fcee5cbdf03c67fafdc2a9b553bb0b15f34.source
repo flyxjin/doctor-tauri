@@ -1,0 +1,166 @@
+name: Release
+
+# tag 触发 Tauri 应用构建与 GitHub Release 发布
+on:
+  push:
+    tags:
+      - 'v*'
+
+  # 手动触发：Actions 页选择分支并填入已存在的 tag（如 v1.4.0），
+  # 用于验证流水线或补发 Release
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（如 v1.4.0），须已存在'
+        required: true
+        type: string
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 安装 Rust stable-msvc
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: TypeScript 类型检查
+        run: npm run typecheck
+
+      - name: 前端单元测试（Vitest）
+        run: npm test
+
+      - name: Rust 单元测试
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      - name: 生产构建（Tauri bundler）
+        run: npm run tauri:build
+
+      # 生成 .sha256 侧车文件：客户端 updater 下载后校验，防 Release 资产被替换
+      - name: 生成 SHA256 校验文件
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
+            Write-Host "已生成 $($_.Name).sha256"
+          }
+          $pe = "src-tauri/target/release/medicine-system.exe"
+          if (Test-Path $pe) {
+            $hash = (Get-FileHash -Path $pe -Algorithm SHA256).Hash.ToLower()
+            "$hash  medicine-system.exe" | Out-File -FilePath "$pe.sha256" -Encoding ascii
+            Write-Host "已生成 medicine-system.exe.sha256"
+          }
+
+      - name: 验证构建产物
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" -ErrorAction SilentlyContinue
+          $portable = Test-Path "src-tauri/target/release/medicine-system.exe"
+
+          if (-not $setup) {
+            Write-Host "错误：未找到 NSIS 安装包"
+            exit 1
+          }
+          if (-not $portable) {
+            Write-Host "警告：未找到便携 EXE（medicine-system.exe）"
+          }
+
+          Write-Host "构建产物清单："
+          Write-Host "  NSIS 安装包: $($setup.FullName)"
+          Write-Host "  体积: $([math]::Round($setup.Length / 1MB, 2)) MB"
+          if ($portable) {
+            $pe = Get-Item "src-tauri/target/release/medicine-system.exe"
+            Write-Host "  便携 EXE: $($pe.FullName)"
+            Write-Host "  体积: $([math]::Round($pe.Length / 1MB, 2)) MB"
+          }
+
+      - name: 上传构建产物到 GitHub Actions Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: medicine-system-tauri-setup-${{ github.ref_name }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sha256
+            src-tauri/target/release/medicine-system.exe
+            src-tauri/target/release/medicine-system.exe.sha256
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: |
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sha256
+            src-tauri/target/release/medicine-system.exe
+            src-tauri/target/release/medicine-system.exe.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 同步发布到 Gitee（客户端 updater 读 Gitee releases/latest）。
+      # 前提：仓库镜像到 GitHub，并在 GitHub 仓库 Secrets 配置 GITEE_TOKEN
+      # （Gitee 私人令牌，权限勾选 projects）。未配置时此步骤自动跳过。
+      - name: 检查 Gitee 凭据
+        id: gitee
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ($env:GITEE_TOKEN) { "has_token=true" >> $env:GITHUB_OUTPUT } else { "has_token=false" >> $env:GITHUB_OUTPUT }
+
+      - name: 同步发布到 Gitee
+        if: steps.gitee.outputs.has_token == 'true'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_TAG: ${{ inputs.tag || github.ref_name }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:GITEE_TAG
+          # 1. 创建 Gitee Release（已存在则查询复用）
+          $headers = @{ Authorization = "Bearer $env:GITEE_TOKEN" }
+          $body = @{ tag_name = $tag; name = "中药材销售管理系统 $tag"; prerelease = $false } | ConvertTo-Json
+          try {
+            $rel = Invoke-RestMethod -Method Post -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases" -Headers $headers -ContentType "application/json; charset=utf-8" -Body $body
+            Write-Host "已创建 Gitee Release #$($rel.id) ($tag)"
+          } catch {
+            Write-Host "创建失败，尝试复用已有 Release..."
+            $list = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases?direction=desc&per_page=20" -Headers $headers
+            $rel = $list | Where-Object { $_.tag_name -eq $tag } | Select-Object -First 1
+            if (-not $rel) { throw "无法创建或找到 $tag 的 Release" }
+            Write-Host "复用已有 Release #$($rel.id)"
+          }
+          # 2. 上传全部产物（exe + sha256）
+          $files = @(Get-ChildItem "src-tauri/target/release/bundle/nsis") | Where-Object { $_.Name -like "*_x64-setup.exe*" }
+          $pe = "src-tauri/target/release/medicine-system.exe"
+          if (Test-Path $pe) { $files += Get-Item "$pe", "$pe.sha256" }
+          foreach ($f in $files) {
+            $uri = "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/$($rel.id)/attach_files"
+            curl.exe -sf -X POST -H "Authorization: Bearer $env:GITEE_TOKEN" -F "file=@$($f.FullName)" $uri | Out-Null
+            Write-Host "已上传 $($f.Name)"
+          }
+          Write-Host "Gitee 发布完成：https://gitee.com/flyxjin/doctor-tauri/releases/tag/$tag"

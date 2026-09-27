@@ -17,7 +17,6 @@
     "lint": "eslint src",
     "release": "node scripts/release.mjs",
     "release:dry": "node scripts/release.mjs --dry-run",
-    "copyright": "node scripts/copyright-package.mjs",
     "version:sync": "node scripts/sync-version.mjs"
   },
   "dependencies": {
