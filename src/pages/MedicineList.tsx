@@ -12,6 +12,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -161,9 +162,24 @@ export default function MedicineList() {
     }
   };
 
+  // 主表精简：低频长文本列（别名/归经/主治/禁忌/用法）下沉到行展开与详情抽屉，
+  // 保证 1366 宽度下无需横向滚动即可见库存量与操作列
   const columns: ColumnsType<Medicine> = [
-    { title: '名称', dataIndex: 'name', key: 'name', width: 100, fixed: 'left' },
-    { title: '别名', dataIndex: 'alias', key: 'alias', width: 120, ellipsis: true },
+    {
+      title: '名称 / 别名',
+      dataIndex: 'name',
+      key: 'name',
+      width: 150,
+      fixed: 'left',
+      render: (_v, r) => (
+        <>
+          <div style={{ fontWeight: 600 }}>{r.name}</div>
+          {r.alias && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.alias}</div>
+          )}
+        </>
+      ),
+    },
     {
       title: '分类',
       dataIndex: 'category',
@@ -171,10 +187,9 @@ export default function MedicineList() {
       width: 100,
       render: (c: string) => (c ? <Tag color="blue">{c}</Tag> : '-'),
     },
-    { title: '性味', key: 'nature_taste', width: 120, render: (_v, r) => `${r.nature ?? ''} ${r.taste ?? ''}`.trim() || '-' },
-    { title: '归经', dataIndex: 'meridian', key: 'meridian', width: 140, ellipsis: true },
-    { title: '功效', dataIndex: 'efficacy', key: 'efficacy', ellipsis: true },
-    { title: '用量', dataIndex: 'dosage', key: 'dosage', width: 120, ellipsis: true },
+    { title: '性味', key: 'nature_taste', width: 100, render: (_v, r) => `${r.nature ?? ''} ${r.taste ?? ''}`.trim() || '-' },
+    { title: '功效', dataIndex: 'efficacy', key: 'efficacy', ellipsis: { showTitle: true } },
+    { title: '用量', dataIndex: 'dosage', key: 'dosage', width: 100, ellipsis: true },
     {
       title: '库存量',
       key: 'stock_qty',
@@ -204,26 +219,26 @@ export default function MedicineList() {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 130,
       fixed: 'right',
       render: (_v, record) => (
-        <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => setDetailMedicine(record)}
-          >
-            详情
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
-          >
-            编辑
-          </Button>
+        <Space size={2}>
+          <Tooltip title="详情">
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => setDetailMedicine(record)}
+            />
+          </Tooltip>
+          <Tooltip title="编辑">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(record)}
+            />
+          </Tooltip>
           <Popconfirm
             title="确认删除该药材？"
             description="删除后将级联清除其库存记录"
@@ -232,9 +247,9 @@ export default function MedicineList() {
             cancelText="取消"
             okButtonProps={{ danger: true }}
           >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
+            <Tooltip title="删除">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -299,11 +314,38 @@ export default function MedicineList() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 1240 }}
+            scroll={{ x: 900 }}
             pagination={{ pageSize: 15, showSizeChanger: true }}
             onRow={(record) => ({
               onDoubleClick: () => setDetailMedicine(record),
             })}
+            expandable={{
+              // 下沉到展开行的长文本：归经 / 主治 / 用法 / 禁忌（别名已并入名称列）
+              rowExpandable: (r) =>
+                Boolean(r.meridian || r.indications || r.contraindication || r.usage),
+              expandedRowRender: (r) => (
+                <Descriptions size="small" column={2} style={{ margin: 0 }}>
+                  <Descriptions.Item label="归经">{r.meridian || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="用法">{r.usage || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="主治" span={r.indications ? 2 : 1}>
+                    {r.indications ? (
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{r.indications}</span>
+                    ) : (
+                      '-'
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="禁忌" span={r.contraindication ? 2 : 1}>
+                    {r.contraindication ? (
+                      <span style={{ whiteSpace: 'pre-wrap', color: 'var(--danger-color)' }}>
+                        {r.contraindication}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
+                  </Descriptions.Item>
+                </Descriptions>
+              ),
+            }}
             locale={{
               emptyText: (
                 <EmptyState
@@ -401,7 +443,7 @@ export default function MedicineList() {
         width={560}
       >
         {detailMedicine && (
-          <Descriptions column={1} size="small" bordered>
+          <Descriptions column={2} size="small" bordered>
             <Descriptions.Item label="名称">
               <Text strong>{detailMedicine.name}</Text>
             </Descriptions.Item>
@@ -420,10 +462,10 @@ export default function MedicineList() {
                 .filter(Boolean)
                 .join(' ') || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="归经">
+            <Descriptions.Item label="归经" span={2}>
               {detailMedicine.meridian || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="功效">
+            <Descriptions.Item label="功效" span={2}>
               {detailMedicine.efficacy ? (
                 <Text style={{ whiteSpace: 'pre-wrap' }}>
                   {detailMedicine.efficacy}
@@ -432,7 +474,7 @@ export default function MedicineList() {
                 '-'
               )}
             </Descriptions.Item>
-            <Descriptions.Item label="主治">
+            <Descriptions.Item label="主治" span={2}>
               {detailMedicine.indications ? (
                 <Text style={{ whiteSpace: 'pre-wrap' }}>
                   {detailMedicine.indications}
@@ -447,7 +489,7 @@ export default function MedicineList() {
             <Descriptions.Item label="用量">
               {detailMedicine.dosage || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="禁忌">
+            <Descriptions.Item label="禁忌" span={2}>
               {detailMedicine.contraindication ? (
                 <Text type="danger" style={{ whiteSpace: 'pre-wrap' }}>
                   {detailMedicine.contraindication}
@@ -456,7 +498,7 @@ export default function MedicineList() {
                 '-'
               )}
             </Descriptions.Item>
-            <Descriptions.Item label="备注">
+            <Descriptions.Item label="备注" span={2}>
               {detailMedicine.notes ? (
                 <Text style={{ whiteSpace: 'pre-wrap' }}>
                   {detailMedicine.notes}
