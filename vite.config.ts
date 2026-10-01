@@ -30,7 +30,8 @@ export default defineConfig({
   // Tauri 使用相对路径加载资源
   base: './',
   build: {
-    target: 'es2020',
+    // WebView2 为常青 Chromium，ES2022 全量支持
+    target: 'es2022',
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
