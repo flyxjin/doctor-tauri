@@ -4,6 +4,7 @@ import {
   Button,
   Col,
   Descriptions,
+  Grid,
   Drawer,
   Empty,
   Form,
@@ -139,33 +140,39 @@ export default function Patients() {
     }
   };
 
+  // 响应式列：按视口断点分级显示（高分屏缩放后 CSS 视口显著变窄）
+  const screens = Grid.useBreakpoint();
   const columns: ColumnsType<Patient> = [
     { title: '姓名', dataIndex: 'name', key: 'name', width: 100, fixed: 'left' },
     {
       title: '性别',
       dataIndex: 'gender',
       key: 'gender',
-      width: 80,
+      width: 70,
       render: (g: string) => (g ? <Tag color={g === '男' ? 'blue' : 'pink'}>{g}</Tag> : '-'),
     },
     { title: '年龄', dataIndex: 'age', key: 'age', width: 70, render: (a: number | null) => a ?? '-' },
     { title: '电话', dataIndex: 'phone', key: 'phone', width: 130 },
-    {
-      title: '过敏史',
-      dataIndex: 'allergy',
-      key: 'allergy',
-      width: 150,
-      ellipsis: true,
-      render: (a: string) =>
-        a ? <Text type="danger">{a}</Text> : '-',
-    },
-    {
-      title: '建档日期',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 110,
-      render: (v: string) => v?.slice(0, 10) ?? '-',
-    },
+    ...(screens.xl
+      ? [{
+          title: '过敏史',
+          dataIndex: 'allergy',
+          key: 'allergy',
+          width: 150,
+          ellipsis: true,
+          render: (a: string) =>
+            a ? <Text type="danger">{a}</Text> : '-',
+        }]
+      : []),
+    ...(screens.xxl
+      ? [{
+          title: '建档日期',
+          dataIndex: 'created_at',
+          key: 'created_at',
+          width: 110,
+          render: (v: string) => v?.slice(0, 10) ?? '-',
+        }]
+      : []),
     {
       title: '操作',
       key: 'action',
@@ -267,7 +274,7 @@ export default function Patients() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 780 }}
+            scroll={{ x: screens.xxl ? 810 : screens.xl ? 700 : 550 }}
             expandable={{
               // 低频长文本下沉：地址 / 既往病史 / 备注
               rowExpandable: (r) =>

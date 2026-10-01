@@ -5,6 +5,8 @@ import {
   App,
   Button,
   Col,
+  Descriptions,
+  Grid,
   DatePicker,
   Drawer,
   Form,
@@ -294,29 +296,40 @@ export default function InventoryPage() {
     }
   };
 
-  // 主表精简：备注下沉到行展开，操作列图标化，1366 宽度下无横向滚动
+  // 响应式列：按视口断点分级显示（高分屏缩放后 CSS 视口会显著变窄）
+  // 各档合计（含行展开图标列 48px）均小于对应断点的可用宽度，杜绝横向滚动
+  const screens = Grid.useBreakpoint();
+  const showLg = !!screens.lg; // ≥992：+ 分类
+  const showXl = !!screens.xl; // ≥1200：+ 批次号/最低库存/单价
+  const showXxl = !!screens.xxl; // ≥1600：+ 批次价值
+
+  // 主表精简：备注下沉到行展开，操作列图标化
   const columns: ColumnsType<Inventory> = [
-    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 118, fixed: 'left', ellipsis: true },
-    {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-      width: 90,
-      render: (c: string) => (c ? <Tag color="blue">{c}</Tag> : '-'),
-    },
-    {
-      title: '批次号',
-      dataIndex: 'batch_no',
-      key: 'batch_no',
-      width: 104,
-      ellipsis: true,
-      render: (b: string) => b || <Text type="secondary">—</Text>,
-    },
+    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 110, fixed: 'left', ellipsis: true },
+    ...(showLg
+      ? [{
+          title: '分类',
+          dataIndex: 'category',
+          key: 'category',
+          width: 90,
+          render: (c: string) => (c ? <Tag color="blue">{c}</Tag> : '-'),
+        }]
+      : []),
+    ...(showXl
+      ? [{
+          title: '批次号',
+          dataIndex: 'batch_no',
+          key: 'batch_no',
+          width: 104,
+          ellipsis: true,
+          render: (b: string) => b || <Text type="secondary">—</Text>,
+        }]
+      : []),
     {
       title: '效期',
       dataIndex: 'expiry_date',
       key: 'expiry_date',
-      width: 115,
+      width: 110,
       render: (d: string | null) => {
         const st = expiryStatus(d);
         if (st === 'none') return <Text type="secondary">—</Text>;
@@ -351,22 +364,28 @@ export default function InventoryPage() {
         );
       },
     },
-    { title: '最低库存', dataIndex: 'min_stock', key: 'min_stock', width: 90 },
-    {
-      title: '单价',
-      dataIndex: 'price',
-      key: 'price',
-      width: 86,
-      align: 'right',
-      render: (p: number) => `¥${p.toFixed(2)}`,
-    },
-    {
-      title: '批次价值',
-      key: 'value',
-      width: 100,
-      align: 'right',
-      render: (_v, r) => `¥${(r.quantity * r.price).toFixed(2)}`,
-    },
+    ...(showXl
+      ? [{ title: '最低库存', dataIndex: 'min_stock', key: 'min_stock', width: 90 }]
+      : []),
+    ...(showXl
+      ? [{
+          title: '单价',
+          dataIndex: 'price',
+          key: 'price',
+          width: 86,
+          align: 'right' as const,
+          render: (p: number) => `¥${p.toFixed(2)}`,
+        }]
+      : []),
+    ...(showXxl
+      ? [{
+          title: '批次价值',
+          key: 'value',
+          width: 100,
+          align: 'right' as const,
+          render: (_v: unknown, r: Inventory) => `¥${(r.quantity * r.price).toFixed(2)}`,
+        }]
+      : []),
     {
       title: '操作',
       key: 'action',
@@ -415,6 +434,29 @@ export default function InventoryPage() {
       ),
     },
   ];
+
+  // 行展开：备注 + 被响应式隐藏的低优先字段（窄视口下主表不显示但信息不丢）
+  const expandedRowRenderInv = (r: Inventory) => (
+    <Descriptions size="small" column={2} style={{ margin: 0 }}>
+      {!showXl && <Descriptions.Item label="批次号">{r.batch_no || '—'}</Descriptions.Item>}
+      {!showXl && (
+        <Descriptions.Item label="最低库存">{r.min_stock}</Descriptions.Item>
+      )}
+      {!showXl && (
+        <Descriptions.Item label="单价">
+          {`¥${r.price.toFixed(2)}`}
+        </Descriptions.Item>
+      )}
+      {!showXxl && (
+        <Descriptions.Item label="批次价值">
+          {`¥${(r.quantity * r.price).toFixed(2)}`}
+        </Descriptions.Item>
+      )}
+      <Descriptions.Item label="备注" span={2}>
+        {r.notes || '—'}
+      </Descriptions.Item>
+    </Descriptions>
+  );
 
   // 库存变更历史表格列定义
   const historyColumns: ColumnsType<InventoryHistory> = [
@@ -568,13 +610,11 @@ export default function InventoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={filteredData}
-          scroll={{ x: 966 }}
+          scroll={{ x: showXxl ? 916 : showXl ? 730 : showLg ? 621 : 531 }}
           expandable={{
-            // 备注下沉到行展开（多数批次无备注，不占主表宽度）
-            rowExpandable: (r) => Boolean(r.notes),
-            expandedRowRender: (r) => (
-              <span style={{ color: 'var(--text-secondary)' }}>备注：{r.notes}</span>
-            ),
+            // 备注与被响应式隐藏的字段下沉到行展开
+            rowExpandable: () => true,
+            expandedRowRender: expandedRowRenderInv,
           }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           rowClassName={(record) => {

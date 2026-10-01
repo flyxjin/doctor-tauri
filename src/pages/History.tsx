@@ -8,6 +8,7 @@ import {
   DatePicker,
   Descriptions,
   Drawer,
+  Grid,
   Input,
   Popconfirm,
   Space,
@@ -186,22 +187,34 @@ export default function HistoryPage() {
     copyToPrescription(record);
   };
 
+  // 响应式列：按视口断点分级显示（高分屏缩放后 CSS 视口显著变窄）
+  const screens = Grid.useBreakpoint();
+  const showLg = !!screens.lg; // ≥992：+ 性别/年龄
+  const showXl = !!screens.xl; // ≥1200：+ 处方号/时间
+  const showXxl = !!screens.xxl; // ≥1600：+ 开方人
+
   const columns: ColumnsType<PrescriptionWithItems> = [
-    {
-      title: '处方号',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-      fixed: 'left',
-    },
+    ...(showXl
+      ? [{
+          title: '处方号',
+          dataIndex: 'id',
+          key: 'id',
+          width: 80,
+          fixed: 'left' as const,
+        }]
+      : []),
     { title: '患者', dataIndex: 'patient_name', key: 'patient_name', width: 100 },
-    {
-      title: '性别',
-      dataIndex: 'patient_gender',
-      key: 'patient_gender',
-      width: 70,
-    },
-    { title: '年龄', dataIndex: 'patient_age', key: 'patient_age', width: 70 },
+    ...(showLg
+      ? [
+          {
+            title: '性别',
+            dataIndex: 'patient_gender',
+            key: 'patient_gender',
+            width: 70,
+          },
+          { title: '年龄', dataIndex: 'patient_age', key: 'patient_age', width: 70 },
+        ]
+      : []),
     {
       title: '诊断',
       dataIndex: 'diagnosis',
@@ -212,32 +225,36 @@ export default function HistoryPage() {
       title: '味数',
       key: 'item_count',
       width: 80,
-      align: 'center',
-      render: (_v, r) => r.items.length,
+      align: 'center' as const,
+      render: (_v: unknown, r: PrescriptionWithItems) => r.items.length,
     },
     {
       title: '金额',
       dataIndex: 'total_amount',
       key: 'total_amount',
       width: 110,
-      align: 'right',
+      align: 'right' as const,
       render: (v: number) => (
         <Tag color="blue" style={{ borderRadius: 4 }}>
           ¥{v.toFixed(2)}
         </Tag>
       ),
     },
-    { title: '开方人', dataIndex: 'created_by', key: 'created_by', width: 100 },
-    {
-      title: '时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-    },
+    ...(showXxl
+      ? [{ title: '开方人', dataIndex: 'created_by', key: 'created_by', width: 90 }]
+      : []),
+    ...(showXl
+      ? [{
+          title: '时间',
+          dataIndex: 'created_at',
+          key: 'created_at',
+          width: 180,
+        }]
+      : []),
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 160,
       fixed: 'right',
       render: (_v, record) => (
         <Space size={2}>
@@ -416,7 +433,7 @@ export default function HistoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={data}
-          scroll={{ x: 990 }}
+          scroll={{ x: showXxl ? 920 : showXl ? 780 : 560 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           onRow={(record) => ({
             // 双击行快速打开详情，与列表页交互一致

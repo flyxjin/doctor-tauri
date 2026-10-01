@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Button,
   Descriptions,
+  Grid,
   Drawer,
   Form,
   Input,
@@ -162,8 +163,12 @@ export default function MedicineList() {
     }
   };
 
-  // 主表精简：低频长文本列（别名/归经/主治/禁忌/用法）下沉到行展开与详情抽屉，
-  // 保证 1366 宽度下无需横向滚动即可见库存量与操作列
+  // 响应式列：按视口断点分级显示（高分屏缩放后 CSS 视口显著变窄）
+  const screens = Grid.useBreakpoint();
+  const showXl = !!screens.xl; // ≥1200：+ 用量/库存量
+  const showXxl = !!screens.xxl; // ≥1600：+ 最低库存
+
+  // 主表精简：低频长文本列（别名/归经/主治/禁忌/用法）下沉到行展开与详情抽屉
   const columns: ColumnsType<Medicine> = [
     {
       title: '名称 / 别名',
@@ -189,33 +194,39 @@ export default function MedicineList() {
     },
     { title: '性味', key: 'nature_taste', width: 100, render: (_v, r) => `${r.nature ?? ''} ${r.taste ?? ''}`.trim() || '-' },
     { title: '功效', dataIndex: 'efficacy', key: 'efficacy', ellipsis: { showTitle: true } },
-    { title: '用量', dataIndex: 'dosage', key: 'dosage', width: 100, ellipsis: true },
-    {
-      title: '库存量',
-      key: 'stock_qty',
-      width: 100,
-      align: 'right',
-      sorter: (a, b) => {
-        const sa = stockMap.get(a.id!)?.totalQty ?? 0;
-        const sb = stockMap.get(b.id!)?.totalQty ?? 0;
-        return sa - sb;
-      },
-      render: (_v, r) => {
-        const s = stockMap.get(r.id!);
-        // 单位取药材首批次的实际单位（g/包/盒等），不再硬编码
-        return s ? `${s.totalQty.toFixed(1)} ${s.unit}` : '-';
-      },
-    },
-    {
-      title: '最低库存',
-      key: 'min_stock',
-      width: 90,
-      align: 'right',
-      render: (_v, r) => {
-        const s = stockMap.get(r.id!);
-        return s ? `${s.minStock.toFixed(1)}` : '-';
-      },
-    },
+    ...(showXl
+      ? [{ title: '用量', dataIndex: 'dosage', key: 'dosage', width: 100, ellipsis: true }]
+      : []),
+    ...(showXl
+      ? [{
+          title: '库存量',
+          key: 'stock_qty',
+          width: 100,
+          align: 'right' as const,
+          sorter: (a: Medicine, b: Medicine) => {
+            const sa = stockMap.get(a.id!)?.totalQty ?? 0;
+            const sb = stockMap.get(b.id!)?.totalQty ?? 0;
+            return sa - sb;
+          },
+          render: (_v: unknown, r: Medicine) => {
+            const s = stockMap.get(r.id!);
+            // 单位取药材首批次的实际单位（g/包/盒等），不再硬编码
+            return s ? `${s.totalQty.toFixed(1)} ${s.unit}` : '-';
+          },
+        }]
+      : []),
+    ...(showXxl
+      ? [{
+          title: '最低库存',
+          key: 'min_stock',
+          width: 90,
+          align: 'right' as const,
+          render: (_v: unknown, r: Medicine) => {
+            const s = stockMap.get(r.id!);
+            return s ? `${s.minStock.toFixed(1)}` : '-';
+          },
+        }]
+      : []),
     {
       title: '操作',
       key: 'action',
@@ -314,7 +325,7 @@ export default function MedicineList() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 900 }}
+            scroll={{ x: showXxl ? 860 : showXl ? 780 : 560 }}
             pagination={{ pageSize: 15, showSizeChanger: true }}
             onRow={(record) => ({
               onDoubleClick: () => setDetailMedicine(record),
