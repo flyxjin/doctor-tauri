@@ -39,4 +39,11 @@ void prepare().finally(() => {
       </QueryClientProvider>
     </React.StrictMode>,
   );
+  // React 已提交首帧：淡出并移除 index.html 里的首屏骨架屏
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.getElementById('boot-splash')?.classList.add('hide');
+      setTimeout(() => document.getElementById('boot-splash')?.remove(), 300);
+    });
+  });
 });

@@ -4,9 +4,52 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>中药材销售管理系统</title>
+    <style>
+      /* 首屏骨架屏：JS 加载期间消除 WebView 白屏；main.tsx 渲染后移除 */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        background: #f7f4ef;
+        z-index: 9999;
+        transition: opacity 0.25s ease;
+      }
+      #boot-splash.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-splash .splash-sider {
+        width: 208px;
+        background: #1f4530;
+      }
+      #boot-splash .splash-main {
+        flex: 1;
+        padding: 28px 32px;
+      }
+      #boot-splash .splash-line {
+        height: 14px;
+        border-radius: 7px;
+        background: #e5dfd5;
+        margin-bottom: 14px;
+        animation: splash-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes splash-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-splash">
+      <div class="splash-sider"></div>
+      <div class="splash-main">
+        <div class="splash-line" style="width: 180px; height: 24px"></div>
+        <div class="splash-line" style="width: 40%"></div>
+        <div class="splash-line" style="width: 96%; height: 88px; margin-top: 24px"></div>
+        <div class="splash-line" style="width: 96%; height: 120px"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
