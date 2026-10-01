@@ -2,6 +2,17 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.6.1] - 2026-10-01 — 修复打包版样式全部丢失
+
+### 修复
+
+- **打包版 antd 样式全部失效**（严重）— 安装版/便携版运行时界面退化为无样式 DOM（菜单变裸链接、按钮无样式），dev 模式与浏览器访问正常。
+  根因：Tauri 打包时会改写 CSP、向 `style-src` 追加 nonce；按 CSP 规范，**nonce 一旦存在 `'unsafe-inline'` 即被浏览器忽略**，导致 antd cssinjs 运行时注入的无 nonce `<style>` 全部被拦截。dev 模式与 `vite preview`（普通浏览器）不经过 Tauri 的 CSP 改写，因此只有打包版暴露。
+  修复：`tauri.conf.json` 增加 `"dangerousDisableAssetCspModification": ["style-src"]`，仅对 `style-src` 关闭 Tauri 的 CSP 改写（`'unsafe-inline'` 按配置原样生效）；`script-src` 的 nonce 防护保持不变。
+- 定位方法备忘：`vite preview`（生产构建 + 普通浏览器）渲染正常 → 排除前端问题；只有 Tauri 壳内异常 → 锁定 CSP 改写行为。
+
+---
+
 ## [1.6.0] - 2026-10-01 — 视觉改版：现代工作台设计语言
 
 ### 视觉改版（UI / 配色 / 布局）

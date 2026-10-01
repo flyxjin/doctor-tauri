@@ -23,7 +23,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://gitee.com; font-src 'self' data:"
+      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://gitee.com; font-src 'self' data:",
+      "dangerousDisableAssetCspModification": ["style-src"]
     }
   },
   "bundle": {
