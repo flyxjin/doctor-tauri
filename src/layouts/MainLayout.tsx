@@ -282,7 +282,6 @@ export default function MainLayout() {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         trigger={null}
-        theme="dark"
         className="tcm-sider"
       >
         <div className={`tcm-logo${collapsed ? ' tcm-logo-collapsed' : ''}`}>
@@ -297,7 +296,6 @@ export default function MainLayout() {
         </div>
         <Menu
           mode="inline"
-          theme="dark"
           selectedKeys={[selectedKey]}
           openKeys={collapsed ? [] : openKeys}
           onOpenChange={(keys) => setOpenKeys(keys as string[])}

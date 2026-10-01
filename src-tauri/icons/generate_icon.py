@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """生成中药材销售管理系统桌面图标
 
-设计理念：「悬壶本草」
-- 圆角方形深绿渐变背景（与 App 主题 siderBg 一致）
-- 中央白色药葫芦 — 中医药「悬壶济世」经典符号，几何简洁，小尺寸清晰
-- 葫芦束腰处翠绿本草叶 — 中草药意象
-- 葫芦顶部朱砂红葫芦口 — 点缀品牌色
-- 底部金色弧线 — 装饰收尾
+设计理念：「悬壶本草 · 现代版」（2026 改版，符合主流应用图标趋势）
+- 大圆角方圆（squircle）翡翠渐变背景 — 现代应用图标标准形态
+- 中央白色几何药葫芦 — 品牌符号「悬壶济世」的极简剪影，小尺寸清晰
+- 束腰处浅翡翠本草叶 — 中草药意象的低饱和点缀
+- 去除旧版的金色弧线与朱砂口，单一主色 + 强剪影
 
 相比旧版「印章+本字」：用图形替代文字，16/32px 小尺寸下不再模糊。
 """
@@ -14,15 +13,14 @@ from PIL import Image, ImageDraw, ImageFilter
 import math
 import os
 
-# ==================== 配色 ====================
-BG_TOP = (30, 69, 48)        # #1E4530
-BG_BOTTOM = (18, 42, 30)     # #122A1E
-GOURD_WHITE = (253, 250, 245)  # #FDFAF5
+# ==================== 配色（2026 现代化改版） ====================
+# 翡翠渐变 + 白色几何药葫芦；弃用金色弧线与朱砂口，走向极简
+BG_TOP = (16, 185, 129)      # #10B981 emerald-500
+BG_BOTTOM = (4, 120, 87)     # #047857 emerald-700
+GOURD_WHITE = (255, 255, 255)
 GOURD_HIGHLIGHT = (255, 255, 255)
-LEAF_DARK = (90, 160, 70)    # #5AA046
-LEAF_LIGHT = (130, 200, 90)  # #82C85A
-GOLD = (205, 170, 85)        # #CDAA55
-SEAL_RED = (200, 60, 45)     # #C83C2D
+LEAF_DARK = (110, 231, 183)  # #6EE7B7 emerald-300
+LEAF_LIGHT = (167, 243, 208) # #A7F3D0 emerald-200
 
 
 def lerp_color(c1, c2, t):
@@ -64,22 +62,26 @@ def draw_leaf(draw, cx, cy, length, width, angle_deg, color, vein_color, line_w=
 
 
 def render_icon(size):
-    """渲染指定尺寸图标（4x 超采样抗锯齿）"""
+    """渲染指定尺寸图标（4x 超采样抗锯齿）
+
+    现代化设计语言：大圆角方圆底 + 翡翠对角渐变 + 白色几何药葫芦，
+    去除装饰性弧线与多色点缀（主流应用图标趋势：少元素、强剪影）。
+    """
     scale = 4
     s = size * scale
-    img = make_bg(s, radius=int(s * 0.18))
+    img = make_bg(s, radius=int(s * 0.24))
     draw = ImageDraw.Draw(img)
     cx = s * 0.50
 
-    # ========== 1. 葫芦口（朱砂红小柱） ==========
+    # ========== 1. 葫芦口（白色小柱，与葫芦同色融为一体） ==========
     neck_w = s * 0.035
     draw.rounded_rectangle(
         [cx - neck_w, s * 0.135, cx + neck_w, s * 0.205],
-        radius=max(2, int(neck_w * 0.5)), fill=SEAL_RED,
+        radius=max(2, int(neck_w * 0.5)), fill=GOURD_WHITE,
     )
     draw.ellipse(
         [cx - neck_w * 1.3, s * 0.125, cx + neck_w * 1.3, s * 0.155],
-        fill=SEAL_RED,
+        fill=GOURD_WHITE,
     )
 
     # ========== 2. 葫芦主体（两个白色椭圆 + 束腰矩形，同色重叠自然融合） ==========
@@ -116,12 +118,6 @@ def render_icon(size):
     lw = max(2, int(s * 0.008))
     draw_leaf(draw, cx - s * 0.13, s * 0.505, s * 0.10, s * 0.035, -25, LEAF_DARK, LEAF_LIGHT, lw)
     draw_leaf(draw, cx + s * 0.13, s * 0.485, s * 0.075, s * 0.028, 200, LEAF_LIGHT, LEAF_DARK, lw)
-
-    # ========== 5. 底部金色弧线 ==========
-    draw.arc(
-        [int(s * 0.14), int(s * 0.80), int(s * 0.86), int(s * 1.06)],
-        start=200, end=340, fill=GOLD, width=max(2, int(s * 0.014)),
-    )
 
     # 缩小到目标尺寸
     return img.resize((size, size), Image.LANCZOS)

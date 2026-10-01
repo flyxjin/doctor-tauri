@@ -27,51 +27,54 @@ function PageLoading() {
   );
 }
 
-/** 东方本草主题：深草本绿 + 朱砂点缀
+/** 现代工作台主题：中性灰画布 + 翡翠品牌色（草本基因延续）
  *
  * 提升到模块顶层作为常量，避免 App 每次渲染都重建对象引用，
  * 减少 ConfigProvider 不必要的主题重计算。
  */
 const lightTheme: ThemeConfig = {
   token: {
-    colorPrimary: '#2D5F3F',
-    colorSuccess: '#5B8C3E',
-    colorWarning: '#D4943A',
-    colorError: '#B83A2E',
-    colorInfo: '#2D5F3F',
-    borderRadius: 8,
+    colorPrimary: '#059669',
+    colorSuccess: '#16A34A',
+    colorWarning: '#D97706',
+    colorError: '#DC2626',
+    colorInfo: '#059669',
+    borderRadius: 10,
     fontSize: 14,
-    colorBgLayout: '#F7F4EF',
-    colorBorder: '#E5DFD5',
-    colorText: '#1A1A1A',
-    colorTextSecondary: '#4A4A4A',
-    fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif",
+    colorBgLayout: '#F6F7F9',
+    colorBorder: '#E2E8F0',
+    colorText: '#0F172A',
+    colorTextSecondary: '#475569',
+    fontFamily:
+      "-apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'Segoe UI', sans-serif",
   },
   components: {
     Layout: {
-      siderBg: '#1F4530',
-      headerBg: '#FDFAF5',
+      siderBg: '#FFFFFF',
+      headerBg: '#FFFFFF',
       headerHeight: 56,
-      bodyBg: '#F7F4EF',
+      bodyBg: '#F6F7F9',
     },
     Menu: {
-      darkItemBg: '#1F4530',
-      darkItemSelectedBg: 'rgba(200, 71, 44, 0.25)',
-      darkItemColor: 'rgba(232, 240, 234, 0.65)',
-      darkItemSelectedColor: '#FDFAF5',
-      darkItemHoverBg: 'rgba(255, 255, 255, 0.06)',
+      itemBg: 'transparent',
+      itemColor: '#475569',
+      itemSelectedBg: '#ECFDF5',
+      itemSelectedColor: '#059669',
+      itemHoverBg: '#F6F7F9',
+      activeBarBorderWidth: 0,
       itemHeight: 40,
-      itemMarginInline: 0,
+      itemMarginInline: 8,
+      itemBorderRadius: 10,
     },
     Table: {
-      headerBg: '#F7F4EF',
-      headerColor: '#4A4A4A',
-      rowHoverBg: '#E8F0EA',
-      borderColor: '#F0EBE0',
+      headerBg: '#F6F7F9',
+      headerColor: '#475569',
+      rowHoverBg: '#ECFDF5',
+      borderColor: '#F1F5F9',
     },
     Card: {
-      borderRadiusLG: 12,
-      colorBorderSecondary: '#F0EBE0',
+      borderRadiusLG: 14,
+      colorBorderSecondary: '#F1F5F9',
     },
     Statistic: {
       contentFontSize: 32,
@@ -79,49 +82,52 @@ const lightTheme: ThemeConfig = {
   },
 };
 
-/** 深色主题：保留草本绿品牌色，基于 antd darkAlgorithm 生成暗色体系
+/** 深色主题：中性深灰蓝 + 亮翡翠品牌色，基于 antd darkAlgorithm
  * 与 global.css 中 :root[data-theme='dark'] 的 CSS 变量覆盖配套 */
 const darkTheme: ThemeConfig = {
   algorithm: antdTheme.darkAlgorithm,
   token: {
-    colorPrimary: '#4C9566',
-    colorSuccess: '#6FA14E',
-    colorWarning: '#D4943A',
-    colorError: '#D4574A',
-    colorInfo: '#4C9566',
-    borderRadius: 8,
+    colorPrimary: '#34D399',
+    colorSuccess: '#4ADE80',
+    colorWarning: '#F59E0B',
+    colorError: '#F87171',
+    colorInfo: '#34D399',
+    borderRadius: 10,
     fontSize: 14,
-    colorBgLayout: '#171B18',
-    colorBorder: '#384039',
-    colorText: '#E8EAE8',
-    colorTextSecondary: '#B8BEB9',
-    fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif",
+    colorBgLayout: '#0D1117',
+    colorBorder: '#29313C',
+    colorText: '#E6EDF3',
+    colorTextSecondary: '#9BA8B7',
+    fontFamily:
+      "-apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'Segoe UI', sans-serif",
   },
   components: {
     Layout: {
-      siderBg: '#14261C',
-      headerBg: '#1E2420',
+      siderBg: '#151B23',
+      headerBg: '#151B23',
       headerHeight: 56,
-      bodyBg: '#171B18',
+      bodyBg: '#0D1117',
     },
     Menu: {
-      darkItemBg: '#14261C',
-      darkItemSelectedBg: 'rgba(217, 91, 63, 0.28)',
-      darkItemColor: 'rgba(232, 240, 234, 0.65)',
-      darkItemSelectedColor: '#FDFAF5',
-      darkItemHoverBg: 'rgba(255, 255, 255, 0.06)',
+      itemBg: 'transparent',
+      itemColor: '#9BA8B7',
+      itemSelectedBg: 'rgba(52, 211, 153, 0.12)',
+      itemSelectedColor: '#34D399',
+      itemHoverBg: 'rgba(255, 255, 255, 0.06)',
+      activeBarBorderWidth: 0,
       itemHeight: 40,
-      itemMarginInline: 0,
+      itemMarginInline: 8,
+      itemBorderRadius: 10,
     },
     Table: {
-      headerBg: '#1E2420',
-      headerColor: '#B8BEB9',
-      rowHoverBg: 'rgba(76, 149, 102, 0.14)',
-      borderColor: '#2C332E',
+      headerBg: '#1A222C',
+      headerColor: '#9BA8B7',
+      rowHoverBg: 'rgba(52, 211, 153, 0.08)',
+      borderColor: '#1F2731',
     },
     Card: {
-      borderRadiusLG: 12,
-      colorBorderSecondary: '#2C332E',
+      borderRadiusLG: 14,
+      colorBorderSecondary: '#1F2731',
     },
     Statistic: {
       contentFontSize: 32,
