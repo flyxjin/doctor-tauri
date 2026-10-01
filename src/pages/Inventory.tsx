@@ -296,7 +296,7 @@ export default function InventoryPage() {
 
   // 主表精简：备注下沉到行展开，操作列图标化，1366 宽度下无横向滚动
   const columns: ColumnsType<Inventory> = [
-    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 130, fixed: 'left' },
+    { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 118, fixed: 'left', ellipsis: true },
     {
       title: '分类',
       dataIndex: 'category',
@@ -308,7 +308,7 @@ export default function InventoryPage() {
       title: '批次号',
       dataIndex: 'batch_no',
       key: 'batch_no',
-      width: 110,
+      width: 104,
       ellipsis: true,
       render: (b: string) => b || <Text type="secondary">—</Text>,
     },
@@ -356,21 +356,21 @@ export default function InventoryPage() {
       title: '单价',
       dataIndex: 'price',
       key: 'price',
-      width: 90,
+      width: 86,
       align: 'right',
       render: (p: number) => `¥${p.toFixed(2)}`,
     },
     {
       title: '批次价值',
       key: 'value',
-      width: 105,
+      width: 100,
       align: 'right',
       render: (_v, r) => `¥${(r.quantity * r.price).toFixed(2)}`,
     },
     {
       title: '操作',
       key: 'action',
-      width: 170,
+      width: 158,
       fixed: 'right',
       render: (_v, record) => (
         <Space size={2}>
@@ -437,7 +437,7 @@ export default function InventoryPage() {
       title: '单价',
       dataIndex: 'price',
       key: 'price',
-      width: 90,
+      width: 86,
       align: 'right',
       render: (p: number | null) => (p != null ? `¥${p.toFixed(2)}` : '-'),
     },
@@ -568,7 +568,7 @@ export default function InventoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={filteredData}
-          scroll={{ x: 1005 }}
+          scroll={{ x: 966 }}
           expandable={{
             // 备注下沉到行展开（多数批次无备注，不占主表宽度）
             rowExpandable: (r) => Boolean(r.notes),
