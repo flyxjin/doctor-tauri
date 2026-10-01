@@ -2,11 +2,36 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
-## [未发布]
+## [1.5.0] - 2026-10-01 — 每日自动备份 + Excel 导入 + 工具链现代化
 
-### 工程化
+### 新功能
 
-- **自动创建发行版**（[scripts/release.mjs](scripts/release.mjs)）— `npm run release` 一键发布：预检（master/工作区干净/版本高于线上）→ 构建 → 生成 SHA256 侧车 → 推 tag → 调 Gitee API 创建 Release 并上传全部产物；支持 `--dry-run`（只打印计划）、`--skip-build`（复用已有产物）、`--force`（重发）。CI 侧 release.yml 补「同步发布到 Gitee」步骤（GitHub 镜像 + GITEE_TOKEN 时 tag 推送全自动，未配置自动跳过）
+- **启动时自动每日备份**（[src-tauri/src/backup.rs](src-tauri/src/backup.rs)）— 每天首次启动若当天无任何备份（手动或自动）则静默创建 `medicine_system_auto_*` 备份；仅自动备份参与保留策略（保留最近 14 份），手动备份永不清理；备份核心逻辑提取为 `create_backup_file` 供命令与启动共用
+- **Excel (.xlsx) 批量导入** — 批量导入页支持 `.csv` / `.xlsx` 双格式（read-excel-file 解析首个工作表，动态 import 按需加载），与 CSV 共用 `recordsFromRows` 行转换
+- **首屏骨架屏** — index.html 内联宣纸色骨架（纯 CSS），JS 加载期间消除 WebView 白屏，React 提交首帧后淡出移除
+- **自动创建发行版**（[scripts/release.mjs](scripts/release.mjs)）— `npm run release` 一键发布：预检（master/工作区干净/版本高于线上）→ 构建 → 生成 SHA256 侧车 → 推 tag（Gitee + GitHub 双推）→ 调 Gitee API 创建 Release 并上传全部产物；支持 `--dry-run`、`--skip-build`、`--force`。CI 侧 release.yml 补「同步发布到 Gitee」步骤
+
+### 工具链升级（批次 1 + 批次 2）
+
+- **React 18.3 → 19.3**：引入 `@ant-design/v5-patch-for-react-19` 兼容补丁（升 antd 6 后移除）；浏览器实测看板/Modal/开处方交互正常
+- **Vite 5 → 7.3.6** + `@vitejs/plugin-react` 5.2；**Vitest 2 → 4.1**（79 测试无改动全过）
+- **TypeScript 5.5 → 6.0.3**：移除弃用的 `baseUrl`（paths 改相对映射）；语言基线 ES2020 → ES2022（WebView2 常青内核全量支持）
+- package.json 增加 `engines.node >= 20.19`
+
+### 文档与工程
+
+- **docs/ARCHITECTURE.md**：架构总览（数据流/关键机制/测试地图/commands.rs 拆分预案）
+- **docs/技术栈评估.md**：纵向升级路径（批次 1/2 已完成，antd 6 待批次 3）
+- **docs/技术栈横向对比.md**：六候选栈 × 八维度决策矩阵，判词为表单表格型负载下横向迁移性价比为负
+- **docs/软著申请指南.md + docs/用户操作手册.md + npm run copyright**：软著登记材料三件套（源程序鉴别材料 60 页自动生成，当前 19,407 行）
+- **CI 代码签名预留**：release.yml 可选签名步骤（Secrets 配置 `WINDOWS_CERT_PFX`/`WINDOWS_CERT_PWD` 即启用）
+- `.gitattributes` 统一行尾（仓库 LF / bat CRLF）；`.mimosa/` 钩子状态目录入 ignore
+
+### 测试
+
+- 后端 79 个测试（新增备份往返/当日判定/保留策略 3 个）
+- 前端 79 个测试（新增 recordsFromRows 行转换 4 个）
+- 工具链升级后全量护航：typecheck / vitest / build / lint / dev 冒烟通过
 
 ---
 
