@@ -4,6 +4,34 @@
 // - 所有命令返回 Result<T, String>，错误信息以中文返回前端
 // - 所有 SQL 均使用参数化查询，杜绝 SQL 注入
 // - 数据库连接由 Tauri State<DbState> 管理，通过 Mutex 串行访问
+//
+// ============================================================
+// 模块目录（按业务域分区，行号为大致锚点，改动后会漂移）
+// ------------------------------------------------------------
+// [共享]   log_operation / round_amount / validate_ymd / parse_f64_or
+//          html_escape / compute_file_sha256 / map_*_row 行映射
+// [药材]   list/get/create/update/delete_medicine              ~L44-261
+// [库存]   list_inventory / update_stock / adjust_stock /
+//          list_inventory_history / list_expiring_batches /
+//          BatchDeduction + select_batches_fefo（FEFO 核心）    ~L263-739
+// [处方]   list/create/delete_prescription /
+//          generate_prescription_html 及批次回扣辅助
+//          （restore_* / fetch_* / find_fallback_batch_id）     ~L741-1230
+// [患者]   list/get/create/update/delete_patient /
+//          get_patient_prescriptions / get_patient_statistics   ~L1232-1443
+// [统计]   get_dashboard_data / get_statistics                  ~L1445-1672
+// [配伍]   check_compatibility（薄封装，规则在 compatibility.rs）~L1674
+// [导入]   batch_import_medicines / export_medicines_csv /
+//          download_import_template / save_text_to_downloads    ~L1686-2067
+// [日志]   list_operation_logs                                  ~L2069
+// [备份]   create/list/restore/delete_backup                    ~L2319-2563
+// [测试]   mod tests（跨域集成式单测）                           ~L2632-末尾
+//
+// 重构预案：按上述域拆分为 commands/ 目录模块（medicine/inventory/
+// prescription/patient/stats/import_export/logs/print/system），
+// 共享辅助与 map_* 留在 mod.rs 并 pub(crate) 再导出，lib.rs 无需改动。
+// 详见 docs/ARCHITECTURE.md。
+// ============================================================
 
 use crate::compatibility;
 use crate::db::DbState;
