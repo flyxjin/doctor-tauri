@@ -1,5 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+// antd 5 在 React 19 下的官方兼容补丁（unstable_renderSubtreeIntoContainer 等内部 API）
+// 必须在 antd 首次渲染前导入；升级 antd 6 后可移除
+import '@ant-design/v5-patch-for-react-19';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './styles/global.css';
