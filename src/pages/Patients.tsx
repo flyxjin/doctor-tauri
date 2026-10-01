@@ -17,6 +17,7 @@ import {
   Statistic,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -147,42 +148,47 @@ export default function Patients() {
       width: 80,
       render: (g: string) => (g ? <Tag color={g === '男' ? 'blue' : 'pink'}>{g}</Tag> : '-'),
     },
-    { title: '年龄', dataIndex: 'age', key: 'age', width: 80, render: (a: number | null) => a ?? '-' },
-    { title: '电话', dataIndex: 'phone', key: 'phone', width: 140 },
+    { title: '年龄', dataIndex: 'age', key: 'age', width: 70, render: (a: number | null) => a ?? '-' },
+    { title: '电话', dataIndex: 'phone', key: 'phone', width: 130 },
     {
       title: '过敏史',
       dataIndex: 'allergy',
       key: 'allergy',
-      width: 160,
+      width: 150,
       ellipsis: true,
       render: (a: string) =>
         a ? <Text type="danger">{a}</Text> : '-',
     },
-    { title: '地址', dataIndex: 'address', key: 'address', ellipsis: true },
-    { title: '建档日期', dataIndex: 'created_at', key: 'created_at', width: 180 },
+    {
+      title: '建档日期',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 110,
+      render: (v: string) => v?.slice(0, 10) ?? '-',
+    },
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 130,
       fixed: 'right',
       render: (_v, record) => (
-        <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => setDetailPatient(record)}
-          >
-            详情
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
-          >
-            编辑
-          </Button>
+        <Space size={2}>
+          <Tooltip title="详情">
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => setDetailPatient(record)}
+            />
+          </Tooltip>
+          <Tooltip title="编辑">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(record)}
+            />
+          </Tooltip>
           <Popconfirm
             title="确认删除该患者档案？"
             description="删除后无法恢复，处方历史记录将保留"
@@ -191,9 +197,9 @@ export default function Patients() {
             cancelText="取消"
             okButtonProps={{ danger: true }}
           >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
+            <Tooltip title="删除">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -261,7 +267,25 @@ export default function Patients() {
             rowKey="id"
             columns={columns}
             dataSource={data}
-            scroll={{ x: 1180 }}
+            scroll={{ x: 780 }}
+            expandable={{
+              // 低频长文本下沉：地址 / 既往病史 / 备注
+              rowExpandable: (r) =>
+                Boolean(r.address || r.medical_history || r.notes),
+              expandedRowRender: (r) => (
+                <Descriptions size="small" column={1} style={{ margin: 0 }}>
+                  <Descriptions.Item label="地址">{r.address || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="既往病史">
+                    {r.medical_history ? (
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{r.medical_history}</span>
+                    ) : (
+                      '-'
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="备注">{r.notes || '-'}</Descriptions.Item>
+                </Descriptions>
+              ),
+            }}
             pagination={{ pageSize: 15, showSizeChanger: true }}
             onRow={(record) => ({
               onDoubleClick: () => setDetailPatient(record),

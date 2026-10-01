@@ -14,10 +14,11 @@ import {
   Statistic,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CopyOutlined, DeleteOutlined, ExportOutlined, FilePdfOutlined, PrinterOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, EyeOutlined, ExportOutlined, FilePdfOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { deletePrescription, generatePrescriptionHtml, listPrescriptions } from '@/api/tauri';
 import { exportHtmlAsPdf, printHtmlInIframe } from '@/utils/print';
@@ -236,39 +237,44 @@ export default function HistoryPage() {
     {
       title: '操作',
       key: 'action',
-      width: 290,
+      width: 200,
       fixed: 'right',
       render: (_v, record) => (
-        <Space size="small">
-          <Button type="link" size="small" onClick={() => setDetail(record)}>
-            详情
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<CopyOutlined />}
-            onClick={() => handleCopyToPrescription(record)}
-          >
-            复制
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<PrinterOutlined />}
-            loading={printingId === record.id}
-            onClick={() => handlePrint(record.id!)}
-          >
-            打印
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<FilePdfOutlined />}
-            loading={exportingPdfId === record.id}
-            onClick={() => handleExportPdf(record.id!)}
-          >
-            导出PDF
-          </Button>
+        <Space size={2}>
+          <Tooltip title="详情">
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => setDetail(record)}
+            />
+          </Tooltip>
+          <Tooltip title="复制到处方">
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => handleCopyToPrescription(record)}
+            />
+          </Tooltip>
+          <Tooltip title="打印">
+            <Button
+              type="text"
+              size="small"
+              icon={<PrinterOutlined />}
+              loading={printingId === record.id}
+              onClick={() => handlePrint(record.id!)}
+            />
+          </Tooltip>
+          <Tooltip title="导出 PDF">
+            <Button
+              type="text"
+              size="small"
+              icon={<FilePdfOutlined />}
+              loading={exportingPdfId === record.id}
+              onClick={() => handleExportPdf(record.id!)}
+            />
+          </Tooltip>
           <Popconfirm
             title="确认删除该处方？"
             description="将回扣库存，此操作不可撤销"
@@ -277,9 +283,9 @@ export default function HistoryPage() {
             cancelText="取消"
             okButtonProps={{ danger: true }}
           >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
+            <Tooltip title="删除">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -410,7 +416,7 @@ export default function HistoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={data}
-          scroll={{ x: 1210 }}
+          scroll={{ x: 990 }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           onRow={(record) => ({
             // 双击行快速打开详情，与列表页交互一致

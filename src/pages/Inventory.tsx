@@ -25,6 +25,8 @@ import {
   ExclamationCircleOutlined,
   ExportOutlined,
   HistoryOutlined,
+  ImportOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
@@ -292,6 +294,7 @@ export default function InventoryPage() {
     }
   };
 
+  // 主表精简：备注下沉到行展开，操作列图标化，1366 宽度下无横向滚动
   const columns: ColumnsType<Inventory> = [
     { title: '药材', dataIndex: 'medicine_name', key: 'medicine_name', width: 130, fixed: 'left' },
     {
@@ -305,14 +308,15 @@ export default function InventoryPage() {
       title: '批次号',
       dataIndex: 'batch_no',
       key: 'batch_no',
-      width: 130,
+      width: 110,
+      ellipsis: true,
       render: (b: string) => b || <Text type="secondary">—</Text>,
     },
     {
       title: '效期',
       dataIndex: 'expiry_date',
       key: 'expiry_date',
-      width: 130,
+      width: 115,
       render: (d: string | null) => {
         const st = expiryStatus(d);
         if (st === 'none') return <Text type="secondary">—</Text>;
@@ -336,7 +340,7 @@ export default function InventoryPage() {
     {
       title: '库存量',
       key: 'quantity',
-      width: 110,
+      width: 105,
       render: (_v, r) => {
         const low = r.quantity <= r.min_stock;
         return (
@@ -347,7 +351,7 @@ export default function InventoryPage() {
         );
       },
     },
-    { title: '最低库存', dataIndex: 'min_stock', key: 'min_stock', width: 100 },
+    { title: '最低库存', dataIndex: 'min_stock', key: 'min_stock', width: 90 },
     {
       title: '单价',
       dataIndex: 'price',
@@ -359,43 +363,54 @@ export default function InventoryPage() {
     {
       title: '批次价值',
       key: 'value',
-      width: 110,
+      width: 105,
       align: 'right',
       render: (_v, r) => `¥${(r.quantity * r.price).toFixed(2)}`,
     },
-    { title: '备注', dataIndex: 'notes', key: 'notes', ellipsis: true, width: 120 },
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 170,
       fixed: 'right',
       render: (_v, record) => (
-        <Space size="small">
-          <Button type="link" size="small" onClick={() => openModal(record, true)}>
-            入库
-          </Button>
-          <Button type="link" size="small" danger onClick={() => openModal(record, false)}>
-            出库
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<HistoryOutlined />}
-            onClick={() => setHistoryTarget(record)}
-          >
-            历史
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              setAdjustTarget(record);
-              adjustForm.resetFields();
-              adjustForm.setFieldsValue({ target_quantity: record.quantity });
-            }}
-          >
-            调整
-          </Button>
+        <Space size={2}>
+          <Tooltip title="入库">
+            <Button
+              type="text"
+              size="small"
+              icon={<ImportOutlined />}
+              onClick={() => openModal(record, true)}
+            />
+          </Tooltip>
+          <Tooltip title="出库">
+            <Button
+              type="text"
+              size="small"
+              danger
+              icon={<ExportOutlined />}
+              onClick={() => openModal(record, false)}
+            />
+          </Tooltip>
+          <Tooltip title="变更历史">
+            <Button
+              type="text"
+              size="small"
+              icon={<HistoryOutlined />}
+              onClick={() => setHistoryTarget(record)}
+            />
+          </Tooltip>
+          <Tooltip title="库存调整（盘点）">
+            <Button
+              type="text"
+              size="small"
+              icon={<ToolOutlined />}
+              onClick={() => {
+                setAdjustTarget(record);
+                adjustForm.resetFields();
+                adjustForm.setFieldsValue({ target_quantity: record.quantity });
+              }}
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -553,7 +568,14 @@ export default function InventoryPage() {
           loading={isLoading}
           columns={columns}
           dataSource={filteredData}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1005 }}
+          expandable={{
+            // 备注下沉到行展开（多数批次无备注，不占主表宽度）
+            rowExpandable: (r) => Boolean(r.notes),
+            expandedRowRender: (r) => (
+              <span style={{ color: 'var(--text-secondary)' }}>备注：{r.notes}</span>
+            ),
+          }}
           pagination={{ pageSize: 15, showSizeChanger: true }}
           rowClassName={(record) => {
             const summary = medicineSummary.get(record.medicine_id);
