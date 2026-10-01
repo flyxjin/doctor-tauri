@@ -1,4 +1,5 @@
 // 库入口：注册插件、状态与 Tauri commands
+mod backup;
 mod commands;
 mod compatibility;
 mod db;
@@ -25,6 +26,12 @@ pub fn run() {
             let db_state = DbState::new(&db_path)?;
             // 执行所有编译期嵌入的迁移文件（幂等，由 schema_migrations 表追踪）
             db_state.run_migrations()?;
+
+            // 每日首次启动自动备份（当天无任何备份时静默创建；失败不阻塞启动）
+            {
+                let conn = db_state.lock()?;
+                backup::auto_backup_if_needed(&app_data_dir, &conn);
+            }
 
             app.manage(db_state);
             Ok(())

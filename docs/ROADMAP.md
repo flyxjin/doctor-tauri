@@ -35,6 +35,12 @@
 - ✅ 安全加固（v1.4.0）：更新包 SHA256 校验 + 下载源白名单 + 安装程序路径校验、CSV 公式注入防护（前后端）、备份路径 canonicalize 校验
 - ✅ 商业功能（v1.4.0）：未保存处方拦截、备份超 7 天提醒、帮助/关于弹窗、操作日志日期筛选、处方历史 500 条上限提示、浏览器演示模式（mock invoke）
 - ✅ 深色模式对比度修复与硬编码颜色清理（WCAG AA）
+- ✅ 启动时自动每日备份：当天无任何备份（手动或自动）时静默创建 `medicine_system_auto_*`，
+  仅自动备份参与保留策略（保留最近 14 份），手动备份永不清理；备份核心逻辑提取至 [backup.rs](../src-tauri/src/backup.rs) 供命令与启动共用
+- ✅ Excel (.xlsx) 批量导入：read-excel-file 解析首个工作表，与 CSV 共用行转换
+  （recordsFromRows），导入页支持 .csv/.xlsx 双格式
+- ✅ CI 代码签名预留：release.yml 内置可选签名步骤（Secrets 配置 WINDOWS_CERT_PFX/
+  WINDOWS_CERT_PWD 即自动对安装包与便携 EXE 签名，未配置自动跳过）
 
 ### 待完成（按优先级）
 
@@ -46,10 +52,11 @@
 
 - **Issue**: [IK3Y7P](https://gitee.com/flyxjin/doctor/issues/IK3Y7P)
 - **目标**: 消除 Windows SmartScreen「未知发布者」警告
+- **状态**: CI 签名步骤已预留（release.yml），购证后配置 `WINDOWS_CERT_PFX` /
+  `WINDOWS_CERT_PWD` 两个 Secret 即自动启用
 - **方案**:
-  - 购买 OV 证书（~¥1500/年）或 EV 证书（~¥3500/年）
-  - Tauri 配置 `signtool` 钩子（`tauri.conf.json` → `bundle.windows.certificateThumbprint`）
-  - CI release.yml 集成签名步骤
+  - 购买 OV 证书（~¥1500/年）或 EV 证书（~¥3500/年），导出 .pfx 转 base64 存入 GitHub Secrets
+  - release.yml 自动执行 `signtool sign /fd SHA256 /tr <时间戳服务器>`（本仓库已内置）
 - **验收**: 安装时无 SmartScreen 警告，文件属性显示发布者
 
 ### 2. PDF 处方导出 ✅（已完成，v1.1.0）
@@ -72,11 +79,12 @@
 - **实现**: React window keydown 监听（MainLayout + Prescription 页），无需额外插件
 - **验收**: F1 显示快捷键说明 Modal，Ctrl+1~9 切页、Ctrl+S 保存处方均可用
 
-### 5. Excel (.xlsx) 批量导入
+### 5. Excel (.xlsx) 批量导入 ✅（已完成）
 
 - **目标**: 除 CSV 外支持 Excel 格式批量导入
-- **方案**: 前端 `xlsx` 库解析，或后端 `calamine` crate
-- **验收**: 批量导入页支持选择 .xlsx 文件，自动转换为统一数据结构
+- **实现**: 前端 `read-excel-file` 解析首个工作表（动态 import 按需加载），与 CSV 共用
+  `recordsFromRows` 行转换；导入页 accept `.csv/.xlsx`
+- **验收**: 批量导入页选择 .xlsx 文件即可预览并导入
 
 ### 6. 帮助 / 快捷键说明对话框 ✅（已完成）
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeCsvField, parseCsvLine, parseCsvText, rowsToCsv, splitCsvLines } from './csv';
+import { escapeCsvField, parseCsvLine, parseCsvText, recordsFromRows, rowsToCsv, splitCsvLines } from './csv';
 
 describe('escapeCsvField 公式注入防护', () => {
   it('公式字符前置单引号', () => {
@@ -58,7 +58,7 @@ describe('parseCsvText', () => {
 
   it('缺少 name 列抛错', () => {
     expect(() => parseCsvText('alias,category\nfoo,bar')).toThrow(
-      'CSV 文件必须包含 name 列',
+      '导入文件必须包含 name 列',
     );
   });
 
@@ -140,5 +140,39 @@ describe('splitCsvLines', () => {
 
   it('引号内转义引号后仍继续合并换行', () => {
     expect(splitCsvLines('"x\n""y""\n"\nz')).toEqual(['"x\n""y""\n"', 'z']);
+  });
+});
+
+describe('recordsFromRows（Excel/CSV 共用行转换）', () => {
+  it('首行表头转字段，数值单元格转字符串', () => {
+    const records = recordsFromRows([
+      ['name', 'quantity', 'price', 'min_stock'],
+      ['甘草', 50, 0.11, 30],
+    ]);
+    expect(records).toHaveLength(1);
+    expect(records[0].name).toBe('甘草');
+    expect(records[0].quantity).toBe('50');
+    expect(records[0].price).toBe('0.11');
+    expect(records[0].min_stock).toBe('30');
+  });
+
+  it('null/缺失单元格转空字符串，表头大小写不敏感', () => {
+    const records = recordsFromRows([
+      ['NAME', 'alias'],
+      ['黄芪', null],
+      ['当归', '秦归'],
+    ]);
+    expect(records[0].alias).toBe('');
+    expect(records[1].alias).toBe('秦归');
+  });
+
+  it('缺少 name 列抛错', () => {
+    expect(() => recordsFromRows([['alias'], ['x']])).toThrow(
+      '导入文件必须包含 name 列',
+    );
+  });
+
+  it('空行数组返回空记录', () => {
+    expect(recordsFromRows([])).toEqual([]);
   });
 });

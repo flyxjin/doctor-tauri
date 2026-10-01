@@ -55,6 +55,36 @@ jobs:
       - name: 生产构建（Tauri bundler）
         run: npm run tauri:build
 
+      # 代码签名（可选）：在 GitHub 仓库 Secrets 配置 WINDOWS_CERT_PFX
+      # （证书 .pfx 文件的 base64）与 WINDOWS_CERT_PWD 后自动启用；
+      # 消除 SmartScreen「未知发布者」警告。未配置时自动跳过。
+      - name: 检查签名凭据
+        id: cert
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+        run: |
+          if ($env:WINDOWS_CERT_PFX) { "has_cert=true" >> $env:GITHUB_OUTPUT } else { "has_cert=false" >> $env:GITHUB_OUTPUT }
+
+      - name: 对安装包与便携 EXE 签名
+        if: steps.cert.outputs.has_cert == 'true'
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PWD: ${{ secrets.WINDOWS_CERT_PWD }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pfxPath = "$env:RUNNER_TEMP\signing.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))
+          $targets = @(Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object { $_.FullName })
+          $pe = "src-tauri/target/release/medicine-system.exe"
+          if (Test-Path $pe) { $targets += (Resolve-Path $pe).Path }
+          foreach ($t in $targets) {
+            signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfxPath /p $env:WINDOWS_CERT_PWD $t
+            Write-Host "已签名: $t"
+          }
+          Remove-Item $pfxPath -Force
+
       # 生成 .sha256 侧车文件：客户端 updater 下载后校验，防 Release 资产被替换
       - name: 生成 SHA256 校验文件
         shell: pwsh

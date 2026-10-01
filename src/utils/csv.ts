@@ -104,26 +104,22 @@ export function splitCsvLines(text: string): string[] {
   return lines;
 }
 
-/** 解析 CSV 文本为药材导入记录数组（自动剥离 UTF-8 BOM） */
-export function parseCsvText(text: string): MedicineImportRecord[] {
-  let normalized = text;
-  if (normalized.charCodeAt(0) === 0xfeff) {
-    normalized = normalized.slice(1);
-  }
-  const lines = splitCsvLines(normalized).filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return [];
-
-  const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+/** 把二维单元格行（首行为表头）转换为药材导入记录；CSV 与 Excel 解析共用。
+ *  入参放宽为 unknown：Excel 单元格可能是 number/boolean/Date，统一 String 化处理 */
+export function recordsFromRows(rows: unknown[][]): MedicineImportRecord[] {
+  if (rows.length === 0) return [];
+  const header = rows[0].map((h) => String(h ?? '').trim().toLowerCase());
   if (!header.includes('name')) {
-    throw new Error('CSV 文件必须包含 name 列');
+    throw new Error('导入文件必须包含 name 列（首行为表头）');
   }
 
   const records: MedicineImportRecord[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCsvLine(lines[i]);
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i];
     const obj: Record<string, string> = {};
     header.forEach((key, idx) => {
-      obj[key] = (cells[idx] ?? '').trim();
+      const v = cells[idx];
+      obj[key] = v == null ? '' : String(v).trim();
     });
     records.push({
       name: obj.name ?? '',
@@ -145,4 +141,16 @@ export function parseCsvText(text: string): MedicineImportRecord[] {
     });
   }
   return records;
+}
+
+/** 解析 CSV 文本为药材导入记录数组（自动剥离 UTF-8 BOM） */
+export function parseCsvText(text: string): MedicineImportRecord[] {
+  let normalized = text;
+  if (normalized.charCodeAt(0) === 0xfeff) {
+    normalized = normalized.slice(1);
+  }
+  const lines = splitCsvLines(normalized).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return [];
+
+  return recordsFromRows(lines.map((l) => parseCsvLine(l)));
 }

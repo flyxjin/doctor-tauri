@@ -2324,47 +2324,18 @@ pub fn create_backup(
         .path()
         .app_data_dir()
         .map_err(|e| format!("无法获取应用数据目录: {e}"))?;
-    let db_path = app_data_dir.join("medicine_system.db");
-    if !db_path.exists() {
-        return Err(format!("数据库文件不存在: {}", db_path.display()));
-    }
-    let backup_dir = app_data_dir.join("backups");
-    std::fs::create_dir_all(&backup_dir).map_err(|e| format!("创建备份目录失败: {e}"))?;
 
-    let now = chrono::Local::now();
-    let timestamp = now.format("%Y%m%d_%H%M%S").to_string();
-    let created_at = now.format("%Y-%m-%d %H:%M:%S").to_string();
-    let backup_filename = format!("medicine_system_{timestamp}.db");
-    let backup_path = backup_dir.join(&backup_filename);
-
-    // 备份数据库前先做一次 checkpoint，避免 WAL 模式下数据未落盘
-    // 在锁作用域内完成 checkpoint + 文件复制，防止并发写入导致备份不一致
+    let info;
+    let backup_filename;
     {
         let conn = state.lock()?;
-        conn.execute_batch("PRAGMA wal_checkpoint(FULL);")
-            .map_err(|e| format!("数据库 checkpoint 失败: {e}"))?;
-        std::fs::copy(&db_path, &backup_path).map_err(|e| format!("复制数据库失败: {e}"))?;
+        let stem = format!(
+            "medicine_system_{}",
+            chrono::Local::now().format("%Y%m%d_%H%M%S")
+        );
+        info = crate::backup::create_backup_file(&conn, &app_data_dir, &stem)?;
+        backup_filename = format!("{stem}.db");
     }
-
-    let file_size = std::fs::metadata(&backup_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
-    let checksum = compute_file_sha256(&backup_path)?;
-
-    let manifest = serde_json::json!({
-        "backup_path": backup_path.to_string_lossy(),
-        "file_size": file_size,
-        "checksum": checksum,
-        "created_at": created_at,
-        "timestamp": timestamp,
-        "filename": backup_filename,
-    });
-    let manifest_path = backup_dir.join(format!("medicine_system_{timestamp}.json"));
-    std::fs::write(
-        &manifest_path,
-        serde_json::to_string_pretty(&manifest).map_err(|e| format!("序列化清单失败: {e}"))?,
-    )
-    .map_err(|e| format!("写入清单失败: {e}"))?;
 
     let conn = state.lock()?;
     log_operation(
@@ -2375,12 +2346,7 @@ pub fn create_backup(
         &format!("创建备份: {backup_filename}"),
     )?;
 
-    Ok(BackupInfo {
-        backup_path: backup_path.to_string_lossy().to_string(),
-        file_size,
-        checksum,
-        created_at,
-    })
+    Ok(info)
 }
 
 /// 列出所有备份（按时间倒序）

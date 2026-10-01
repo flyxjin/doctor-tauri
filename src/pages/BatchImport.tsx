@@ -25,7 +25,7 @@ import {
   saveTextToDownloads,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
-import { parseCsvText } from '@/utils/csv';
+import { parseCsvText, recordsFromRows } from '@/utils/csv';
 import { formatError } from '@/utils/formatError';
 import type { BatchImportResult, MedicineImportRecord } from '@/types';
 
@@ -67,8 +67,16 @@ export default function BatchImportPage() {
     setResult(null);
     setProgress(0);
     try {
-      const text = await file.text();
-      const parsed = parseCsvText(text);
+      // .xlsx 用 read-excel-file 解析（readSheet 取第一个工作表的行数据），
+      // .csv 走文本解析；两者共用行转换
+      let parsed: MedicineImportRecord[];
+      if (/\.xlsx$/i.test(file.name)) {
+        const { readSheet } = await import('read-excel-file/browser');
+        const rows = await readSheet(file);
+        parsed = recordsFromRows(rows);
+      } else {
+        parsed = parseCsvText(await file.text());
+      }
       if (parsed.length === 0) {
         message.warning('文件中未解析到有效数据');
         setRecords([]);
@@ -149,7 +157,7 @@ export default function BatchImportPage() {
     <div className="page-container">
       <div className="page-header">
         <h1 className="page-title">批量导入药材</h1>
-        <p className="page-subtitle">选择 CSV 文件批量导入或更新药材（按名称 UPSERT），支持下载导入模板与导出现有数据</p>
+        <p className="page-subtitle">选择 CSV / Excel (.xlsx) 文件批量导入或更新药材（按名称 UPSERT），支持下载导入模板与导出现有数据</p>
       </div>
 
       <div className="table-card" style={{ marginBottom: 16 }}>
@@ -160,7 +168,7 @@ export default function BatchImportPage() {
             onClick={handlePickFile}
             disabled={importing}
           >
-            选择 CSV 文件
+            选择文件 (CSV / XLSX)
           </Button>
           <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate} disabled={importing}>
             下载导入模板
@@ -177,7 +185,7 @@ export default function BatchImportPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.xlsx,text/csv"
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />
