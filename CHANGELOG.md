@@ -2,6 +2,15 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.8.1] - 2026-10-03 — CI 修复（组件测试超时 / actions 弃用告警）
+
+### 修复
+
+- **CI 组件测试超时（test job exit 1）** — vitest 默认单测上限 5s，jsdom + antd 渲染的组件用例在 CI Windows runner 上耗时约为开发机 2~3 倍，开处方/库存两个用例越线超时。`vitest.config.ts` 全局 `testTimeout/hookTimeout` 提升至 30s（仅为上限，快速用例不受影响），本机 84 例全绿。
+- **GitHub Actions Node 20 弃用告警** — `actions/checkout`、`actions/setup-node` 升 v4→v5，CI/Release 工作流 Node 运行时 20→22 LTS。
+
+---
+
 ## [1.8.0] - 2026-10-03 — 处方-患者强关联（外键）+ 开处方页满高布局 + 组件测试
 
 ### 新增
