@@ -154,7 +154,10 @@ async function main() {
   // ---- 4. 收集产物 + 生成 SHA256 侧车 ----
   const assets = [];
   if (existsSync(setupDir)) {
-    const setups = readdirSync(setupDir).filter((f) => f.endsWith('_x64-setup.exe'));
+    // 只上传当前版本的安装包：bundle 目录会残留历史版本产物，误传会污染 Release
+    const setups = readdirSync(setupDir).filter(
+      (f) => f === `中药材销售管理系统_${version}_x64-setup.exe`,
+    );
     for (const f of setups) {
       const p = join(setupDir, f);
       const digest = writeSidecar(p);
