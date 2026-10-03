@@ -178,7 +178,8 @@ jobs:
           $tag = $env:GITEE_TAG
           # 1. 创建 Gitee Release（已存在则查询复用）
           $headers = @{ Authorization = "Bearer $env:GITEE_TOKEN" }
-          $body = @{ tag_name = $tag; name = "中药材销售管理系统 $tag"; prerelease = $false } | ConvertTo-Json
+          # target_commitish 必填：Gitee API 缺失该字段返回 400（target_commitish is missing）
+          $body = @{ tag_name = $tag; name = "中药材销售管理系统 $tag"; prerelease = $false; target_commitish = "master" } | ConvertTo-Json
           try {
             $rel = Invoke-RestMethod -Method Post -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases" -Headers $headers -ContentType "application/json; charset=utf-8" -Body $body
             Write-Host "已创建 Gitee Release #$($rel.id) ($tag)"

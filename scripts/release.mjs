@@ -209,7 +209,13 @@ async function main() {
   try {
     release = await giteeApi('/repos/flyxjin/doctor-tauri/releases', {
       method: 'POST',
-      body: new URLSearchParams({ tag_name: tag, name: `中药材销售管理系统 ${tag}`, body: notes }),
+      // target_commitish 必填：Gitee API 缺失该字段返回 400（target_commitish is missing）
+      body: new URLSearchParams({
+        tag_name: tag,
+        name: `中药材销售管理系统 ${tag}`,
+        body: notes,
+        target_commitish: 'master',
+      }),
     });
     log(`已创建 Gitee Release #${release.id}：${tag}`);
   } catch (e) {
