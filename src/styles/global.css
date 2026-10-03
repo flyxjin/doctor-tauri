@@ -381,10 +381,23 @@ body,
   background: var(--bg-surface) !important;
   position: relative;
   border-right: 1px solid var(--border-light);
+  /* 纵向布局：logo 固定、菜单独立滚动；overflow hidden 防止折叠动画期间菜单文本溢出闪现 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 菜单滚动链：sider-children 撑满侧栏并允许内部收缩 */
+.tcm-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .tcm-logo {
   height: 60px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -470,6 +483,11 @@ body,
   background: transparent !important;
   border-right: 0 !important;
   padding: 8px 12px;
+  /* 矮窗口下菜单在侧栏内独立滚动，logo 保持固定 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tcm-sider .ant-menu-item {

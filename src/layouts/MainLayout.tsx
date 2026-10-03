@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { App, Button, Layout, Menu, Modal, Table, Tag, Typography, Spin } from 'antd';
 import {
   DashboardOutlined,
@@ -81,6 +81,13 @@ export default function MainLayout() {
   const [helpOpen, setHelpOpen] = useState(false);
   // 默认展开所有分组，便于用户发现功能
   const [openKeys, setOpenKeys] = useState<string[]>(['grp-business', 'grp-data']);
+  // 内容区滚动容器：页面高度变化与切页滚动复位都发生在这里，窗口/侧栏不滚动
+  const contentRef = useRef<HTMLElement>(null);
+
+  // 路由切换时内容区回到顶部（滚动容器是 Content，须手动复位）
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
 
   // 全局快捷键：Ctrl+1~9 切换页面；F1 打开帮助
   useEffect(() => {
@@ -274,7 +281,8 @@ export default function MainLayout() {
   const currentLabel = NAV_ITEMS.find((item) => item.key === selectedKey)?.label ?? '首页概览';
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    // 高度锁定为视口：滚动只发生在 Content 内，侧边栏/顶栏保持固定
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider
         width={208}
         collapsedWidth={64}
@@ -333,7 +341,8 @@ export default function MainLayout() {
             />
           </div>
         </Header>
-        <Content style={{ overflow: 'auto' }}>
+        {/* scrollbar-gutter: stable —— 预留滚动条槽位，页面间切换时内容区宽度不再跳变 */}
+        <Content ref={contentRef} style={{ overflow: 'auto', scrollbarGutter: 'stable' }}>
           <Outlet />
         </Content>
       </Layout>
