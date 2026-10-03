@@ -176,26 +176,49 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $tag = $env:GITEE_TAG
-          # 1. 创建 Gitee Release（已存在则查询复用）
+          $version = $tag.TrimStart('v')
           $headers = @{ Authorization = "Bearer $env:GITEE_TOKEN" }
-          # target_commitish 必填：Gitee API 缺失该字段返回 400（target_commitish is missing）
-          $body = @{ tag_name = $tag; name = "中药材销售管理系统 $tag"; prerelease = $false; target_commitish = "master" } | ConvertTo-Json
-          try {
-            $rel = Invoke-RestMethod -Method Post -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases" -Headers $headers -ContentType "application/json; charset=utf-8" -Body $body
+
+          # 从 CHANGELOG.md 提取该版本发布说明。
+          # Gitee 创建 Release 必填 body 字段（发布说明），缺失报 400 "body is missing"；
+          # 本地 release.mjs 一直携带该字段故能成功，CI 此前三次失败均因漏传。
+          $notes = "Release $tag"
+          if (Test-Path "CHANGELOG.md") {
+            $lines = Get-Content "CHANGELOG.md" -Encoding UTF8
+            $start = -1
+            for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i].StartsWith("## [$version]")) { $start = $i; break } }
+            if ($start -ge 0) {
+              $end = $lines.Count
+              for ($j = $start + 1; $j -lt $lines.Count; $j++) { if ($lines[$j].StartsWith("## [") -or $lines[$j] -match '^---\s*$') { $end = $j; break } }
+              $extracted = ($lines[$start..($end - 1)] -join "`n").Trim()
+              if ($extracted) { $notes = $extracted }
+            }
+          }
+          # 中文经文件传参（--data-urlencode name@file），避免命令行参数编码问题
+          Set-Content -Path "$env:RUNNER_TEMP\gitee_name.txt" -Value "中药材销售管理系统 $tag" -Encoding utf8
+          Set-Content -Path "$env:RUNNER_TEMP\gitee_notes.txt" -Value $notes -Encoding utf8
+
+          # 1. 创建 Gitee Release（表单编码 + 已存在则查询复用）
+          $rel = $null
+          curl.exe -sf -X POST -H "Authorization: Bearer $env:GITEE_TOKEN" `
+            --data-urlencode "tag_name=$tag" `
+            --data-urlencode "name@$env:RUNNER_TEMP\gitee_name.txt" `
+            --data-urlencode "target_commitish=master" `
+            --data-urlencode "body@$env:RUNNER_TEMP\gitee_notes.txt" `
+            -o "$env:RUNNER_TEMP\gitee_rel.json" `
+            "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases"
+          if ($LASTEXITCODE -eq 0) {
+            $rel = Get-Content "$env:RUNNER_TEMP\gitee_rel.json" -Encoding UTF8 | ConvertFrom-Json
             Write-Host "已创建 Gitee Release #$($rel.id) ($tag)"
-          } catch {
-            # 打印 Gitee 返回的 HTTP 状态与响应体，便于区分令牌失效/缺 projects 权限/参数问题
-            $status = try { [int]$_.Exception.Response.StatusCode } catch { '?' }
-            Write-Host "创建失败（HTTP $status）：$($_.ErrorDetails.Message)"
-            Write-Host "尝试复用已有 Release..."
-            $rel = $null
+          } else {
+            Write-Host "创建失败（curl 退出码 $LASTEXITCODE），尝试复用已有 Release..."
             try {
               $list = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases?direction=desc&per_page=20" -Headers $headers
               $rel = $list | Where-Object { $_.tag_name -eq $tag } | Select-Object -First 1
             } catch {
-              Write-Host "查询 Release 列表失败（HTTP $([int]$_.Exception.Response.StatusCode)）：$($_.ErrorDetails.Message)"
+              Write-Host "查询 Release 列表失败：$($_.ErrorDetails.Message)"
             }
-            if (-not $rel) { throw "无法创建或找到 $tag 的 Release（多半为 GITEE_TOKEN 无效或缺少 projects 权限）" }
+            if (-not $rel) { throw "无法创建或找到 $tag 的 Release（检查 GITEE_TOKEN 是否有效且勾选 projects 权限）" }
             Write-Host "复用已有 Release #$($rel.id)"
           }
           # 2. 上传全部产物（exe + sha256），逐个校验 curl 退出码
