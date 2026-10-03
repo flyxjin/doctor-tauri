@@ -418,7 +418,7 @@ function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
     error: statsErr,
   } = useQuery({
     queryKey: ['patient-statistics', patient?.name],
-    queryFn: () => getPatientStatistics(patient!.name),
+    queryFn: () => getPatientStatistics(patient!.id!, patient!.name),
     enabled: !!patient,
   });
 

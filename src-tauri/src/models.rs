@@ -79,6 +79,9 @@ fn default_unit() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prescription {
     pub id: Option<i64>,
+    /// 关联患者档案 id（历史数据/重名/手输姓名时为 None，仍按姓名关联）
+    #[serde(default)]
+    pub patient_id: Option<i64>,
     #[serde(default)]
     pub patient_name: String,
     #[serde(default)]

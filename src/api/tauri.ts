@@ -249,9 +249,12 @@ export async function deletePatient(id: number): Promise<void> {
   return invoke<void>('delete_patient', { id });
 }
 
-/** 患者统计数据：处方数、总金额、首诊/末诊日期 */
-export async function getPatientStatistics(name: string): Promise<PatientStatistics> {
-  return invoke<PatientStatistics>('get_patient_statistics', { name });
+/** 患者统计数据：处方数、总金额、首诊/末诊日期（id 关联 + 姓名兜底匹配历史数据） */
+export async function getPatientStatistics(
+  id: number,
+  name: string,
+): Promise<PatientStatistics> {
+  return invoke<PatientStatistics>('get_patient_statistics', { id, name });
 }
 
 // ==================== 数据备份与恢复 ====================

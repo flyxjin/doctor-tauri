@@ -41,6 +41,8 @@ export interface Inventory {
 
 export interface Prescription {
   id: number | null;
+  /** 关联患者档案 id（历史数据/重名/手输姓名时为 null，仍按姓名关联） */
+  patient_id?: number | null;
   patient_name: string;
   patient_age?: number | null;
   patient_gender: string;

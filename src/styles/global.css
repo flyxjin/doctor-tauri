@@ -145,7 +145,7 @@ body,
 
 .page-container {
   padding: 28px 32px;
-  animation: fadeInUp 0.4s ease;
+  animation: fadeInUp 0.2s ease;
 }
 
 .page-header {
@@ -581,11 +581,21 @@ body,
    开处方布局
    ============================================================ */
 
+/* 开处方布局：页面容器撑满内容区（滚动容器是 Content，不再用 100vh 魔法数字），
+   双栏各自内部滚动 */
+.page-container.prescription-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.2s ease;
+}
+
 .prescription-layout {
   display: grid;
   grid-template-columns: 340px 1fr;
   gap: 16px;
-  height: calc(100vh - 116px);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .prescription-search-panel {
@@ -803,6 +813,16 @@ body,
   }
 }
 
+/* 纯淡入：无位移，用于 height:100% 的满高页面（位移会在内容区底部瞬时溢出） */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
@@ -821,6 +841,9 @@ body,
 @media (max-width: 768px) {
   .prescription-layout {
     grid-template-columns: 1fr;
+  }
+
+  .page-container.prescription-page {
     height: auto;
   }
 

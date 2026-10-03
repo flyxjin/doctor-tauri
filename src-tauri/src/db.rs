@@ -53,6 +53,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "011_cleanup_indexes",
         include_str!("../migrations/011_cleanup_indexes.sql"),
     ),
+    (
+        "012_prescription_patient_id",
+        include_str!("../migrations/012_prescription_patient_id.sql"),
+    ),
 ];
 
 /// 统一的连接级 PRAGMA 调优配置（new/reopen 共用，避免两处配置漂移）

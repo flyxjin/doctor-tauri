@@ -366,6 +366,13 @@ export default function PrescriptionPage() {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // 姓名唯一匹配患者档案时建立外键关联（重名/无档案/手输未匹配保持 null，仍按姓名关联）
+  const resolvePatientId = (name: string): number | null => {
+    if (!name) return null;
+    const matches = (patients ?? []).filter((p) => p.name === name);
+    return matches.length === 1 ? matches[0].id ?? null : null;
+  };
+
   const handleSubmit = async () => {
     // 防重入：快捷键/按钮连点时避免重复创建处方
     if (createMutation.isPending) return;
@@ -406,6 +413,7 @@ export default function PrescriptionPage() {
       const values = await form.validateFields();
       createMutation.mutate({
         id: null,
+        patient_id: resolvePatientId(values.patient_name ?? ''),
         patient_name: values.patient_name ?? '',
         patient_age: values.patient_age ?? null,
         patient_gender: values.patient_gender ?? '',
@@ -519,7 +527,7 @@ export default function PrescriptionPage() {
   ];
 
   return (
-    <div className="page-container">
+    <div className="page-container prescription-page">
       <div className="page-header">
         <Title level={4} style={{ marginBottom: 4 }}>
           开处方

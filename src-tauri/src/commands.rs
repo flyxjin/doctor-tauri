@@ -777,7 +777,7 @@ pub fn list_prescriptions(
     let limit = limit.unwrap_or(100).clamp(1, 1000);
 
     let mut sql = String::from(
-        "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at FROM prescriptions WHERE 1=1",
+        "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id FROM prescriptions WHERE 1=1",
     );
     let mut pv: Vec<SqlValue> = Vec::new();
     if let Some(kw) = &keyword {
@@ -891,6 +891,20 @@ pub fn create_prescription(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let p = input.prescription;
 
+    // patient_id 关联校验：传入时必须存在于患者档案，防止悬挂外键
+    if let Some(pid) = p.patient_id {
+        let exists: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM patients WHERE id=?1",
+                params![pid],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        if exists == 0 {
+            return Err(format!("患者档案 id={pid} 不存在，无法关联"));
+        }
+    }
+
     // 服务端强制重新计算总金额，防止前端传入不一致数据
     // 注意：使用 round_amount 避免浮点精度累积
     let total: f64 = input
@@ -904,8 +918,9 @@ pub fn create_prescription(
 
     if created_at.is_some() {
         tx.execute(
-            "INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            "INSERT INTO prescriptions (patient_id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             params![
+                p.patient_id,
                 &p.patient_name,
                 p.patient_age,
                 &p.patient_gender,
@@ -918,8 +933,9 @@ pub fn create_prescription(
         .map_err(|e| format!("创建处方失败: {e}"))?;
     } else {
         tx.execute(
-            "INSERT INTO prescriptions (patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by) VALUES (?1,?2,?3,?4,?5,?6)",
+            "INSERT INTO prescriptions (patient_id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by) VALUES (?1,?2,?3,?4,?5,?6,?7)",
             params![
+                p.patient_id,
                 &p.patient_name,
                 p.patient_age,
                 &p.patient_gender,
@@ -1362,12 +1378,20 @@ pub fn update_patient(patient: Patient, state: State<'_, DbState>) -> Result<(),
         ],
     )
     .map_err(|e| format!("更新患者失败: {e}"))?;
+    // 客户改名时同步其名下已关联处方（patient_id 匹配）的姓名快照，保持归档展示一致；
+    // 未关联的历史处方保持原姓名（就诊时点的准确快照）
+    let renamed = tx
+        .execute(
+            "UPDATE prescriptions SET patient_name=?1 WHERE patient_id=?2 AND patient_name<>?1",
+            params![&patient.name, id],
+        )
+        .map_err(|e| format!("同步处方患者姓名失败: {e}"))?;
     log_operation(
         &tx,
         "UPDATE",
         "patient",
         id,
-        &format!("更新患者: {}", patient.name),
+        &format!("更新患者: {}（同步处方姓名 {renamed} 条）", patient.name),
     )?;
     tx.commit().map_err(|e| format!("提交事务失败: {e}"))?;
     Ok(())
@@ -1391,11 +1415,11 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
 
     let name = name.ok_or_else(|| format!("患者 id={id} 不存在"))?;
 
-    // 检查是否有关联处方记录（通过 patient_name 匹配）
+    // 检查是否有关联处方记录（patient_id 强关联，或历史数据按姓名匹配）
     let prescription_count: i64 = tx
         .query_row(
-            "SELECT COUNT(*) FROM prescriptions WHERE patient_name=?1",
-            params![&name],
+            "SELECT COUNT(*) FROM prescriptions WHERE patient_name=?1 OR patient_id=?2",
+            params![&name, id],
             |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
@@ -1413,21 +1437,24 @@ pub fn delete_patient(id: i64, state: State<'_, DbState>) -> Result<(), String> 
     Ok(())
 }
 
-/// 查询某患者的处方历史（通过 patient_name 关联）
+/// 查询某患者的处方历史（patient_id 强关联，姓名兜底匹配未关联的历史数据）
 #[tauri::command]
 pub fn get_patient_prescriptions(
+    id: i64,
     name: String,
     state: State<'_, DbState>,
 ) -> Result<Vec<Prescription>, String> {
     let conn = state.lock()?;
     let prescriptions: Vec<Prescription> = {
         let mut stmt = conn.prepare(
-            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at
-             FROM prescriptions WHERE patient_name = ?1 ORDER BY id DESC",
+            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id
+             FROM prescriptions
+             WHERE patient_id = ?1 OR (patient_id IS NULL AND patient_name = ?2)
+             ORDER BY id DESC",
         )
         .map_err(|e| e.to_string())?;
         let rows = stmt
-            .query_map(params![&name], map_prescription_row)
+            .query_map(params![id, &name], map_prescription_row)
             .map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         for r in rows {
@@ -1438,9 +1465,10 @@ pub fn get_patient_prescriptions(
     Ok(prescriptions)
 }
 
-/// 患者统计数据：处方数、总金额、首诊/末诊日期
+/// 患者统计数据：处方数、总金额、首诊/末诊日期（patient_id 强关联，姓名兜底）
 #[tauri::command]
 pub fn get_patient_statistics(
+    id: i64,
     name: String,
     state: State<'_, DbState>,
 ) -> Result<PatientStatistics, String> {
@@ -1453,8 +1481,9 @@ pub fn get_patient_statistics(
     ) = conn
         .query_row(
             "SELECT COUNT(*), COALESCE(SUM(total_amount),0), MIN(created_at), MAX(created_at)
-             FROM prescriptions WHERE patient_name = ?1",
-            params![&name],
+             FROM prescriptions
+             WHERE patient_id = ?1 OR (patient_id IS NULL AND patient_name = ?2)",
+            params![id, &name],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .map_err(|e| format!("查询患者统计失败: {e}"))?;
@@ -1533,7 +1562,7 @@ pub fn get_dashboard_data(state: State<'_, DbState>) -> Result<DashboardData, St
 
     let recent_prescriptions: Vec<Prescription> = {
         let mut stmt = conn.prepare(
-            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at
+            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id
              FROM prescriptions ORDER BY id DESC LIMIT 10",
         )
         .map_err(|e| e.to_string())?;
@@ -2189,7 +2218,7 @@ pub fn generate_prescription_html(
 
     let p: Prescription = conn
         .query_row(
-            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at
+            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id
              FROM prescriptions WHERE id=?1",
             params![prescription_id],
             map_prescription_row,
@@ -2613,6 +2642,7 @@ fn map_medicine_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Medicine> {
 fn map_prescription_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Prescription> {
     Ok(Prescription {
         id: row.get(0)?,
+        patient_id: row.get(8)?,
         patient_name: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
         patient_age: row.get(2)?,
         patient_gender: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
