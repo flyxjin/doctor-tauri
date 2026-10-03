@@ -57,6 +57,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "012_prescription_patient_id",
         include_str!("../migrations/012_prescription_patient_id.sql"),
     ),
+    (
+        "013_expand_herbs_clinical",
+        include_str!("../migrations/013_expand_herbs_clinical.sql"),
+    ),
 ];
 
 /// 统一的连接级 PRAGMA 调优配置（new/reopen 共用，避免两处配置漂移）
@@ -184,7 +188,7 @@ mod tests {
     ///
     /// 001_init.sql 的 5 味与 002 重名，被 INSERT OR IGNORE 跳过，不计入。
     /// 若迁移文件增减药材，更新此常量即可，无需改动测试断言。
-    const EXPECTED_MEDICINE_COUNT: i64 = 300 + 19 + 81;
+    const EXPECTED_MEDICINE_COUNT: i64 = 300 + 19 + 81 + 88;
 
     /// 辅助函数：打开内存数据库并执行所有迁移
     fn setup_in_memory() -> DbState {

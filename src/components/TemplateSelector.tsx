@@ -49,6 +49,10 @@ export default function TemplateSelector({ open, onClose, onSelect }: Props) {
           options={getCategories().map((c) => ({ label: c, value: c }))}
         />
       </div>
+      <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+        共 {filtered.length} 首{category ? `（${category}）` : ''}
+        {keyword && ` · 关键字“${keyword}”`}
+      </div>
       <List
         dataSource={filtered}
         style={{ maxHeight: 400, overflow: 'auto' }}
