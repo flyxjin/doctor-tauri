@@ -2,6 +2,15 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.9.2] - 2026-10-04 — Release 工作流根因修复（Gitee 同步首次全自动跑通）
+
+### 修复（重要）
+
+- **CI 同步 Gitee 三连败的真正根因** — Gitee 创建 Release 接口要求 `body`（发布说明）字段必填，工作流此前只传 tag_name/name/prerelease/target_commitish，被 400 `"body is missing"` 拒收（v1.8.3/v1.9.0/v1.9.1 三次失败同因）。本地脚本因始终携带 CHANGELOG 摘录而一直成功，曾误导排查方向为令牌问题——实际新旧令牌均有效。
+- 现从 CHANGELOG.md 提取对应版本的发布说明写入 `body`，中文经临时文件以 `--data-urlencode` 传参规避命令行编码问题；创建失败自动复用已有 Release；上传逐个校验 curl 退出码。本版本即为修复后的首次全自动双端发布验证。
+
+---
+
 ## [1.9.1] - 2026-10-04 — 文档同步与发布链路验证
 
 ### 变更
