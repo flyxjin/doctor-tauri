@@ -184,19 +184,28 @@ jobs:
             $rel = Invoke-RestMethod -Method Post -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases" -Headers $headers -ContentType "application/json; charset=utf-8" -Body $body
             Write-Host "已创建 Gitee Release #$($rel.id) ($tag)"
           } catch {
-            Write-Host "创建失败，尝试复用已有 Release..."
-            $list = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases?direction=desc&per_page=20" -Headers $headers
-            $rel = $list | Where-Object { $_.tag_name -eq $tag } | Select-Object -First 1
-            if (-not $rel) { throw "无法创建或找到 $tag 的 Release" }
+            # 打印 Gitee 返回的 HTTP 状态与响应体，便于区分令牌失效/缺 projects 权限/参数问题
+            $status = try { [int]$_.Exception.Response.StatusCode } catch { '?' }
+            Write-Host "创建失败（HTTP $status）：$($_.ErrorDetails.Message)"
+            Write-Host "尝试复用已有 Release..."
+            $rel = $null
+            try {
+              $list = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases?direction=desc&per_page=20" -Headers $headers
+              $rel = $list | Where-Object { $_.tag_name -eq $tag } | Select-Object -First 1
+            } catch {
+              Write-Host "查询 Release 列表失败（HTTP $([int]$_.Exception.Response.StatusCode)）：$($_.ErrorDetails.Message)"
+            }
+            if (-not $rel) { throw "无法创建或找到 $tag 的 Release（多半为 GITEE_TOKEN 无效或缺少 projects 权限）" }
             Write-Host "复用已有 Release #$($rel.id)"
           }
-          # 2. 上传全部产物（exe + sha256）
+          # 2. 上传全部产物（exe + sha256），逐个校验 curl 退出码
           $files = @(Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis") | Where-Object { $_.Name -like "*_x64-setup.exe*" }
           $pe = "src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe"
           if (Test-Path $pe) { $files += Get-Item "$pe", "$pe.sha256" }
           foreach ($f in $files) {
             $uri = "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/$($rel.id)/attach_files"
             curl.exe -sf -X POST -H "Authorization: Bearer $env:GITEE_TOKEN" -F "file=@$($f.FullName)" $uri | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "上传 $($f.Name) 失败（curl 退出码 $LASTEXITCODE，多为令牌失效或附件重名）" }
             Write-Host "已上传 $($f.Name)"
           }
           Write-Host "Gitee 发布完成：https://gitee.com/flyxjin/doctor-tauri/releases/tag/$tag"
