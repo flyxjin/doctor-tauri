@@ -16,7 +16,7 @@ if %errorlevel% neq 0 (
 )
 
 set "INSTALL_DIR=%ProgramFiles%\中药材销售管理系统"
-set "APP_VERSION=1.9.0"
+set "APP_VERSION=1.9.1"
 set "EXE_NAME=medicine-system.exe"
 
 echo [1/4] 创建安装目录...
@@ -34,7 +34,7 @@ powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateS
 
 echo [4/4] 创建卸载入口...
 REM 注册到"添加/删除程序"
-powershell -Command "$key = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\中药材销售管理系统'; New-Item -Path $key -Force | Out-Null; Set-ItemProperty -Path $key -Name 'DisplayName' -Value '中药材销售管理系统'; Set-ItemProperty -Path $key -Name 'DisplayVersion' -Value '1.9.0'; Set-ItemProperty -Path $key -Name 'Publisher' -Value '东方本草'; Set-ItemProperty -Path $key -Name 'InstallLocation' -Value '%INSTALL_DIR%'; Set-ItemProperty -Path $key -Name 'DisplayIcon' -Value '%INSTALL_DIR%\%EXE_NAME%'; Set-ItemProperty -Path $key -Name 'UninstallString' -Value 'cmd /c rmdir /s /q \"%INSTALL_DIR%\" & del /q \"%USERPROFILE%\Desktop\中药材销售管理系统.lnk\"'"
+powershell -Command "$key = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\中药材销售管理系统'; New-Item -Path $key -Force | Out-Null; Set-ItemProperty -Path $key -Name 'DisplayName' -Value '中药材销售管理系统'; Set-ItemProperty -Path $key -Name 'DisplayVersion' -Value '1.9.1'; Set-ItemProperty -Path $key -Name 'Publisher' -Value '东方本草'; Set-ItemProperty -Path $key -Name 'InstallLocation' -Value '%INSTALL_DIR%'; Set-ItemProperty -Path $key -Name 'DisplayIcon' -Value '%INSTALL_DIR%\%EXE_NAME%'; Set-ItemProperty -Path $key -Name 'UninstallString' -Value 'cmd /c rmdir /s /q \"%INSTALL_DIR%\" & del /q \"%USERPROFILE%\Desktop\中药材销售管理系统.lnk\"'"
 
 echo.
 echo ============================================
