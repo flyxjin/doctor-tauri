@@ -76,8 +76,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $pfxPath = "$env:RUNNER_TEMP\signing.pfx"
           [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))
-          $targets = @(Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object { $_.FullName })
-          $pe = "src-tauri/target/release/medicine-system.exe"
+          $targets = @(Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object { $_.FullName })
+          $pe = "src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe"
           if (Test-Path $pe) { $targets += (Resolve-Path $pe).Path }
           foreach ($t in $targets) {
             signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfxPath /p $env:WINDOWS_CERT_PWD $t
@@ -89,23 +89,23 @@ jobs:
       - name: 生成 SHA256 校验文件
         shell: pwsh
         run: |
-          Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object {
+          Get-ChildItem -Path "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis" -Filter "*_x64-setup.exe" | ForEach-Object {
             $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)" | Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
+            "$hash  $($_.Name)" | Out-File -FilePath "$($_.FullName).sha256" -Encoding utf8
             Write-Host "已生成 $($_.Name).sha256"
           }
-          $pe = "src-tauri/target/release/medicine-system.exe"
+          $pe = "src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe"
           if (Test-Path $pe) {
             $hash = (Get-FileHash -Path $pe -Algorithm SHA256).Hash.ToLower()
-            "$hash  medicine-system.exe" | Out-File -FilePath "$pe.sha256" -Encoding ascii
+            "$hash  medicine-system.exe" | Out-File -FilePath "$pe.sha256" -Encoding utf8
             Write-Host "已生成 medicine-system.exe.sha256"
           }
 
       - name: 验证构建产物
         shell: pwsh
         run: |
-          $setup = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*_x64-setup.exe" -ErrorAction SilentlyContinue
-          $portable = Test-Path "src-tauri/target/release/medicine-system.exe"
+          $setup = Get-ChildItem -Path "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis" -Filter "*_x64-setup.exe" -ErrorAction SilentlyContinue
+          $portable = Test-Path "src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe"
 
           if (-not $setup) {
             Write-Host "错误：未找到 NSIS 安装包"
@@ -119,7 +119,7 @@ jobs:
           Write-Host "  NSIS 安装包: $($setup.FullName)"
           Write-Host "  体积: $([math]::Round($setup.Length / 1MB, 2)) MB"
           if ($portable) {
-            $pe = Get-Item "src-tauri/target/release/medicine-system.exe"
+            $pe = Get-Item "src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe"
             Write-Host "  便携 EXE: $($pe.FullName)"
             Write-Host "  体积: $([math]::Round($pe.Length / 1MB, 2)) MB"
           }
@@ -129,10 +129,10 @@ jobs:
         with:
           name: medicine-system-tauri-setup-${{ github.ref_name }}
           path: |
-            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
-            src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sha256
-            src-tauri/target/release/medicine-system.exe
-            src-tauri/target/release/medicine-system.exe.sha256
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe.sha256
+            src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe.sha256
           if-no-files-found: warn
           retention-days: 30
 
@@ -141,10 +141,10 @@ jobs:
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           files: |
-            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
-            src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sha256
-            src-tauri/target/release/medicine-system.exe
-            src-tauri/target/release/medicine-system.exe.sha256
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe.sha256
+            src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe.sha256
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -185,8 +185,8 @@ jobs:
             Write-Host "复用已有 Release #$($rel.id)"
           }
           # 2. 上传全部产物（exe + sha256）
-          $files = @(Get-ChildItem "src-tauri/target/release/bundle/nsis") | Where-Object { $_.Name -like "*_x64-setup.exe*" }
-          $pe = "src-tauri/target/release/medicine-system.exe"
+          $files = @(Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis") | Where-Object { $_.Name -like "*_x64-setup.exe*" }
+          $pe = "src-tauri/target/x86_64-pc-windows-msvc/release/medicine-system.exe"
           if (Test-Path $pe) { $files += Get-Item "$pe", "$pe.sha256" }
           foreach ($f in $files) {
             $uri = "https://gitee.com/api/v5/repos/flyxjin/doctor-tauri/releases/$($rel.id)/attach_files"

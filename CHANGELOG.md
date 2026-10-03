@@ -2,6 +2,15 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.8.2] - 2026-10-03 — Release 工作流修复（产物路径错误，首次全自动发布）
+
+### 修复（重要）
+
+- **Release 工作流自引入以来从未跑通过** — SHA256 校验步骤起全部引用 `src-tauri/target/release/...`，而 Tauri 2 在 Windows 上实际输出到 `src-tauri/target/x86_64-pc-windows-msvc/release/...`（与本地 `release.mjs` 一致）；GitHub Actions 的 pwsh 默认 `$ErrorActionPreference='stop'`，`Get-ChildItem` 打开不存在目录即终止。这就是 v1.8.0/v1.8.1 及更早所有 Release 运行在同一构建成功后挂掉、v1.7.0 只能网页手动发布的原因。现全量改为 triple 路径（签名/校验/验证/上传/GitHub Release/Gitee 同步共 11 处）。
+- **侧车编码** — CI 生成 .sha256 用 `-Encoding ascii` 会把中文文件名写成问号，updater 校验链退化；改 `-Encoding utf8`。
+
+---
+
 ## [1.8.1] - 2026-10-03 — CI 修复（组件测试超时 / actions 弃用告警）
 
 ### 修复
