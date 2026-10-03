@@ -19,6 +19,11 @@ jobs:
   build-installer:
     runs-on: windows-latest
 
+    # 创建 GitHub Release 需要 GITHUB_TOKEN 具备 contents:write
+    # （新仓库默认只读，缺失时 softprops/action-gh-release 报 403）
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v5
 

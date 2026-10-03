@@ -2,6 +2,14 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.8.3] - 2026-10-03 — Release 工作流补 GITHUB_TOKEN 写权限
+
+### 修复
+
+- **创建 GitHub Release 403** — 1.8.2 修好产物路径后，流水线推进到「创建 GitHub Release」一步失败：新仓库默认 GITHUB_TOKEN 只读，`softprops/action-gh-release` 需要 `contents: write`。在 job 级补 `permissions: contents: write`。
+
+---
+
 ## [1.8.2] - 2026-10-03 — Release 工作流修复（产物路径错误，首次全自动发布）
 
 ### 修复（重要）
