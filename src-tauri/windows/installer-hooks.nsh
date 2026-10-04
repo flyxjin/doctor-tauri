@@ -1,18 +1,35 @@
 ; NSIS 安装器自定义钩子（tauri.conf.json → bundle.windows.nsis.installerHooks 引用）
 ;
-; 背景：v1.11.0 及之前为 perMachine 全机安装（Program Files / 自定义盘符，登记 HKLM）。
-; v1.12.0 起切换为 currentUser（按用户安装、免管理员），但 NSIS 会沿用注册表里的
-; 旧安装目录（或用户手动选回旧目录），导致：
-;   1. 旧程序仍在运行时文件被锁（"无法打开要写入的文件"）；
-;   2. currentUser 的进程查杀只覆盖当前用户进程，杀不掉提升权限运行的旧实例；
-;   3. 对旧目录（如 Program Files）可能没有写权限。
+; 背景：v1.11.0 及之前为 perMachine 全机安装（登记 HKLM）。v1.12.0 起 currentUser
+; 按用户安装（免管理员）。若用户选择/沿用了旧版登记的安装目录：
+;   1. 旧程序仍在运行时文件被锁（currentUser 进程查杀杀不掉提升运行的旧实例）；
+;   2. 对旧目录（如 Program Files 类）可能无写权限。
 ;
-; 处理：currentUser 模式强制安装到当前用户目录（与业务数据所在 AppData 同侧），
-; 不再写入旧目录。旧目录残留由应用启动时的迁移引导（打开系统卸载面板）清理。
+; 处理（v1.12.2，条件重定向）：仅当选中目录正是 HKLM 登记的旧目录时，
+; 重定向到当前用户目录；用户自定义的其他目录完全尊重其选择——
+; 该目录会写入 HKCU，静默更新时自动沿用。
 
 !macro NSIS_HOOK_PREINSTALL
-  ${If} $INSTDIR != "$LOCALAPPDATA\${PRODUCTNAME}"
-    StrCpy $INSTDIR "$LOCALAPPDATA\${PRODUCTNAME}"
-    SetOutPath "$INSTDIR"
-  ${EndIf}
+  ; 读取旧版（perMachine）在 HKLM 登记的安装目录
+  ReadRegStr $R9 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}" "InstallLocation"
+  StrCmp $R9 "" done_legacy_redirect
+
+  ; 规范化比较：去掉两侧尾部反斜杠（StrCmp 大小写不敏感）
+  StrCpy $R8 "$INSTDIR"
+  StrCpy $R6 $R8 1 -1
+  StrCmp $R6 "\" 0 +2
+    StrCpy $R8 $R8 -1
+  StrCpy $R7 "$R9"
+  StrCpy $R6 $R7 1 -1
+  StrCmp $R6 "\" 0 +2
+    StrCpy $R7 $R7 -1
+
+  ; 未选中旧目录 → 尊重用户选择
+  StrCmp $R8 $R7 0 done_legacy_redirect
+
+  ; 命中旧目录 → 重定向到当前用户目录（与业务数据同侧），避免锁冲突与权限问题
+  StrCpy $INSTDIR "$LOCALAPPDATA\${PRODUCTNAME}"
+  SetOutPath "$INSTDIR"
+
+  done_legacy_redirect:
 !macroend
