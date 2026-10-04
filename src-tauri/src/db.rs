@@ -61,6 +61,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "013_expand_herbs_clinical",
         include_str!("../migrations/013_expand_herbs_clinical.sql"),
     ),
+    (
+        "014_prescription_dosage",
+        include_str!("../migrations/014_prescription_dosage.sql"),
+    ),
 ];
 
 /// 统一的连接级 PRAGMA 调优配置（new/reopen 共用，避免两处配置漂移）

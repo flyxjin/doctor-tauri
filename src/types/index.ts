@@ -47,6 +47,10 @@ export interface Prescription {
   patient_age?: number | null;
   patient_gender: string;
   diagnosis: string;
+  /** 帖数：total_amount 与库存出库均按 单帖用量 × 帖数 计算，历史数据为 1 */
+  dosage_count?: number;
+  /** 煎服法/用法说明（如"水煎服，每日一剂，分早晚两次温服"） */
+  usage_method?: string;
   total_amount: number;
   created_by: string;
   created_at?: string | null;

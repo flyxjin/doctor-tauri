@@ -72,6 +72,30 @@ export async function adjustStock(
   });
 }
 
+/** 修改单个库存批次单价（库存页行内改价），记操作日志 */
+export async function updateInventoryPrice(
+  inventoryId: number,
+  price: number,
+  operator?: string,
+): Promise<void> {
+  return invoke<void>('update_inventory_price', { inventoryId, price, operator });
+}
+
+/**
+ * 按药材分类批量调价（v1.10.0）
+ *
+ * @param mode "set"（设为固定单价）| "percent"（按现价上下浮动百分比）
+ * @returns 受影响的批次数量
+ */
+export async function batchUpdatePrice(
+  category: string,
+  mode: 'set' | 'percent',
+  value: number,
+  operator?: string,
+): Promise<number> {
+  return invoke<number>('batch_update_price', { category, mode, value, operator });
+}
+
 /**
  * 入库 / 出库（批次版，008 迁移）
  *

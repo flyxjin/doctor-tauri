@@ -716,6 +716,114 @@ pub fn adjust_stock(
     Ok(())
 }
 
+/// 更新单个库存批次单价（库存页行内改价）
+#[tauri::command]
+pub fn update_inventory_price(
+    inventory_id: i64,
+    price: f64,
+    operator: Option<String>,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    if !(0.0..=1_000_000.0).contains(&price) {
+        return Err("单价必须在 0 ~ 1000000 元/g 之间".to_string());
+    }
+    let conn = state.lock()?;
+    let medicine_name: String = conn
+        .query_row(
+            "SELECT m.name FROM inventory i JOIN medicines m ON m.id = i.medicine_id WHERE i.id=?1",
+            params![inventory_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .unwrap_or_default();
+    let changed = conn
+        .execute(
+            "UPDATE inventory SET price=?1, updated_at=CURRENT_TIMESTAMP WHERE id=?2",
+            params![price, inventory_id],
+        )
+        .map_err(|e| format!("更新单价失败: {e}"))?;
+    if changed == 0 {
+        return Err(format!("库存批次 id={inventory_id} 不存在"));
+    }
+    log_operation(
+        &conn,
+        "UPDATE",
+        "inventory",
+        inventory_id,
+        &format!(
+            "修改批次单价: {} → {:.2} 元/g{}",
+            medicine_name,
+            price,
+            operator
+                .as_deref()
+                .map(|o| format!("（操作人 {o}）"))
+                .unwrap_or_default()
+        ),
+    )?;
+    Ok(())
+}
+
+/// 按药材分类批量调价
+///
+/// mode: "set"（设为固定单价）| "percent"（按现价上下浮动百分比，-100~500）
+/// 返回受影响的批次数量。
+#[tauri::command]
+pub fn batch_update_price(
+    category: String,
+    mode: String,
+    value: f64,
+    operator: Option<String>,
+    state: State<'_, DbState>,
+) -> Result<i64, String> {
+    if category.trim().is_empty() {
+        return Err("分类不能为空".to_string());
+    }
+    let conn = state.lock()?;
+    let affected = match mode.as_str() {
+        "set" => {
+            if !(0.0..=1_000_000.0).contains(&value) {
+                return Err("固定单价必须在 0 ~ 1000000 元/g 之间".to_string());
+            }
+            conn.execute(
+                "UPDATE inventory SET price=?1, updated_at=CURRENT_TIMESTAMP
+                 WHERE medicine_id IN (SELECT id FROM medicines WHERE category=?2)",
+                params![value, &category],
+            )
+        }
+        "percent" => {
+            if !(-95.0..=500.0).contains(&value) {
+                return Err("调价幅度必须在 -95% ~ 500% 之间".to_string());
+            }
+            conn.execute(
+                "UPDATE inventory SET price=ROUND(price*(1.0+?1/100.0), 2), updated_at=CURRENT_TIMESTAMP
+                 WHERE medicine_id IN (SELECT id FROM medicines WHERE category=?2) AND price > 0",
+                params![value, &category],
+            )
+        }
+        _ => return Err(format!("未知调价模式: {mode}")),
+    }
+    .map_err(|e| format!("批量调价失败: {e}"))?;
+    if affected == 0 {
+        return Err(format!("分类「{category}」下没有可调价的库存批次"));
+    }
+    log_operation(
+        &conn,
+        "UPDATE",
+        "inventory",
+        0,
+        &format!(
+            "按分类「{category}」批量调价（{mode} {value}），影响 {affected} 个批次{}",
+            operator
+                .as_deref()
+                .map(|o| format!("，操作人 {o}"))
+                .unwrap_or_default()
+        ),
+    )?;
+    Ok(affected as i64)
+}
+
 /// 效期预警：查询指定天数内到期的批次（默认 30 天）
 #[tauri::command]
 pub fn list_expiring_batches(
@@ -777,7 +885,7 @@ pub fn list_prescriptions(
     let limit = limit.unwrap_or(100).clamp(1, 1000);
 
     let mut sql = String::from(
-        "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id FROM prescriptions WHERE 1=1",
+        "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id, dosage_count, usage_method FROM prescriptions WHERE 1=1",
     );
     let mut pv: Vec<SqlValue> = Vec::new();
     if let Some(kw) = &keyword {
@@ -875,6 +983,15 @@ pub fn create_prescription(
     input: CreatePrescriptionInput,
     state: State<'_, DbState>,
 ) -> Result<i64, String> {
+    let conn = state.lock()?;
+    create_prescription_impl(&conn, input)
+}
+
+/// create_prescription 的可测核心（同上事务语义），供单元测试直接调用
+fn create_prescription_impl(
+    conn: &Connection,
+    input: CreatePrescriptionInput,
+) -> Result<i64, String> {
     if input.items.is_empty() {
         return Err("处方至少需要一味药材".to_string());
     }
@@ -887,7 +1004,6 @@ pub fn create_prescription(
             return Err(format!("药材 '{}' 单价不能为负", item.medicine_name));
         }
     }
-    let conn = state.lock()?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let p = input.prescription;
 
@@ -905,6 +1021,9 @@ pub fn create_prescription(
         }
     }
 
+    // 帖数：缺省 1，限制 1..=1000（防误传导致巨额扣减）
+    let dosage_count = p.dosage_count.clamp(1, 1000);
+
     // 服务端强制重新计算总金额，防止前端传入不一致数据
     // 注意：使用 round_amount 避免浮点精度累积
     let total: f64 = input
@@ -912,13 +1031,14 @@ pub fn create_prescription(
         .iter()
         .map(|i| round_amount(i.quantity * i.price))
         .sum::<f64>();
-    let total = round_amount(total);
+    // 总金额 = 单帖合计 × 帖数（明细 quantity 为单帖用量）
+    let total = round_amount(total * dosage_count as f64);
     // 用户选择的开方日期（为空则用数据库默认 CURRENT_TIMESTAMP）
     let created_at = p.created_at.as_deref().filter(|s| !s.is_empty());
 
     if created_at.is_some() {
         tx.execute(
-            "INSERT INTO prescriptions (patient_id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            "INSERT INTO prescriptions (patient_id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, dosage_count, usage_method) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
             params![
                 p.patient_id,
                 &p.patient_name,
@@ -928,12 +1048,14 @@ pub fn create_prescription(
                 total,
                 &p.created_by,
                 created_at,
+                dosage_count,
+                &p.usage_method,
             ],
         )
         .map_err(|e| format!("创建处方失败: {e}"))?;
     } else {
         tx.execute(
-            "INSERT INTO prescriptions (patient_id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            "INSERT INTO prescriptions (patient_id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, dosage_count, usage_method) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
             params![
                 p.patient_id,
                 &p.patient_name,
@@ -942,6 +1064,8 @@ pub fn create_prescription(
                 &p.diagnosis,
                 total,
                 &p.created_by,
+                dosage_count,
+                &p.usage_method,
             ],
         )
         .map_err(|e| format!("创建处方失败: {e}"))?;
@@ -949,8 +1073,9 @@ pub fn create_prescription(
     let prescription_id = tx.last_insert_rowid();
 
     for item in &input.items {
-        // FEFO 跨批次扣减库存
-        let batches = select_batches_fefo(&tx, item.medicine_id, item.quantity)
+        // FEFO 跨批次扣减库存：按 单帖用量 × 帖数 出库
+        let demand = item.quantity * dosage_count as f64;
+        let batches = select_batches_fefo(&tx, item.medicine_id, demand)
             .map_err(|e| format!("药材 '{}' {}", item.medicine_name, e))?;
 
         // 取第一个扣减批次作为处方明细的 batch_id（主要批次，用于列表展示参考）
@@ -1014,7 +1139,7 @@ pub fn create_prescription(
         "CREATE",
         "prescription",
         prescription_id,
-        &format!("创建处方: 患者 {}", p.patient_name),
+        &format!("创建处方: 患者 {}（{} 帖）", p.patient_name, dosage_count),
     )?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(prescription_id)
@@ -1447,7 +1572,7 @@ pub fn get_patient_prescriptions(
     let conn = state.lock()?;
     let prescriptions: Vec<Prescription> = {
         let mut stmt = conn.prepare(
-            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id
+            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id, dosage_count, usage_method
              FROM prescriptions
              WHERE patient_id = ?1 OR (patient_id IS NULL AND patient_name = ?2)
              ORDER BY id DESC",
@@ -1562,7 +1687,7 @@ pub fn get_dashboard_data(state: State<'_, DbState>) -> Result<DashboardData, St
 
     let recent_prescriptions: Vec<Prescription> = {
         let mut stmt = conn.prepare(
-            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id
+            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id, dosage_count, usage_method
              FROM prescriptions ORDER BY id DESC LIMIT 10",
         )
         .map_err(|e| e.to_string())?;
@@ -2218,7 +2343,7 @@ pub fn generate_prescription_html(
 
     let p: Prescription = conn
         .query_row(
-            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id
+            "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id, dosage_count, usage_method
              FROM prescriptions WHERE id=?1",
             params![prescription_id],
             map_prescription_row,
@@ -2250,6 +2375,12 @@ pub fn generate_prescription_html(
     let created_by = html_escape(&p.created_by);
     let age = p.patient_age.map(|a| a.to_string()).unwrap_or_default();
     let created_at = html_escape(p.created_at.as_deref().unwrap_or(""));
+    let usage_method = html_escape(&p.usage_method);
+    let usage_display = if usage_method.is_empty() {
+        "水煎服".to_string()
+    } else {
+        usage_method
+    };
 
     let mut rows_html = String::new();
     for (i, item) in items.iter().enumerate() {
@@ -2282,6 +2413,7 @@ pub fn generate_prescription_html(
   .subtitle {{ text-align: center; color: #6b7280; font-size: 12px; margin-bottom: 18px; }}
   .meta {{ display: flex; justify-content: space-between; border-bottom: 2px solid #1f2937; padding-bottom: 8px; margin-bottom: 12px; font-size: 14px; }}
   .meta div {{ line-height: 1.8; }}
+  .usage {{ font-size: 14px; margin: 2px 0 10px; }}
   table {{ width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }}
   th, td {{ border: 1px solid #d1d5db; padding: 6px 10px; }}
   th {{ background: #f3f4f6; font-weight: 600; }}
@@ -2305,6 +2437,7 @@ pub fn generate_prescription_html(
       <div>日期：{created_at}</div>
     </div>
   </div>
+  <div class="usage"><b>剂数：</b>{dosage_count} 剂 &nbsp;&nbsp;&nbsp; <b>用法：</b>{usage_display}</div>
   <table>
     <thead>
       <tr>
@@ -2320,7 +2453,7 @@ pub fn generate_prescription_html(
       {rows_html}
     </tbody>
   </table>
-  <div class="total">合计（人民币大写）：<span>¥{total:.2}</span></div>
+  <div class="total">合计（{dosage_count} 剂）：<span>¥{total:.2}</span></div>
   <div class="footer">
     <div>审核：__________</div>
     <div>调配：__________</div>
@@ -2335,6 +2468,8 @@ pub fn generate_prescription_html(
         diagnosis = diagnosis,
         created_by = created_by,
         created_at = created_at,
+        dosage_count = p.dosage_count,
+        usage_display = usage_display,
         rows_html = rows_html,
         total = p.total_amount,
     );
@@ -2650,6 +2785,8 @@ fn map_prescription_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Prescriptio
         total_amount: row.get::<_, Option<f64>>(5)?.unwrap_or(0.0),
         created_by: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
         created_at: row.get(7)?,
+        dosage_count: row.get::<_, Option<i64>>(9)?.unwrap_or(1),
+        usage_method: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
     })
 }
 
@@ -2998,6 +3135,81 @@ mod tests {
         // 模拟 create_prescription 的错误返回 + 事务自动回滚
         drop(tx); // Drop 时不 commit 即回滚
         assert_eq!(get_quantity(&conn, mid), 10.0, "回滚后库存应不变");
+    }
+
+    #[test]
+    fn test_create_prescription_dosage_count_scales_total_and_deduction() {
+        // 帖数语义（014 迁移）：total = Σ(单帖用量×单价)×帖数；库存出库按 单帖用量×帖数
+        let db = setup_db();
+        {
+            let conn = db.lock().unwrap();
+            let mid = insert_test_medicine(&conn, "帖数测试药材");
+            conn.execute(
+                "INSERT INTO inventory (medicine_id, quantity, unit, price, min_stock) VALUES (?1, 100, 'g', 20, 10)",
+                params![mid],
+            )
+            .unwrap();
+        }
+
+        let input = CreatePrescriptionInput {
+            prescription: Prescription {
+                id: None,
+                patient_id: None,
+                patient_name: "帖数测试患者".to_string(),
+                patient_age: None,
+                patient_gender: "男".to_string(),
+                diagnosis: "测试".to_string(),
+                dosage_count: 7,
+                usage_method: "水煎服，每日一剂".to_string(),
+                total_amount: 0.0,
+                created_by: "测试医生".to_string(),
+                created_at: None,
+            },
+            items: vec![PrescriptionItem {
+                id: None,
+                prescription_id: None,
+                medicine_id: 0,
+                medicine_name: "帖数测试药材".to_string(),
+                quantity: 5.0,
+                unit: "g".to_string(),
+                price: 20.0,
+                amount: 100.0,
+                batch_id: None,
+            }],
+        };
+        // medicine_id 需在构造后回填（insert_test_medicine 需先持锁）
+        let mid = {
+            let conn = db.lock().unwrap();
+            conn.query_row(
+                "SELECT id FROM medicines WHERE name='帖数测试药材'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+        };
+        let mut input = input;
+        input.items[0].medicine_id = mid;
+
+        let pid;
+        {
+            let conn = db.lock().unwrap();
+            pid = create_prescription_impl(&conn, input).unwrap();
+            assert!(pid > 0);
+        }
+        {
+            let conn = db.lock().unwrap();
+            let (total, dosage, usage): (f64, i64, String) = conn
+                .query_row(
+                    "SELECT total_amount, dosage_count, usage_method FROM prescriptions WHERE id=?1",
+                    params![pid],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .unwrap();
+            assert_eq!(total, 700.0, "总金额应为 5g × 20元/g × 7帖 = 700");
+            assert_eq!(dosage, 7);
+            assert_eq!(usage, "水煎服，每日一剂");
+            assert_eq!(get_quantity(&conn, mid), 65.0, "库存应扣减 5g × 7帖 = 35g");
+        }
     }
 
     #[test]

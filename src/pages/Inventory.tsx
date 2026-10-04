@@ -16,6 +16,7 @@ import {
   Radio,
   Row,
   Segmented,
+  Select,
   Space,
   Table,
   Tag,
@@ -24,6 +25,7 @@ import {
 } from 'antd';
 import {
   ClockCircleOutlined,
+  DollarOutlined,
   ExclamationCircleOutlined,
   ExportOutlined,
   HistoryOutlined,
@@ -38,6 +40,8 @@ import {
   listInventoryHistory,
   updateStock,
   adjustStock,
+  updateInventoryPrice,
+  batchUpdatePrice,
 } from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
 import {
@@ -217,6 +221,62 @@ export default function InventoryPage() {
     onError: (e: unknown) => message.error(formatError(e)),
   });
 
+  // 行内改价：单价列直接编辑，立即生效并记操作日志
+  const priceMutation = useMutation({
+    mutationFn: (vars: { inventoryId: number; price: number }) =>
+      updateInventoryPrice(vars.inventoryId, vars.price),
+    onSuccess: () => {
+      message.success('单价已更新');
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (e: unknown) => message.error(formatError(e)),
+  });
+
+  // 批量调价弹窗状态
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [priceCategory, setPriceCategory] = useState('');
+  const [priceMode, setPriceMode] = useState<'set' | 'percent'>('set');
+  const [priceValue, setPriceValue] = useState<number | null>(null);
+
+  const batchPriceMutation = useMutation({
+    mutationFn: (vars: { category: string; mode: 'set' | 'percent'; value: number }) =>
+      batchUpdatePrice(vars.category, vars.mode, vars.value),
+    onSuccess: (affected, vars) => {
+      message.success(
+        vars.mode === 'set'
+          ? `已将「${vars.category}」${affected} 个批次单价设为 ¥${vars.value.toFixed(2)}/g`
+          : `已将「${vars.category}」${affected} 个批次单价调整 ${vars.value > 0 ? '+' : ''}${vars.value}%`,
+      );
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setPriceModalOpen(false);
+    },
+    onError: (e: unknown) => message.error(formatError(e)),
+  });
+
+  const handleBatchPriceSubmit = () => {
+    if (!priceCategory) {
+      message.warning('请选择药材分类');
+      return;
+    }
+    if (priceValue === null) {
+      message.warning(priceMode === 'set' ? '请输入目标单价' : '请输入调整幅度');
+      return;
+    }
+    batchPriceMutation.mutate({ category: priceCategory, mode: priceMode, value: priceValue });
+  };
+
+  // 分类下拉选项（来自当前库存数据，去重排序）
+  const categoryOptions = useMemo(
+    () =>
+      [...new Set((data ?? []).map((r) => r.category).filter(Boolean))].sort().map((c) => ({
+        label: c,
+        value: c,
+      })),
+    [data],
+  );
+
   const openModal = (record: Inventory, isIn: boolean) => {
     setTarget(record);
     form.resetFields();
@@ -372,9 +432,25 @@ export default function InventoryPage() {
           title: '单价',
           dataIndex: 'price',
           key: 'price',
-          width: 86,
+          width: 110,
           align: 'right' as const,
-          render: (p: number) => `¥${p.toFixed(2)}`,
+          render: (p: number, record: Inventory) => (
+            <InputNumber
+              key={`${record.id}:${record.price}`}
+              size="small"
+              min={0}
+              step={0.1}
+              defaultValue={Number(p.toFixed(2))}
+              style={{ width: 96 }}
+              onBlur={(e) => {
+                const raw = (e.target as HTMLInputElement).value.trim();
+                if (!raw) return;
+                const v = Number(raw);
+                if (!Number.isFinite(v) || Math.abs(v - p) < 0.005) return;
+                priceMutation.mutate({ inventoryId: record.id!, price: v });
+              }}
+            />
+          ),
         }]
       : []),
     ...(showXxl
@@ -597,13 +673,18 @@ export default function InventoryPage() {
               onSearch={setKeyword}
             />
           </Space>
-          <Button
-            icon={<ExportOutlined />}
-            onClick={handleExportCsv}
-            disabled={filteredData.length === 0}
-          >
-            导出 CSV
-          </Button>
+          <Space>
+            <Button icon={<DollarOutlined />} onClick={() => setPriceModalOpen(true)}>
+              批量调价
+            </Button>
+            <Button
+              icon={<ExportOutlined />}
+              onClick={handleExportCsv}
+              disabled={filteredData.length === 0}
+            >
+              导出 CSV
+            </Button>
+          </Space>
         </Space>
         <Table<Inventory>
           rowKey="id"
@@ -763,6 +844,55 @@ export default function InventoryPage() {
           </Form.Item>
           <Form.Item name="notes" label="备注">
             <Input.TextArea autoSize={{ minRows: 2 }} placeholder="调整原因，如：盘点核实" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 批量调价弹窗 */}
+      <Modal
+        title="按分类批量调价"
+        open={priceModalOpen}
+        onOk={handleBatchPriceSubmit}
+        onCancel={() => setPriceModalOpen(false)}
+        confirmLoading={batchPriceMutation.isPending}
+        okText="确认调价"
+        cancelText="取消"
+        width={460}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="批量调价立即生效并记入操作日志"
+          description="影响所选分类下的全部库存批次；百分比浮动仅对现价大于 0 的批次生效。"
+        />
+        <Form layout="vertical">
+          <Form.Item label="药材分类" required>
+            <Select
+              placeholder="选择分类"
+              style={{ width: '100%' }}
+              showSearch
+              value={priceCategory || undefined}
+              options={categoryOptions}
+              onChange={(v) => setPriceCategory(v ?? '')}
+            />
+          </Form.Item>
+          <Form.Item label="调价方式" required>
+            <Radio.Group value={priceMode} onChange={(e) => setPriceMode(e.target.value)}>
+              <Radio.Button value="set">设为固定价</Radio.Button>
+              <Radio.Button value="percent">按百分比浮动</Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item label={priceMode === 'set' ? '目标单价（元/g）' : '调整幅度（%）'} required>
+            <InputNumber
+              min={priceMode === 'set' ? 0 : -95}
+              max={priceMode === 'set' ? 1_000_000 : 500}
+              step={priceMode === 'set' ? 0.1 : 1}
+              value={priceValue}
+              onChange={(v) => setPriceValue(v)}
+              style={{ width: '100%' }}
+              addonAfter={priceMode === 'set' ? '元/g' : '%'}
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -48,6 +48,8 @@ interface PatientForm {
   patient_age?: number;
   patient_gender: string;
   diagnosis: string;
+  dosage_count: number;
+  usage_method?: string;
   created_by: string;
 }
 
@@ -154,6 +156,8 @@ export default function PrescriptionPage() {
         patient_gender?: string;
         diagnosis?: string;
         created_by?: string;
+        dosage_count?: number;
+        usage_method?: string;
         items: Array<{
           medicine_id: number;
           medicine_name: string;
@@ -169,6 +173,8 @@ export default function PrescriptionPage() {
         patient_gender: payload.patient_gender ?? '',
         diagnosis: payload.diagnosis ?? '',
         created_by: payload.created_by ?? '',
+        dosage_count: payload.dosage_count ?? 1,
+        usage_method: payload.usage_method ?? '',
       });
       setItems(
         payload.items.map((i) => ({
@@ -227,6 +233,8 @@ export default function PrescriptionPage() {
     () => items.reduce((sum, i) => sum + i.amount, 0),
     [items],
   );
+  // 帖数联动：合计金额与库存校验均按 单帖用量 × 帖数 计算
+  const dosageCount = Form.useWatch('dosage_count', form) ?? 1;
 
   const createMutation = useMutation({
     mutationFn: createPrescription,
@@ -398,11 +406,14 @@ export default function PrescriptionPage() {
     invData?.forEach((i) => {
       invMap.set(i.medicine_id, (invMap.get(i.medicine_id) ?? 0) + i.quantity);
     });
-    // 库存预校验：检查每味药跨批次总库存是否足够（FEFO 会跨批次扣减）
+    // 库存预校验：检查每味药跨批次总库存是否足够（按 单帖用量 × 帖数，FEFO 会跨批次扣减）
     const insufficient = items
       .map((i) => {
         const totalQty = invMap.get(i.medicine_id) ?? 0;
-        return totalQty < i.quantity ? `${i.medicine_name}(需${i.quantity}${i.unit}，库存${totalQty}${i.unit})` : null;
+        const demand = i.quantity * dosageCount;
+        return totalQty < demand
+          ? `${i.medicine_name}(需${demand}${i.unit}，库存${totalQty}${i.unit})`
+          : null;
       })
       .filter((s): s is string => s !== null);
     if (insufficient.length > 0) {
@@ -418,7 +429,9 @@ export default function PrescriptionPage() {
         patient_age: values.patient_age ?? null,
         patient_gender: values.patient_gender ?? '',
         diagnosis: values.diagnosis ?? '',
-        total_amount: Number(totalAmount.toFixed(2)),
+        dosage_count: Math.min(999, Math.max(1, Math.round(values.dosage_count ?? 1))),
+        usage_method: (values.usage_method ?? '').trim(),
+        total_amount: Number((totalAmount * dosageCount).toFixed(2)),
         created_by: values.created_by ?? '',
         created_at: createdDate.format('YYYY-MM-DD HH:mm:ss'),
         items: items.map((i) => ({ ...i, amount: Number(i.amount.toFixed(2)) })),
@@ -659,7 +672,7 @@ export default function PrescriptionPage() {
 
         {/* 右侧：处方编辑 */}
         <div className="prescription-edit-panel">
-          <Form form={form} layout="vertical">
+          <Form form={form} layout="vertical" initialValues={{ dosage_count: 1 }}>
             <Space style={{ display: 'flex', width: '100%' }} size="middle" wrap>
               <Form.Item
                 name="patient_name"
@@ -693,6 +706,35 @@ export default function PrescriptionPage() {
                   ]}
                 />
               </Form.Item>
+              <Form.Item
+                name="dosage_count"
+                label="帖数"
+                rules={[{ required: true, message: '请输入帖数' }]}
+                style={{ width: 90 }}
+              >
+                <InputNumber min={1} max={999} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.Item
+                name="usage_method"
+                label="煎服法"
+                style={{ flex: 1, minWidth: 240 }}
+              >
+                <AutoComplete
+                  placeholder="如：水煎服，每日一剂，分早晚温服"
+                  allowClear
+                  options={[
+                    { value: '水煎服，每日一剂，分早晚两次温服' },
+                    { value: '水煎服，每日一剂，分三次温服' },
+                    { value: '水煎服，两日一剂，分早晚温服' },
+                    { value: '水煎服，每日一剂，代煎分袋' },
+                    { value: '研末冲服，每次 3g，每日两次' },
+                    { value: '外用，煎汤熏洗患处' },
+                  ]}
+                  filterOption={(input, option) =>
+                    String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                />
+              </Form.Item>
               <Form.Item name="created_by" label="开方人" style={{ width: 140 }}>
                 <Input placeholder="如：李医生" />
               </Form.Item>
@@ -720,7 +762,8 @@ export default function PrescriptionPage() {
             locale={{ emptyText: <EmptyState title="请添加药材到处方" /> }}
             footer={() => (
               <div style={{ textAlign: 'right', fontWeight: 600 }}>
-                合计：<Text type="danger">¥{totalAmount.toFixed(2)}</Text>
+                合计（单剂 ¥{totalAmount.toFixed(2)} × {dosageCount} 帖）：
+                <Text type="danger">¥{(totalAmount * dosageCount).toFixed(2)}</Text>
               </div>
             )}
           />

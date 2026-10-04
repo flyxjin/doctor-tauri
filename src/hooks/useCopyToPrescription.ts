@@ -29,6 +29,8 @@ export function useCopyToPrescription(onClose?: () => void) {
       patient_gender: record.patient_gender,
       diagnosis: record.diagnosis,
       created_by: record.created_by,
+      dosage_count: record.dosage_count ?? 1,
+      usage_method: record.usage_method ?? '',
       items: record.items.map((i) => ({
         medicine_id: i.medicine_id,
         medicine_name: i.medicine_name,

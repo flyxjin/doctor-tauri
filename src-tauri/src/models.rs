@@ -94,8 +94,18 @@ pub struct Prescription {
     pub total_amount: f64,
     #[serde(default)]
     pub created_by: String,
+    /// 帖数（剂量倍数）：total_amount 与库存出库均按 单帖用量 × 帖数 计算，历史数据为 1
+    #[serde(default = "default_dosage_count")]
+    pub dosage_count: i64,
+    /// 煎服法/用法说明（如"水煎服，每日一剂，分早晚两次温服"）
+    #[serde(default)]
+    pub usage_method: String,
     #[serde(default)]
     pub created_at: Option<String>,
+}
+
+fn default_dosage_count() -> i64 {
+    1
 }
 
 /// 处方明细
