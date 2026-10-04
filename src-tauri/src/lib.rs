@@ -13,6 +13,8 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        // 窗口位置/尺寸记忆：退出时保存，下次启动恢复
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             // 解析用户数据目录并创建数据库文件 medicine_system.db
             let app_data_dir = app
@@ -63,9 +65,16 @@ pub fn run() {
             commands::delete_patient,
             commands::get_patient_prescriptions,
             commands::get_patient_statistics,
+            // 应用设置与我的方剂
+            commands::get_app_settings,
+            commands::set_app_setting,
+            commands::list_my_templates,
+            commands::save_my_template,
+            commands::delete_my_template,
             // 统计与看板
             commands::get_dashboard_data,
             commands::get_statistics,
+            commands::get_doctor_stats,
             // 配伍禁忌
             commands::check_compatibility,
             // 批量导入 / 导出

@@ -15,6 +15,9 @@ vi.mock('@/api/tauri', () => ({
   listInventoryHistory: vi.fn(async () => []),
   updateStock: vi.fn(),
   adjustStock: vi.fn(async () => undefined),
+  updateInventoryPrice: vi.fn(async () => undefined),
+  batchUpdatePrice: vi.fn(async () => 0),
+  getAppSettings: vi.fn(async () => []),
 }));
 
 const inventoryRows = [

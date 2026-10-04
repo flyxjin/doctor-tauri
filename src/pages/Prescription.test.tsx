@@ -17,6 +17,9 @@ vi.mock('@/api/tauri', () => ({
   checkCompatibility: vi.fn(async () => []),
   createPrescription: vi.fn(),
   generatePrescriptionHtml: vi.fn(),
+  listPrescriptions: vi.fn(async () => []),
+  saveMyTemplate: vi.fn(async () => 1),
+  listMyTemplates: vi.fn(async () => []),
 }));
 
 const patients: Patient[] = [

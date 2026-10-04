@@ -281,3 +281,26 @@ export interface PatientStatistics {
   first_visit?: string | null;
   last_visit?: string | null;
 }
+
+/** 应用设置键值对（诊所抬头等） */
+export interface AppSetting {
+  key: string;
+  value: string;
+}
+
+/** 我的方剂（医生个人习惯方），items 为模板明细数组 */
+export interface MyTemplate {
+  id: number | null;
+  name: string;
+  description: string;
+  indication: string;
+  /** 模板明细数组：[{name, quantity, unit}] */
+  items: Array<{ name: string; quantity: number; unit: string }>;
+}
+
+/** 医师开方量统计（按开方人聚合） */
+export interface DoctorStat {
+  created_by: string;
+  prescription_count: number;
+  total_amount: number;
+}

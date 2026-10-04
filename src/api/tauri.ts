@@ -3,18 +3,21 @@
 
 import { invoke, Channel } from '@tauri-apps/api/core';
 import type {
+  AppSetting,
   BackupEntry,
   BackupInfo,
   BatchImportResult,
   CompatibilityConflict,
   CreatePrescriptionInput,
   DashboardData,
+  DoctorStat,
   DownloadProgress,
   ExpiringBatch,
   Inventory,
   InventoryHistory,
   Medicine,
   MedicineImportRecord,
+  MyTemplate,
   OperationLog,
   Patient,
   PatientStatistics,
@@ -189,6 +192,17 @@ export async function getStatistics(
   });
 }
 
+/** 医师开方量统计：按开方人聚合的处方数与金额（指定日期区间） */
+export async function getDoctorStats(
+  startDate: string,
+  endDate: string,
+): Promise<DoctorStat[]> {
+  return invoke<DoctorStat[]>('get_doctor_stats', {
+    startDate,
+    endDate,
+  });
+}
+
 /** 配伍禁忌检查（十八反、十九畏） */
 export async function checkCompatibility(
   medicineNames: string[],
@@ -279,6 +293,43 @@ export async function getPatientStatistics(
   name: string,
 ): Promise<PatientStatistics> {
   return invoke<PatientStatistics>('get_patient_statistics', { id, name });
+}
+
+// ==================== 应用设置与我的方剂 ====================
+
+/** 读取全部应用设置（诊所抬头等） */
+export async function getAppSettings(): Promise<AppSetting[]> {
+  return invoke<AppSetting[]>('get_app_settings');
+}
+
+/** 写入单个应用设置 */
+export async function setAppSetting(key: string, value: string): Promise<void> {
+  return invoke<void>('set_app_setting', { key, value });
+}
+
+/** 我的方剂列表 */
+export async function listMyTemplates(): Promise<MyTemplate[]> {
+  return invoke<MyTemplate[]>('list_my_templates');
+}
+
+/** 保存我的方剂（同名覆盖），返回模板 id */
+export async function saveMyTemplate(
+  name: string,
+  description: string,
+  indication: string,
+  itemsJson: string,
+): Promise<number> {
+  return invoke<number>('save_my_template', {
+    name,
+    description,
+    indication,
+    itemsJson,
+  });
+}
+
+/** 删除我的方剂 */
+export async function deleteMyTemplate(id: number): Promise<void> {
+  return invoke<void>('delete_my_template', { id });
 }
 
 // ==================== 数据备份与恢复 ====================

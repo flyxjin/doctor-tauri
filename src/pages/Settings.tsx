@@ -9,6 +9,8 @@ import {
   Card,
   DatePicker,
   Descriptions,
+  Input,
+  InputNumber,
   Popconfirm,
   Progress,
   Select,
@@ -41,11 +43,13 @@ import {
   downloadImportTemplate,
   downloadUpdate,
   exportMedicinesCsv,
+  getAppSettings,
   installUpdate,
   listBackups,
   listOperationLogs,
   restoreBackup,
   saveTextToDownloads,
+  setAppSetting,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
 import QueryErrorAlert from '@/components/QueryErrorAlert';
@@ -84,6 +88,42 @@ export default function SettingsPage() {
   const { data: backups, isLoading: backupsLoading, isError: backupsError, error: backupsErr, refetch: refetchBackups, isFetching: backupsFetching } = useQuery({
     queryKey: ['backups'],
     queryFn: listBackups,
+  });
+
+  // 诊所信息（打印处方笺抬头）：加载后回填，保存逐键写入 app_settings
+  const { data: appSettings } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: getAppSettings,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [clinicName, setClinicName] = useState('');
+  const [clinicAddress, setClinicAddress] = useState('');
+  const [clinicPhone, setClinicPhone] = useState('');
+  const [expiryWarnDaysInput, setExpiryWarnDaysInput] = useState<string>('30');
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  useEffect(() => {
+    if (!appSettings || settingsLoaded) return;
+    const get = (k: string) => appSettings.find((s) => s.key === k)?.value ?? '';
+    setClinicName(get('clinic_name'));
+    setClinicAddress(get('clinic_address'));
+    setClinicPhone(get('clinic_phone'));
+    setExpiryWarnDaysInput(get('expiry_warn_days') || '30');
+    setSettingsLoaded(true);
+  }, [appSettings, settingsLoaded]);
+
+  const saveClinicMutation = useMutation({
+    mutationFn: async () => {
+      const days = Math.min(365, Math.max(1, Number(expiryWarnDaysInput) || 30));
+      await setAppSetting('expiry_warn_days', String(days));
+      await setAppSetting('clinic_name', clinicName.trim());
+      await setAppSetting('clinic_address', clinicAddress.trim());
+      await setAppSetting('clinic_phone', clinicPhone.trim());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['app-settings'] });
+      message.success('设置已保存：诊所信息将用于打印抬头，效期预警天数即时生效');
+    },
+    onError: (e: unknown) => message.error(formatError(e)),
   });
 
   const { data: operationLogs, isLoading: logsLoading, isError: logsError, error: logsErr, refetch: refetchLogs, isFetching: logsFetching } = useQuery({
@@ -438,6 +478,60 @@ export default function SettingsPage() {
         <h1 className="page-title">系统设置</h1>
         <p className="page-subtitle">管理数据备份、还原与软件更新</p>
       </div>
+
+      {/* 诊所信息（打印处方笺抬头） */}
+      <Card
+        style={{ marginBottom: 16 }}
+        title="诊所信息（打印处方笺抬头）"
+        extra={
+          <Button
+            type="primary"
+            size="small"
+            loading={saveClinicMutation.isPending}
+            onClick={() => saveClinicMutation.mutate()}
+          >
+            保存
+          </Button>
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Input
+            placeholder="诊所名称（如：东方本草中医诊所），打印时作为处方笺大标题"
+            value={clinicName}
+            maxLength={40}
+            onChange={(e) => setClinicName(e.target.value)}
+          />
+          <Space style={{ width: '100%' }} size={12} wrap>
+            <Input
+              placeholder="地址（选填）"
+              value={clinicAddress}
+              maxLength={60}
+              style={{ width: 320 }}
+              onChange={(e) => setClinicAddress(e.target.value)}
+            />
+            <Input
+              placeholder="电话（选填）"
+              value={clinicPhone}
+              maxLength={30}
+              style={{ width: 200 }}
+              onChange={(e) => setClinicPhone(e.target.value)}
+            />
+            <InputNumber
+              min={1}
+              max={365}
+              precision={0}
+              value={Number(expiryWarnDaysInput) || 30}
+              addonBefore="效期预警"
+              addonAfter="天"
+              style={{ width: 180 }}
+              onChange={(v) => setExpiryWarnDaysInput(String(v ?? 30))}
+            />
+          </Space>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            保存后新打印的处方笺会自动带上诊所抬头与联系方式；效期预警天数即时作用于库存页与首页预警。
+          </Text>
+        </Space>
+      </Card>
 
       {/* 当前版本信息 */}
       <Card style={{ marginBottom: 16 }}>

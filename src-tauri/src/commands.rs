@@ -1620,6 +1620,144 @@ pub fn get_patient_statistics(
     })
 }
 
+// ==================== 应用设置与我的方剂 ====================
+
+/// 读取全部应用设置（诊所抬头等，键值对）
+#[tauri::command]
+pub fn get_app_settings(state: State<'_, DbState>) -> Result<Vec<AppSetting>, String> {
+    let conn = state.lock()?;
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM app_settings ORDER BY key")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(AppSetting {
+                key: row.get(0)?,
+                value: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
+}
+
+/// 写入单个应用设置（clinic_name / clinic_address / clinic_phone 等）
+#[tauri::command]
+pub fn set_app_setting(
+    key: String,
+    value: String,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    if key.trim().is_empty() {
+        return Err("设置键不能为空".to_string());
+    }
+    let conn = state.lock()?;
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        params![&key, &value],
+    )
+    .map_err(|e| format!("写入设置失败: {e}"))?;
+    Ok(())
+}
+
+/// 我的方剂列表（医生个人习惯方，按更新时间倒序）
+#[tauri::command]
+pub fn list_my_templates(state: State<'_, DbState>) -> Result<Vec<MyTemplate>, String> {
+    let conn = state.lock()?;
+    let mut stmt = conn
+        .prepare("SELECT id, name, description, indication, items FROM my_templates ORDER BY updated_at DESC, id DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, Option<i64>>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                row.get::<_, String>(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        let (id, name, description, indication, items_str) = r.map_err(|e| e.to_string())?;
+        let items: serde_json::Value =
+            serde_json::from_str(&items_str).unwrap_or(serde_json::Value::Array(vec![]));
+        out.push(MyTemplate {
+            id,
+            name,
+            description,
+            indication,
+            items,
+        });
+    }
+    Ok(out)
+}
+
+/// 保存我的方剂（同名覆盖更新），返回模板 id
+#[tauri::command]
+pub fn save_my_template(
+    name: String,
+    description: String,
+    indication: String,
+    items_json: String,
+    state: State<'_, DbState>,
+) -> Result<i64, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("方剂名称不能为空".to_string());
+    }
+    let items: serde_json::Value =
+        serde_json::from_str(&items_json).map_err(|e| format!("明细数据格式错误: {e}"))?;
+    if items.as_array().map(|a| a.is_empty()).unwrap_or(true) {
+        return Err("至少需要一味药材".to_string());
+    }
+    let conn = state.lock()?;
+    conn.execute(
+        "INSERT INTO my_templates (name, description, indication, items) VALUES (?1,?2,?3,?4)
+         ON CONFLICT(name) DO UPDATE SET
+           description=excluded.description,
+           indication=excluded.indication,
+           items=excluded.items,
+           updated_at=CURRENT_TIMESTAMP",
+        params![&name, &description, &indication, &items_json],
+    )
+    .map_err(|e| format!("保存我的方剂失败: {e}"))?;
+    let id = conn.last_insert_rowid();
+    log_operation(
+        &conn,
+        "CREATE",
+        "my_template",
+        id,
+        &format!("保存我的方剂: {name}"),
+    )?;
+    Ok(id)
+}
+
+/// 删除我的方剂
+#[tauri::command]
+pub fn delete_my_template(id: i64, state: State<'_, DbState>) -> Result<(), String> {
+    let conn = state.lock()?;
+    let changed = conn
+        .execute("DELETE FROM my_templates WHERE id=?1", params![id])
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err(format!("我的方剂 id={id} 不存在"));
+    }
+    log_operation(
+        &conn,
+        "DELETE",
+        "my_template",
+        id,
+        &format!("删除我的方剂 id={id}"),
+    )?;
+    Ok(())
+}
+
 // ==================== 看板与统计 ====================
 
 /// 首页看板数据
@@ -1847,6 +1985,40 @@ pub fn get_statistics(
         top_medicines,
         daily_trend,
     })
+}
+
+/// 医师开方量统计：按开方人聚合的处方数与金额（指定日期区间，最多 20 名）
+#[tauri::command]
+pub fn get_doctor_stats(
+    start_date: String,
+    end_date: String,
+    state: State<'_, DbState>,
+) -> Result<Vec<DoctorStat>, String> {
+    let conn = state.lock()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT COALESCE(NULLIF(created_by,''),'未署名') AS doctor,
+                    COUNT(*) AS cnt,
+                    COALESCE(SUM(total_amount),0) AS amt
+             FROM prescriptions
+             WHERE date(created_at, 'localtime') BETWEEN date(?1) AND date(?2)
+             GROUP BY doctor ORDER BY cnt DESC LIMIT 20",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![&start_date, &end_date], |row| {
+            Ok(DoctorStat {
+                created_by: row.get(0)?,
+                prescription_count: row.get(1)?,
+                total_amount: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
 }
 
 // ==================== 配伍禁忌 ====================
@@ -2341,6 +2513,19 @@ pub fn generate_prescription_html(
 ) -> Result<String, String> {
     let conn = state.lock()?;
 
+    // 诊所抬头（app_settings；未配置时使用默认标题）
+    let read_setting = |key: &str| -> String {
+        conn.query_row(
+            "SELECT value FROM app_settings WHERE key=?1",
+            params![key],
+            |r| r.get::<_, String>(0),
+        )
+        .unwrap_or_default()
+    };
+    let clinic_name = read_setting("clinic_name");
+    let clinic_address = read_setting("clinic_address");
+    let clinic_phone = read_setting("clinic_phone");
+
     let p: Prescription = conn
         .query_row(
             "SELECT id, patient_name, patient_age, patient_gender, diagnosis, total_amount, created_by, created_at, patient_id, dosage_count, usage_method
@@ -2376,6 +2561,31 @@ pub fn generate_prescription_html(
     let age = p.patient_age.map(|a| a.to_string()).unwrap_or_default();
     let created_at = html_escape(p.created_at.as_deref().unwrap_or(""));
     let usage_method = html_escape(&p.usage_method);
+    let clinic_title = if clinic_name.is_empty() {
+        "中药处方笺".to_string()
+    } else {
+        html_escape(&clinic_name)
+    };
+    let clinic_subtitle = if clinic_name.is_empty() {
+        format!("处方笺 #{prescription_id}")
+    } else {
+        format!("中药处方笺 #{prescription_id}")
+    };
+    let clinic_contact = {
+        let parts: Vec<String> = [
+            (!clinic_address.is_empty()).then(|| html_escape(&clinic_address)),
+            (!clinic_phone.is_empty()).then(|| format!("电话：{}", html_escape(&clinic_phone))),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        parts.join(" &nbsp;·&nbsp; ")
+    };
+    let clinic_contact_html = if clinic_contact.is_empty() {
+        String::new()
+    } else {
+        format!(r#"<div class="clinic-contact">{clinic_contact}</div>"#)
+    };
     let usage_display = if usage_method.is_empty() {
         "水煎服".to_string()
     } else {
@@ -2413,6 +2623,7 @@ pub fn generate_prescription_html(
   .subtitle {{ text-align: center; color: #6b7280; font-size: 12px; margin-bottom: 18px; }}
   .meta {{ display: flex; justify-content: space-between; border-bottom: 2px solid #1f2937; padding-bottom: 8px; margin-bottom: 12px; font-size: 14px; }}
   .meta div {{ line-height: 1.8; }}
+  .clinic-contact {{ text-align: center; color: #6b7280; font-size: 12px; margin-bottom: 10px; }}
   .usage {{ font-size: 14px; margin: 2px 0 10px; }}
   table {{ width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }}
   th, td {{ border: 1px solid #d1d5db; padding: 6px 10px; }}
@@ -2424,8 +2635,9 @@ pub fn generate_prescription_html(
 </style>
 </head>
 <body>
-  <h1>中药处方笺</h1>
-  <div class="subtitle"> 处方笺 #{id} </div>
+  <h1>{clinic_title}</h1>
+  <div class="subtitle"> {clinic_subtitle} </div>
+  {clinic_contact_html}
   <div class="meta">
     <div>
       <div>患者姓名：<b>{patient_name}</b></div>
@@ -2468,6 +2680,9 @@ pub fn generate_prescription_html(
         diagnosis = diagnosis,
         created_by = created_by,
         created_at = created_at,
+        clinic_title = clinic_title,
+        clinic_subtitle = clinic_subtitle,
+        clinic_contact_html = clinic_contact_html,
         dosage_count = p.dosage_count,
         usage_display = usage_display,
         rows_html = rows_html,

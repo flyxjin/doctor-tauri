@@ -65,6 +65,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "014_prescription_dosage",
         include_str!("../migrations/014_prescription_dosage.sql"),
     ),
+    (
+        "015_settings_my_templates",
+        include_str!("../migrations/015_settings_my_templates.sql"),
+    ),
 ];
 
 /// 统一的连接级 PRAGMA 调优配置（new/reopen 共用，避免两处配置漂移）
@@ -236,15 +240,15 @@ mod tests {
             !tables.contains(&"data_version".to_string()),
             "data_version 死表应已被 011 迁移删除"
         );
-        // 业务表数量恰好 8 张
+        // 业务表数量恰好 10 张（001 六张 + 003 patients + 009 批次回扣 + 015 设置/我的方剂）
         let business_tables: Vec<_> = tables
             .iter()
             .filter(|t| !t.starts_with("sqlite_") && t.as_str() != "schema_migrations")
             .collect();
         assert_eq!(
             business_tables.len(),
-            8,
-            "业务表应为 8 张: {business_tables:?}"
+            10,
+            "业务表应为 10 张: {business_tables:?}"
         );
     }
 

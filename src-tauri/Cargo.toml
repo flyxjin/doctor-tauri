@@ -1,6 +1,6 @@
 [package]
 name = "medicine-system"
-version = "1.10.0"
+version = "1.11.0"
 description = "中药材销售管理系统"
 authors = ["medicine-system"]
 edition = "2021"
@@ -20,6 +20,8 @@ tauri-build = { version = "2.0", features = [] }
 [dependencies]
 tauri = { version = "2.0", features = [] }
 tauri-plugin-shell = "2.0"
+# 窗口位置/尺寸记忆：关闭时保存，下次启动恢复
+tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.31", features = ["bundled"] }

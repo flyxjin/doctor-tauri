@@ -47,8 +47,8 @@ function getQuickRange(key: QuickKey): [Dayjs, Dayjs] {
       return [dayjs('2020-01-01'), today.endOf('day')];
   }
 }
-import { getStatistics } from '@/api/tauri';
-import type { DailyTrend, TopMedicine } from '@/types';
+import { getDoctorStats, getStatistics } from '@/api/tauri';
+import type { DailyTrend, DoctorStat, TopMedicine } from '@/types';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import TrendChart from '@/components/TrendChart';
@@ -75,6 +75,33 @@ export default function StatisticsPage() {
     queryFn: () => getStatistics(startDate, endDate),
     staleTime: 2 * 60 * 1000,
   });
+
+  // 医师开方量：按开方人聚合（与上方统计共用日期区间）
+  const { data: doctorStats, isLoading: doctorStatsLoading } = useQuery({
+    queryKey: ['doctor-stats', startDate, endDate],
+    queryFn: () => getDoctorStats(startDate, endDate),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const doctorColumns: ColumnsType<DoctorStat> = [
+    { title: '医师', dataIndex: 'created_by', key: 'created_by' },
+    {
+      title: '处方数',
+      dataIndex: 'prescription_count',
+      key: 'prescription_count',
+      width: 100,
+      align: 'right',
+      render: (v: number) => <Tag color="blue">{v}</Tag>,
+    },
+    {
+      title: '总金额',
+      dataIndex: 'total_amount',
+      key: 'total_amount',
+      width: 120,
+      align: 'right',
+      render: (v: number) => `¥${v.toFixed(2)}`,
+    },
+  ];
 
   const handleQuickRange = (key: QuickKey) => {
     setRange(getQuickRange(key));
@@ -288,6 +315,26 @@ export default function StatisticsPage() {
             }}
           />
         </div>
+      </div>
+
+      <div className="table-card" style={{ marginTop: 16 }}>
+        <div className="table-title">医师开方量 TOP 20</div>
+        <Table<DoctorStat>
+          rowKey="created_by"
+          size="small"
+          loading={doctorStatsLoading}
+          columns={doctorColumns}
+          dataSource={doctorStats ?? []}
+          pagination={false}
+          locale={{
+            emptyText: (
+              <EmptyState
+                title="区间内无开方记录"
+                description="调整时间范围或确认是否已开具处方"
+              />
+            ),
+          }}
+        />
       </div>
     </div>
   );

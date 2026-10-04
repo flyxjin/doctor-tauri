@@ -42,6 +42,7 @@ import {
   adjustStock,
   updateInventoryPrice,
   batchUpdatePrice,
+  getAppSettings,
 } from '@/api/tauri';
 import { formatError } from '@/utils/formatError';
 import {
@@ -96,10 +97,19 @@ export default function InventoryPage() {
     staleTime: 60 * 1000,
   });
 
-  // 效期预警批次（30 天内到期或已过期）
+  // 效期预警阈值：可由设置页配置（app_settings.expiry_warn_days），缺省 30 天
+  const { data: appSettings } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: getAppSettings,
+    staleTime: 5 * 60 * 1000,
+  });
+  const expiryWarnDays =
+    Number(appSettings?.find((s) => s.key === 'expiry_warn_days')?.value) || EXPIRY_WARN_DAYS;
+
+  // 效期预警批次（阈值内到期或已过期）
   const { data: expiringData } = useQuery({
-    queryKey: ['expiring-batches', EXPIRY_WARN_DAYS],
-    queryFn: () => listExpiringBatches(EXPIRY_WARN_DAYS),
+    queryKey: ['expiring-batches', expiryWarnDays],
+    queryFn: () => listExpiringBatches(expiryWarnDays),
     staleTime: 60 * 1000,
   });
 
@@ -136,10 +146,10 @@ export default function InventoryPage() {
   // 近效期批次数（用于筛选标签计数）
   const expiringCount = useMemo(() => {
     return (data ?? []).filter((i) => {
-      const st = expiryStatus(i.expiry_date);
+      const st = expiryStatus(i.expiry_date, expiryWarnDays);
       return st === 'expired' || st === 'near';
     }).length;
-  }, [data]);
+  }, [data, expiryWarnDays]);
 
   // 筛选：按模式 + 关键字
   const filteredData = useMemo(() => {
@@ -159,9 +169,9 @@ export default function InventoryPage() {
       }
       list = list.filter((i) => zeroIds.has(i.medicine_id));
     } else if (filterMode === 'expiring') {
-      // 近效期：批次已过期或 30 天内到期
+      // 近效期：批次已过期或阈值天内到期
       list = list.filter((i) => {
-        const st = expiryStatus(i.expiry_date);
+        const st = expiryStatus(i.expiry_date, expiryWarnDays);
         return st === 'expired' || st === 'near';
       });
     }
@@ -175,7 +185,7 @@ export default function InventoryPage() {
       );
     }
     return list;
-  }, [data, filterMode, keyword, medicineSummary]);
+  }, [data, filterMode, keyword, medicineSummary, expiryWarnDays]);
 
   const mutation = useMutation({
     mutationFn: (vars: { medicineId: number; form: StockForm }) =>
@@ -391,7 +401,7 @@ export default function InventoryPage() {
       key: 'expiry_date',
       width: 110,
       render: (d: string | null) => {
-        const st = expiryStatus(d);
+        const st = expiryStatus(d, expiryWarnDays);
         if (st === 'none') return <Text type="secondary">—</Text>;
         if (st === 'expired') {
           return (
@@ -600,7 +610,7 @@ export default function InventoryPage() {
               {expiringData.slice(0, 5).map((b) => (
                 <Tag
                   key={b.id}
-                  color={expiryStatus(b.expiry_date) === 'expired' ? 'red' : 'orange'}
+                  color={expiryStatus(b.expiry_date, expiryWarnDays) === 'expired' ? 'red' : 'orange'}
                 >
                   {b.medicine_name} · {b.batch_no} · {b.expiry_date} · {b.quantity}
                   {b.unit}

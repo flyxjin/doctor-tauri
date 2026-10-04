@@ -108,6 +108,27 @@ fn default_dosage_count() -> i64 {
     1
 }
 
+/// 应用设置键值对（诊所抬头等）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSetting {
+    pub key: String,
+    pub value: String,
+}
+
+/// 我的方剂（医生个人习惯方，items 为模板明细数组）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MyTemplate {
+    pub id: Option<i64>,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub indication: String,
+    /// 模板明细 JSON 数组：[{name, quantity, unit}]
+    #[serde(default)]
+    pub items: serde_json::Value,
+}
+
 /// 处方明细
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrescriptionItem {
@@ -261,6 +282,15 @@ pub struct StatisticsData {
     pub summary: StatisticsSummary,
     pub top_medicines: Vec<TopMedicine>,
     pub daily_trend: Vec<DailyTrend>,
+}
+
+/// 医师开方量统计（按开方人聚合）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DoctorStat {
+    /// 开方人姓名（未署名时显示"未署名"）
+    pub created_by: String,
+    pub prescription_count: i64,
+    pub total_amount: f64,
 }
 
 // ==================== 批量导入 / 导出 ====================

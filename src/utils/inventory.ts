@@ -14,17 +14,20 @@ export type ExpiryStatus = 'expired' | 'near' | 'ok' | 'none';
 /**
  * 判断批次效期状态：
  * - expired：已过期
- * - near：近效期（EXPIRY_WARN_DAYS 天内到期）
+ * - near：近效期（warnDays 天内到期，默认 EXPIRY_WARN_DAYS，可由设置页配置）
  * - ok：正常
  * - none：无期或日期无效
  */
-export function expiryStatus(dateStr?: string | null): ExpiryStatus {
+export function expiryStatus(
+  dateStr?: string | null,
+  warnDays: number = EXPIRY_WARN_DAYS,
+): ExpiryStatus {
   if (!dateStr) return 'none';
   const d = dayjs(dateStr);
   if (!d.isValid()) return 'none';
   const today = dayjs().startOf('day');
   if (d.isBefore(today)) return 'expired';
-  if (d.isBefore(today.add(EXPIRY_WARN_DAYS, 'day'))) return 'near';
+  if (d.isBefore(today.add(warnDays, 'day'))) return 'near';
   return 'ok';
 }
 

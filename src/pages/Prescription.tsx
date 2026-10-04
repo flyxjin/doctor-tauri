@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Popconfirm,
   Select,
   Space,
@@ -18,8 +19,9 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { BookOutlined, DeleteOutlined, PrinterOutlined, WarningOutlined } from '@ant-design/icons';
+import { BookOutlined, DeleteOutlined, PrinterOutlined, SaveOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { pinyin } from 'pinyin-pro';
 import {
   checkCompatibility,
   createPrescription,
@@ -27,6 +29,8 @@ import {
   listInventory,
   listMedicines,
   listPatients,
+  listPrescriptions,
+  saveMyTemplate,
 } from '@/api/tauri';
 import EmptyState from '@/components/EmptyState';
 import QueryErrorAlert from '@/components/QueryErrorAlert';
@@ -37,7 +41,7 @@ import { aggregateInventory } from '@/utils/inventory';
 import { checkAllergy } from '@/utils/allergy';
 import { parseDefaultDosage } from '@/utils/dosage';
 import { setUnsavedChanges } from '@/utils/unsavedGuard';
-import type { Medicine, Patient, PrescriptionItem } from '@/types';
+import type { Medicine, Patient, PrescriptionItem, PrescriptionWithItems } from '@/types';
 import type { PrescriptionTemplate } from '@/services/templateService';
 import { PRESCRIPTION_COPY_KEY } from '@/constants/prescription';
 
@@ -80,10 +84,11 @@ export default function PrescriptionPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // 药材搜索（4 元 key 与 MedicineList 页保持一致，共用同一份缓存）
+  // 药材搜索：整库拉取 + 前端三路过滤（药材名/别名/拼音码），
+  // 支持拼音首字母（如 dh→大黄/当归）与全拼检索；4 元 key 与 MedicineList 页共用缓存
   const { data: medicines, isError: medicinesError, error: medicinesErr, refetch: refetchMedicines, isFetching: medicinesFetching } = useQuery({
-    queryKey: ['medicines', keyword, undefined, undefined],
-    queryFn: () => listMedicines(keyword || undefined, undefined),
+    queryKey: ['medicines', undefined, undefined, undefined],
+    queryFn: () => listMedicines(undefined, undefined),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -96,6 +101,44 @@ export default function PrescriptionPage() {
 
   // 库存按药材聚合（一药多批后取总量与首批次价格/单位）
   const inventoryMap = useMemo(() => aggregateInventory(inventory ?? []), [inventory]);
+
+  // 拼音码索引：药材名 → 全拼 / 首字母（如 甘草 → gancao / gc）
+  const medicinePinyin = useMemo(() => {
+    const map = new Map<number, { full: string; initials: string }>();
+    for (const m of medicines ?? []) {
+      if (m.id === null) continue;
+      try {
+        map.set(m.id, {
+          full: pinyin(m.name, { toneType: 'none', type: 'array' }).join('').toLowerCase(),
+          initials: pinyin(m.name, { pattern: 'first', toneType: 'none', type: 'array' })
+            .join('')
+            .toLowerCase(),
+        });
+      } catch {
+        // 拼音转换失败不影响主流程（仍可按名称/别名匹配）
+      }
+    }
+    return map;
+  }, [medicines]);
+
+  // 检索面板可见药材：名称/别名/分类/拼音码/拼音首字母 三路匹配
+  const visibleMedicines = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    const list = medicines ?? [];
+    if (!kw) return list;
+    return list.filter((m) => {
+      if (
+        m.name.toLowerCase().includes(kw) ||
+        (m.alias ?? '').toLowerCase().includes(kw) ||
+        (m.category ?? '').toLowerCase().includes(kw)
+      ) {
+        return true;
+      }
+      if (m.id === null) return false;
+      const py = medicinePinyin.get(m.id);
+      return py ? py.full.includes(kw) || py.initials.includes(kw) : false;
+    });
+  }, [medicines, keyword, medicinePinyin]);
 
   // 患者姓名 AutoComplete 选项（显示姓名+年龄，选中后回填年龄/性别/过敏史）
   const patientOptions = useMemo(() => {
@@ -381,6 +424,96 @@ export default function PrescriptionPage() {
     return matches.length === 1 ? matches[0].id ?? null : null;
   };
 
+  // 复诊动线：患者姓名与档案唯一匹配时，取其最近 3 张处方供一键载入
+  const patientNameWatch = Form.useWatch('patient_name', form);
+  const diagnosisWatch = Form.useWatch('diagnosis', form);
+  const recentPrescriptions = useQuery({
+    queryKey: ['patient-recent', patientNameWatch ?? ''],
+    queryFn: async () => {
+      const list = await listPrescriptions(
+        patientNameWatch || undefined,
+        undefined,
+        undefined,
+        20,
+      );
+      return list.filter((p) => p.patient_name === patientNameWatch).slice(0, 3);
+    },
+    enabled: !!patientNameWatch,
+    staleTime: 30 * 1000,
+  });
+
+  // 一键载入历史处方（复诊复用）：表头 + 明细 + 帖数/煎服法一并带出
+  const loadPrescriptionRecord = (record: PrescriptionWithItems) => {
+    const apply = () => {
+      form.setFieldsValue({
+        patient_name: record.patient_name,
+        patient_age: record.patient_age ?? undefined,
+        patient_gender: record.patient_gender,
+        diagnosis: record.diagnosis,
+        created_by: record.created_by,
+        dosage_count: record.dosage_count ?? 1,
+        usage_method: record.usage_method ?? '',
+      });
+      setItems(
+        record.items.map((i) => ({
+          ...i,
+          amount: Number((i.quantity * i.price).toFixed(2)),
+        })),
+      );
+      setCreatedDate(dayjs());
+      setLastCreatedId(null);
+      const matchedPatient = (patients ?? []).find((p) => p.name === record.patient_name);
+      setPatientAllergy(matchedPatient?.allergy ?? null);
+      message.success(`已载入处方 #${record.id}（${record.items.length} 味），请核对后保存`);
+    };
+    if (items.length > 0) {
+      modal.confirm({
+        title: '覆盖当前处方？',
+        content: '载入历史处方将替换当前已录入的药材与表单内容',
+        okText: '覆盖',
+        cancelText: '取消',
+        onOk: apply,
+      });
+    } else {
+      apply();
+    }
+  };
+
+  // 另存为我的方剂：把当前处方保存为个人模板（同名覆盖）
+  const [saveTplOpen, setSaveTplOpen] = useState(false);
+  const [saveTplName, setSaveTplName] = useState('');
+  const saveTplMutation = useMutation({
+    mutationFn: (vars: { name: string }) =>
+      saveMyTemplate(
+        vars.name,
+        diagnosisWatch ?? '',
+        diagnosisWatch ?? '',
+        JSON.stringify(
+          items.map((i) => ({ name: i.medicine_name, quantity: i.quantity, unit: i.unit })),
+        ),
+      ),
+    onSuccess: (_id, vars) => {
+      message.success(`已保存为我的方剂「${vars.name}」，可在方剂模板中调用`);
+      queryClient.invalidateQueries({ queryKey: ['my-templates'] });
+      setSaveTplOpen(false);
+    },
+    onError: (e: unknown) => message.error(formatError(e)),
+  });
+
+  const handleOpenSaveTpl = () => {
+    setSaveTplName((diagnosisWatch ?? '').slice(0, 20));
+    setSaveTplOpen(true);
+  };
+
+  const handleSaveTplSubmit = () => {
+    const name = saveTplName.trim();
+    if (!name) {
+      message.warning('请输入模板名称');
+      return;
+    }
+    saveTplMutation.mutate({ name });
+  };
+
   const handleSubmit = async () => {
     // 防重入：快捷键/按钮连点时避免重复创建处方
     if (createMutation.isPending) return;
@@ -644,14 +777,14 @@ export default function PrescriptionPage() {
             方剂模板
           </Button>
           <Input.Search
-            placeholder="搜索药材"
+            placeholder="搜索药材（支持拼音首字母，如 dh）"
             allowClear
-            onSearch={setKeyword}
+            onChange={(e) => setKeyword(e.target.value)}
             style={{ marginBottom: 8 }}
           />
           <div>
-            {medicines && medicines.length > 0 ? (
-              medicines.map((m) => (
+            {visibleMedicines.length > 0 ? (
+              visibleMedicines.map((m) => (
                 <div
                   key={m.id}
                   className="medicine-search-item"
@@ -751,6 +884,31 @@ export default function PrescriptionPage() {
             </Form.Item>
           </Form>
 
+          {/* 复诊动线：最近处方一键载入 */}
+          {(recentPrescriptions.data?.length ?? 0) > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                该患者最近处方（点击载入）：
+              </Text>
+              <div style={{ marginTop: 6 }}>
+                <Space size={8} wrap>
+                  {recentPrescriptions.data!.map((r) => (
+                    <Button
+                      key={r.id}
+                      size="small"
+                      onClick={() => loadPrescriptionRecord(r)}
+                      title={r.usage_method || '水煎服'}
+                    >
+                      #{r.id} · {dayjs(r.created_at).format('MM-DD')} · {r.items.length}味 · ¥
+                      {r.total_amount.toFixed(2)}
+                      {r.diagnosis ? ` · ${r.diagnosis.slice(0, 10)}` : ''}
+                    </Button>
+                  ))}
+                </Space>
+              </div>
+            </div>
+          )}
+
           <Divider style={{ margin: '8px 0 12px' }} />
 
           <Table<PrescriptionItem>
@@ -792,6 +950,13 @@ export default function PrescriptionPage() {
                 </Button>
               </Popconfirm>
               <Button
+                icon={<SaveOutlined />}
+                disabled={items.length === 0}
+                onClick={handleOpenSaveTpl}
+              >
+                另存为我的方剂
+              </Button>
+              <Button
                 type="primary"
                 loading={createMutation.isPending}
                 onClick={handleSubmit}
@@ -812,6 +977,34 @@ export default function PrescriptionPage() {
           </div>
         </div>
       </div>
+
+      {/* 另存为我的方剂弹窗 */}
+      <Modal
+        title="另存为我的方剂"
+        open={saveTplOpen}
+        onCancel={() => setSaveTplOpen(false)}
+        onOk={handleSaveTplSubmit}
+        confirmLoading={saveTplMutation.isPending}
+        okText="保存模板"
+        cancelText="取消"
+        width={420}
+      >
+        <Form layout="vertical">
+          <Form.Item label="模板名称" required style={{ marginBottom: 8 }}>
+            <Input
+              value={saveTplName}
+              maxLength={30}
+              placeholder="如：小儿咳嗽经验方"
+              onChange={(e) => setSaveTplName(e.target.value)}
+            />
+          </Form.Item>
+        </Form>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          将把当前 {items.length} 味药材及剂量保存为个人模板
+          {diagnosisWatch ? `（主治：${diagnosisWatch.slice(0, 30)}）` : ''}；
+          同名模板会被覆盖，可在「方剂模板」中选择"我的方剂"分类查看。
+        </Text>
+      </Modal>
 
       <TemplateSelector
         open={templateOpen}
