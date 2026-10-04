@@ -304,3 +304,11 @@ export interface DoctorStat {
   prescription_count: number;
   total_amount: number;
 }
+
+/** 旧版（perMachine 管理员安装）残留信息 */
+export interface LegacyInstall {
+  install_location: string;
+  display_version: string;
+  /** 当前运行的 exe 是否位于旧安装目录内（true = 尚未迁移到新版安装方式） */
+  running_from_legacy: boolean;
+}

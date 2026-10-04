@@ -540,6 +540,92 @@ fn pad_segments(v: &[u64], len: usize) -> Vec<u64> {
     result
 }
 
+// ==================== 旧版（perMachine 管理员安装）迁移 ====================
+//
+// 背景：v1.11.0 及之前采用 perMachine 安装（HKLM 注册、需管理员），每次静默
+// 更新都会触发 UAC 提权弹窗。v1.12.0 起切换为 currentUser（按用户安装、免提权）。
+// 存量用户迁移：新版安装器找不到旧 HKLM 记录，会装入用户目录形成双份安装，
+// 旧桌面/开始菜单图标仍指向旧版（版本永远落后、反复提示更新），因此需要
+// 一次性检测 + 引导清理。
+//
+// 清理方式：不代为执行旧卸载程序（避免从注册表数据派生命令执行），而是
+// 通过系统壳打开 Windows「安装的应用」面板，由用户走标准卸载流程。
+
+/// 旧版（管理员/全机安装）残留信息
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LegacyInstall {
+    pub install_location: String,
+    pub display_version: String,
+    /// 当前运行的 exe 是否位于旧安装目录内（true = 尚未迁移到新版安装方式）
+    pub running_from_legacy: bool,
+}
+
+/// 检测旧版（perMachine/HKLM 管理员安装）残留。
+/// 只认定 HKLM 机器级登记为旧版；HKCU 登记是新版（currentUser）自身。
+#[tauri::command]
+pub fn detect_legacy_install(
+    app_handle: tauri::AppHandle,
+) -> Result<Option<LegacyInstall>, String> {
+    #[cfg(windows)]
+    {
+        let product = app_handle.config().product_name.clone().unwrap_or_default();
+        Ok(detect_legacy_install_win(&product))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = &app_handle;
+        Ok(None)
+    }
+}
+
+/// 打开 Windows「安装的应用」系统面板，引导用户卸载旧版本残留
+#[tauri::command]
+pub fn open_uninstall_panel(app_handle: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app_handle
+        .opener()
+        .open_url("ms-settings:appsfeatures", None::<&str>)
+        .map_err(|e| format!("打开系统应用面板失败: {e}"))
+}
+
+#[cfg(windows)]
+fn detect_legacy_install_win(product: &str) -> Option<LegacyInstall> {
+    use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
+    use winreg::RegKey;
+
+    if product.trim().is_empty() {
+        return None;
+    }
+    let sub = format!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{product}");
+    // HKLM（perMachine 旧版登记处）优先；HKCU 是新版（currentUser）自身
+    let Ok(hk) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(&sub, KEY_READ) else {
+        return None;
+    };
+    // 有 UninstallString 才认定为有效安装登记
+    let uninstall_hint: String = hk.get_value("UninstallString").unwrap_or_default();
+    if uninstall_hint.trim().is_empty() {
+        return None;
+    }
+    let install_location: String = hk.get_value("InstallLocation").unwrap_or_default();
+    let display_version: String = hk.get_value("DisplayVersion").unwrap_or_default();
+    // 当前 exe 是否在旧安装目录内（大小写不敏感，容忍尾部路径分隔符差异）
+    let loc_norm = install_location
+        .trim_end_matches(['\\', '/'])
+        .to_lowercase();
+    let running_from_legacy = std::env::current_exe()
+        .ok()
+        .map(|p| {
+            let exe = p.to_string_lossy().to_lowercase();
+            !loc_norm.is_empty() && exe.starts_with(&loc_norm)
+        })
+        .unwrap_or(false);
+    Some(LegacyInstall {
+        install_location,
+        display_version,
+        running_from_legacy,
+    })
+}
+
 // ==================== 单元测试 ====================
 
 #[cfg(test)]

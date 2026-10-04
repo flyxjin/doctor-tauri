@@ -18,12 +18,20 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { checkAndDownloadSilently, installUpdate, listBackups } from '@/api/tauri';
+import { useQuery } from '@tanstack/react-query';
+import {
+  checkAndDownloadSilently,
+  detectLegacyInstall,
+  installUpdate,
+  listBackups,
+  openUninstallPanel,
+} from '@/api/tauri';
 import { formatFileSize } from '@/utils/format';
 import { formatError } from '@/utils/formatError';
 import { hasUnsavedChanges } from '@/utils/unsavedGuard';
 import { APP_VERSION } from '@/constants/version';
 import { useThemeMode } from '@/theme/ThemeContext';
+import type { LegacyInstall } from '@/types';
 
 const { Header, Sider, Content } = Layout;
 const { Paragraph, Text } = Typography;
@@ -83,6 +91,15 @@ export default function MainLayout() {
   const [openKeys, setOpenKeys] = useState<string[]>(['grp-business', 'grp-data']);
   // 内容区滚动容器：页面高度变化与切页滚动复位都发生在这里，窗口/侧栏不滚动
   const contentRef = useRef<HTMLElement>(null);
+
+  // 旧版（管理员安装）残留检测：用于更新弹窗的迁移提示与一次性清理引导
+  const { data: legacyInstall } = useQuery({
+    queryKey: ['legacy-install'],
+    queryFn: detectLegacyInstall,
+    staleTime: 60 * 1000,
+  });
+  const legacyInstallRef = useRef<LegacyInstall | null>(null);
+  legacyInstallRef.current = legacyInstall ?? null;
 
   // 路由切换时内容区回到顶部（滚动容器是 Content，须手动复位）
   useEffect(() => {
@@ -190,6 +207,12 @@ export default function MainLayout() {
                   <Paragraph type="secondary" style={{ marginBottom: 0 }}>
                     点击「立即更新」将自动静默安装并重启应用，期间请勿关闭程序。
                   </Paragraph>
+                  {legacyInstallRef.current?.running_from_legacy && (
+                    <Paragraph type="warning" style={{ marginBottom: 0 }}>
+                      提示：本次更新将切换为免管理员安装方式（安装到当前用户目录）。
+                      更新完成后请从新的桌面/开始菜单图标启动；旧图标可按提示清理。
+                    </Paragraph>
+                  )}
                 </div>
               ),
               okText: '立即更新',
@@ -226,6 +249,42 @@ export default function MainLayout() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 旧版残留清理引导：已在运行新版且检测到旧版（管理员安装）残留时，一次性提示
+  useEffect(() => {
+    if (!legacyInstall || legacyInstall.running_from_legacy) return;
+    if (localStorage.getItem('legacy-cleanup-dismissed') === '1') return;
+    const dismiss = () => localStorage.setItem('legacy-cleanup-dismissed', '1');
+    modal.confirm({
+      title: '检测到旧版本残留',
+      width: 500,
+      content: (
+        <div>
+          <Paragraph>
+            发现旧版（{legacyInstall.display_version || '未知版本'}）安装在{' '}
+            <Text strong>{legacyInstall.install_location || '旧目录'}</Text>。
+            新版本已改为免管理员安装方式，旧版本不会再被更新。
+          </Paragraph>
+          <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            建议打开系统「安装的应用」面板，卸载列表中的旧版本「中药材销售管理系统」
+            以免混淆。选择"暂不"后此提示不再出现。
+          </Paragraph>
+        </div>
+      ),
+      okText: '打开系统卸载面板',
+      cancelText: '暂不，不再提示',
+      onOk: async () => {
+        try {
+          await openUninstallPanel();
+        } catch (e) {
+          message.error(formatError(e));
+        }
+        dismiss();
+      },
+      onCancel: dismiss,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacyInstall]);
 
   const selectedKey = useMemo(() => {
     const path = location.pathname;

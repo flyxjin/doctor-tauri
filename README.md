@@ -62,7 +62,7 @@ npm run tauri:build
 - **NSIS 安装包**：`src-tauri/target/release/bundle/nsis/中药材销售管理系统_1.1.0_x64-setup.exe`（约 3 MB）
 - **便携 EXE**：`src-tauri/target/release/medicine-system.exe`（约 7 MB）
 
-> NSIS 安装包采用 `perMachine` 模式，安装到 `Program Files`（所有用户可用），简体中文向导，运行时自动请求 UAC 提权，支持 `/S` 静默安装参数。
+> NSIS 安装包采用 `currentUser` 模式（v1.12.0 起），安装到当前用户的应用目录（**无需管理员权限**，更新全程免 UAC 弹窗），简体中文向导，支持 `/S` 静默安装参数。旧版（v1.11.0 及之前）为 `perMachine` 全机安装，升级后软件会自动检测旧版残留并引导清理。
 
 ### 版本号同步
 

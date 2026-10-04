@@ -13,6 +13,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         // 窗口位置/尺寸记忆：退出时保存，下次启动恢复
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
@@ -96,6 +97,9 @@ pub fn run() {
             updater::download_update,
             updater::install_update,
             updater::check_and_download_silently,
+            // 旧版（perMachine）安装迁移
+            updater::detect_legacy_install,
+            updater::open_uninstall_panel,
         ])
         .run(tauri::generate_context!())
         .expect("运行 Tauri 应用时发生错误");

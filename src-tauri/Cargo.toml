@@ -1,6 +1,6 @@
 [package]
 name = "medicine-system"
-version = "1.11.0"
+version = "1.12.0"
 description = "中药材销售管理系统"
 authors = ["medicine-system"]
 edition = "2021"
@@ -20,6 +20,8 @@ tauri-build = { version = "2.0", features = [] }
 [dependencies]
 tauri = { version = "2.0", features = [] }
 tauri-plugin-shell = "2.0"
+# 引导旧版迁移：打开系统「安装的应用」面板
+tauri-plugin-opener = "2"
 # 窗口位置/尺寸记忆：关闭时保存，下次启动恢复
 tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
@@ -32,6 +34,10 @@ futures-util = "0.3"
 tokio = { version = "1", features = ["fs", "io-util", "rt"] }
 # 备份文件 SHA256 校验
 sha2 = "0.10"
+
+# 旧版（perMachine）安装残留检测：读 Windows 卸载注册表（仅 Windows 编译）
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
 
 # 可选：通过 tauri-plugin-sql 暴露 SQL 能力给前端（本项目后端直接使用 rusqlite，默认不启用）
 tauri-plugin-sql = { version = "2.0", features = ["sqlite"], optional = true }

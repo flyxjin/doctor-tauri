@@ -15,6 +15,7 @@ import type {
   ExpiringBatch,
   Inventory,
   InventoryHistory,
+  LegacyInstall,
   Medicine,
   MedicineImportRecord,
   MyTemplate,
@@ -330,6 +331,18 @@ export async function saveMyTemplate(
 /** 删除我的方剂 */
 export async function deleteMyTemplate(id: number): Promise<void> {
   return invoke<void>('delete_my_template', { id });
+}
+
+// ==================== 旧版安装迁移 ====================
+
+/** 检测旧版（perMachine 管理员安装）残留；未检测到返回 null */
+export async function detectLegacyInstall(): Promise<LegacyInstall | null> {
+  return invoke<LegacyInstall | null>('detect_legacy_install');
+}
+
+/** 打开 Windows「安装的应用」面板，引导用户卸载旧版本残留 */
+export async function openUninstallPanel(): Promise<void> {
+  return invoke<void>('open_uninstall_panel');
 }
 
 // ==================== 数据备份与恢复 ====================
